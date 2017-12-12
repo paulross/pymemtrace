@@ -1,0 +1,4 @@
+eclipse.preferences.version=1
+encoding//pymemtrace/__init__.py=utf-8
+encoding//pymemtrace/pymemtrace.py=utf-8
+encoding//tests/test_pymemtrace.py=utf-8
