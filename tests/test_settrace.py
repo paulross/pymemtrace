@@ -12,12 +12,15 @@ import sys
 
 import pytest
 
+TRACE_TO_STDOUT = False
+
 # RecordTraceEvents accumulates a list of these
 TraceRecord = collections.namedtuple(
     'TraceRecord', 'filename, function, lineno, lineno_code, event, arg'
 )
 TraceRecord.__doc__ += ': Data from an event seen by sys.setprofile() or sys.settrace()'
 TraceRecord.filename.__doc__ = 'Absolute file path as a string.' 
+TraceRecord.function.__doc__ = 'Function (unqualified) name as a string.' 
 TraceRecord.lineno.__doc__ = 'Line number of the event as an int.'
 TraceRecord.lineno_code.__doc__ = 'Line number of the start of the function' \
     ' or generator where the event is as an int. This is constant per function' \
@@ -106,10 +109,11 @@ def test_simple_function():
 
     with RecordTraceEvents(('call', 'return')) as rte:
         assert simple_function_double(14) == 28
-    print()
-#     pprint.pprint(rte.records)
-    print(rte)
-    print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
+    if TRACE_TO_STDOUT:
+        print()
+#         pprint.pprint(rte.records)
+        print(rte)
+        print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
     assert len(rte.records) == 2
 
 def test_simple_function_multiple_returns():
@@ -124,10 +128,11 @@ def test_simple_function_multiple_returns():
         assert function_multiple_returns(14) == 1
         assert function_multiple_returns(-14) == -1
         assert function_multiple_returns(0) == 0
-    print()
-#     pprint.pprint(rte.records)
-    print(rte)
-    print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
+    if TRACE_TO_STDOUT:
+        print()
+#         pprint.pprint(rte.records)
+        print(rte)
+        print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
     assert len(rte.records) == 6
 
 def test_function_stack_two():
@@ -139,10 +144,11 @@ def test_function_stack_two():
 
     with RecordTraceEvents(('call', 'return')) as rte:
         assert simple_function_parent(1) == 4
-    print()
-#     pprint.pprint(rte.records)
-    print(rte)
-    print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
+    if TRACE_TO_STDOUT:
+        print()
+#         pprint.pprint(rte.records)
+        print(rte)
+        print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
     assert len(rte.records) == 4
 
 def test_function_stack_two_decl_swap():
@@ -154,10 +160,11 @@ def test_function_stack_two_decl_swap():
 
     with RecordTraceEvents(('call', 'return')) as rte:
         assert simple_function_parent(1) == 4
-    print()
-#     pprint.pprint(rte.records)
-    print(rte)
-    print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
+    if TRACE_TO_STDOUT:
+        print()
+#         pprint.pprint(rte.records)
+        print(rte)
+        print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
     assert len(rte.records) == 4
 
 def test_function_stack_three():
@@ -172,10 +179,11 @@ def test_function_stack_three():
 
     with RecordTraceEvents(('call', 'return')) as rte:
         assert simple_function_grandparent(1) == 8
-    print()
-#     pprint.pprint(rte.records)
-    print(rte)
-    print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
+    if TRACE_TO_STDOUT:
+        print()
+#         pprint.pprint(rte.records)
+        print(rte)
+        print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
     assert len(rte.records) == 6
 
 def test_function_recursive():
@@ -187,10 +195,11 @@ def test_function_recursive():
 
     with RecordTraceEvents(('call', 'return')) as rte:
         assert simple_recursive_function(3) == 8
-    print()
-#     pprint.pprint(rte.records)
-    print(rte)
-    print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
+    if TRACE_TO_STDOUT:
+        print()
+#         pprint.pprint(rte.records)
+        print(rte)
+        print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
     assert len(rte.records) == 8
     
 def test_same_named_functions():
@@ -208,10 +217,11 @@ def test_same_named_functions():
         assert one.same_function(2) == 4
         two = NamedFunctionTwo()
         assert two.same_function(2) == 8
-    print()
-#     pprint.pprint(rte.records)
-    print(rte)
-    print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
+    if TRACE_TO_STDOUT:
+        print()
+#         pprint.pprint(rte.records)
+        print(rte)
+        print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
     assert len(rte.records) == 4
 
 def test_same_named_functions_interleave():
@@ -228,10 +238,11 @@ def test_same_named_functions_interleave():
     with RecordTraceEvents(('call', 'return')) as rte:
         two = NamedFunctionTwo()
         assert two.same_function(2) == 16
-    print()
-#     pprint.pprint(rte.records)
-    print(rte)
-    print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
+    if TRACE_TO_STDOUT:
+        print()
+#         pprint.pprint(rte.records)
+        print(rte)
+        print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
     assert len(rte.records) == 4
 
 def test_generator():
@@ -246,10 +257,11 @@ def test_generator():
         for v in simple_generator(3):
             results.append(v)
         assert results == [0, 1, 2]
-    print()
-#     pprint.pprint(rte.records)
-    print(rte)
-    print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
+    if TRACE_TO_STDOUT:
+        print()
+#         pprint.pprint(rte.records)
+        print(rte)
+        print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
     assert len(rte.records) == 8
 
 def test_generator_unfinished():
@@ -265,10 +277,11 @@ def test_generator_unfinished():
         for i in range(2):
             results.append(next(gen))
         assert results == [0, 1]
-    print()
-#     pprint.pprint(rte.records)
-    print(rte)
-    print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
+    if TRACE_TO_STDOUT:
+        print()
+#         pprint.pprint(rte.records)
+        print(rte)
+        print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
     assert len(rte.records) == 4
 
 def test_generator_parent_child():
@@ -287,10 +300,11 @@ def test_generator_parent_child():
         for v in parent_generator(3):
             results.append(v)
         assert results == [0, 2, 4]
-    print()
-#     pprint.pprint(rte.records)
-    print(rte)
-    print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
+    if TRACE_TO_STDOUT:
+        print()
+#         pprint.pprint(rte.records)
+        print(rte)
+        print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
     assert len(rte.records) == 17
 
 def test_generator_grandparent_parent_child():
@@ -312,10 +326,11 @@ def test_generator_grandparent_parent_child():
         for v in grandparent_generator(3):
             results.append(v)
         assert results == [0, 4, 8]
-    print()
-#     pprint.pprint(rte.records)
-    print(rte)
-    print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
+    if TRACE_TO_STDOUT:
+        print()
+#         pprint.pprint(rte.records)
+        print(rte)
+        print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
     assert len(rte.records) == 26
 
 def test_generator_class_different_named_methods():
@@ -338,10 +353,11 @@ def test_generator_class_different_named_methods():
         for v in gen_class.parent_generate(3):
             results.append(v)
         assert results == [9, 18, 36]
-    print()
-#     pprint.pprint(rte.records)
-    print(rte)
-    print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
+    if TRACE_TO_STDOUT:
+        print()
+#         pprint.pprint(rte.records)
+        print(rte)
+        print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
     assert len(rte.records) == 17
 
 def test_generator_class_same_named_methods():
@@ -364,9 +380,9 @@ def test_generator_class_same_named_methods():
         for v in gen_class.generate(3):
             results.append(v)
         assert results == [9, 18, 36]
-    print()
-#     pprint.pprint(rte.records)
-    print(rte)
-    print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
+    if TRACE_TO_STDOUT:
+        print()
+#         pprint.pprint(rte.records)
+        print(rte)
+        print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
     assert len(rte.records) == 17
-

@@ -4,133 +4,85 @@
 import array
 import bisect
 import collections
+import inspect
+import re
 import sys
 import time
 
 import psutil
 
-pid = psutil.Process()
-mem_info = pid.mem_info()
-# "Resident Set Size", non-swapped physical memory a process has used.
-# On UNIX it matches 'top's RES column.
-# On Windows this is an alias for wset field and it matches "Mem Usage" column
-# of taskmgr.exe.
-rss = mem_info.rss
-# "Virtual Memory Size", this is the total amount of virtual memory used by the
-# process.
-# On UNIX it matches top's VIRT column.
-# On Windows this is an alias for pagefile field and it matches "Mem Usage"
-# "VM Size" column of taskmgr.exe.
-vms = mem_info.vms
+class ExceptionPyMemTraceBase(Exception):
+    pass
 
-mem_full_info = pid.mem_full_info()
-# uss (Linux, OSX, Windows): aka "Unique Set Size", this is the memory which is
-# unique to a process and which would be freed if the process was terminated
-# right now.
-mem_full_info.uss
+class CallReturnSequenceError(ExceptionPyMemTraceBase):
+    pass
 
-class FunctionCallSites:
+FunctionLocation = collections.namedtuple(
+    'FunctionLocation', 'filename, function, lineno'
+)
+FunctionLocation.__doc__ += ': Function location.'
+FunctionLocation.filename.__doc__ = 'Absolute file path as a string.' 
+FunctionLocation.function.__doc__ = 'Function (unqualified) name as a string.' 
+FunctionLocation.lineno.__doc__ = 'Line number of the event as an int.'
+
+class FunctionEncoder:
     """
-    Tracks function call sites during a process.
-    
-    Given a call/return site (file_path, lineno) this can identify the
-    function ID that lineno must belong to.
-    
-    Als gives a space saving encoding/decoding of (file, function, lineno) to
+    Gives a space saving encoding/decoding of (file, function, lineno) to
     a single integer.
     """
     def __init__(self):
         """Constructor, just initialises internal state."""
         # {(file_path, function, lineno) : int, ...}
         # Where lineno is the first call event, subsequent call events
-        # might have greater line numbers (e.g. generators), in that case
-        # self.function_call_sites can be used to find the first call. 
+        # might have greater line numbers (e.g. generators).
+        # lineno of function declaration can be obtained from
+        # frame.f_code.co_firstlineno  
         self.id_lookup = {}
         # Reverse lookup.
         # {int : (file_path, function, lineno), ...}
         self.id_rev_lookup = {}
-#         # dict value is an always ordered list of line numbers of first call.
-#         # {file_path : [function_first_call_lineno, ...])
-#         self.function_call_sites = collections.defaultdict(list)
-        
-# #     def has_call(self, function_id, lineno):
-# #         """
-# #         Returns true if ``function_id`` has been seen.
-# #         """
-# #         return function_id in self.id_lookup
-#     
-#     def _add_first_call(self, file_path, lineno):
-#         """
-#         Adds the first call of a function at lineno.
-#         """
-#         first_calls = self.function_call_sites[file_path]
-#         index = bisect.bisect_left(first_calls, lineno)
-#         if index < len(first_calls) and first_calls[index] == lineno:
-#             raise ValueError(
-#                 'File {:s} already has a first call at a lineno of {:d}'.format(file_path, lineno)
-#             )
-#         first_calls.insert(index, lineno)
-#     
-#     def first_call_lineno(self, file_path, lineno):
-#         """
-#         This is pretty much the sole reason for this class: to identify, from
-#         a call/return line number which function that must be in by its first
-#         call lineno.
-#         """
-#         if file_path not in self.function_call_sites:
-#             raise ValueError('Do not have information on file "{:s}"'.format(file_path))
-#         first_calls, IDs = self.function_call_sites[file_path]
-#         # bisect_right - 1 gives the index of the largest value in first_calls
-#         # that is <= lineno
-#         index = bisect.bisect_right(first_calls, lineno) - 1
-#         assert index != len(first_calls)
-#         if index < 0:
-#             raise ValueError(
-#                 'File {:s} can not see lineno prior to {:d}'.format(file_path, lineno)
-#             )
-#         return first_calls[index]
-#     
-#     def add_call(self, file_path, function_name, lineno):
-#         """
-#         Adds a call event. If this does not exist it will be treated as a first
-#         call event.
-#         """
-#         function_key = (file_path, function_name, lineno)
-#         if function_key not in self.id_lookup:
-#             # First call
-#             val = len(self.id_lookup)
-#             self.id_lookup[(file_path, function_name, first_call_lineno)] = val
-#             assert val not in self.id_rev_lookup
-#             self.id_rev_lookup[val] = (file_path, function_name, first_call_lineno)
-#             self.add_first_call(file_path, lineno)
+    
+    def __len__(self):
+        return len(self.id_lookup)
     
     def encode(self, file_path, function_name, lineno):
         """
         Encode the ``(file_path, function_name, lineno)`` to a single integer
-        ID in the cache. ``lineno`` must be the function declaration line,
-        this can be obtained from frame.f_code.co_firstlineno.
+        ID in the cache. ``lineno`` must be the function declaration line
+        which can be obtained from ``frame.f_code.co_firstlineno``.
+        ``lineno`` must be >= 1.
+        
+        This will add to the encoding cache if the function has not been seen
+        before.
         """
-        first_call_lineno = self.first_call_lineno(file_path, lineno)
+        if lineno < 1:
+            raise ValueError(
+                'FunctionEncoder.encode(): line number must be >=1 not {!r:s}'.format(lineno)
+            )
+        loc = FunctionLocation(file_path, function_name, lineno)
         try:
-            val = self.id_lookup[(file_path, function_name, first_call_lineno)]
+            val = self.id_lookup[loc]
         except KeyError:
             # Insert into the cache
             val = len(self.id_lookup)
-            self.id_lookup[(file_path, function_name, first_call_lineno)] = val
+            self.id_lookup[loc] = val
             assert val not in self.id_rev_lookup
-            self.id_rev_lookup[val] = (file_path, function_name, first_call_lineno)
+            self.id_rev_lookup[val] = loc
         return val
     
-    def decode(self, int_val):
+    def decode(self, function_id):
         """
-        Decode the integer to the original (file_path, function_name, lineno).
+        Decode the int function_id to the original:
+        FunctionLocation(file_path, function_name, lineno).
+        
+        Will raise KeyError if function_id unseen.
         """
-        return self.id_rev_lookup[val]
+        return self.id_rev_lookup[function_id]
     
     def integrity(self):
         """
         Aggressive integrity checking that self._ref_id_lookup is the mirror of
-        self.id_lookup, self.function_call_sites holds sorted values.
+        self.id_lookup.
         """
         if len(self.id_lookup) != len(self.id_rev_lookup):
             return False
@@ -139,198 +91,219 @@ class FunctionCallSites:
                 return False
             if self.id_rev_lookup[v] != k:
                 return False
-#         for file_path in self.function_call_sites:
-#             if sorted(self.function_call_sites[file_path]) != self.function_call_sites[file_path]:
-#                 return False
         return True
 
-# class FunctionCall:
-#     """
-#     Temporary representation of a function call.
-#     This is created with a call even and completed with a return event.
-#     """
-#     # TODO: Add time and memory here
-#     def __init__(self, file_path, function_name, lineno, data):
-#         if lineno < 1:
-#             raise ValueError('FunctionCall.__init__(): Line numbers >= 1 not {:d}'.format(lineno))
-#         self.time_call = time.time()
-#         self.file_path = file_path
-#         self.function_name = function_name
-#         self.lineno_call = lineno
-#         self.data = data
-#         self.lineno_return = -1
-#         self.time_return = None
-#     
-#     def add_return(self, file_path, function_name, lineno):
-#         if self.file_path != file_path:
-#             raise ValueError('FunctionCall.add_return(): file_path was {:s} now {:s}'.format(
-#                 self.file_path, file_path
-#             ))
-#         if self.function_name != function_name:
-#             raise ValueError('FunctionCall.add_return(): function_name was {:s} now {:s}'.format(
-#                 self.function_name, function_name
-#             ))
-#         if lineno < 1:
-#             raise ValueError('FunctionCall.add_return(): Line numbers >= 1 not {:d}'.format(lineno))
-#         if self.lineno_call > lineno:
-#             raise ValueError('FunctionCall.add_return(): call lineno {:d} > return lineno {:d}'.format(
-#                 self.lineno_call, lineno
-#             ))
-#         self.lineno_return = lineno
-#         self.time_return = time.time()
-# 
-#     def id_args(self):
-#         return self.file_path, self.function_name, self.lineno_call
-#     
-#     def line_span(self):
-#         return self.lineno_call, self.lineno_return
+CallReturnData = collections.namedtuple(
+    'CallReturnData', 'time, memory'
+)
+CallReturnData.__doc__ += ': Data obtained at cal and return points.'
+CallReturnData.time.__doc__ = 'Wall clock time as a float.' 
+CallReturnData.memory.__doc__ = 'Total memory usage in bytes as an int.' 
 
 class FunctionCallTree:
-    # TODO: Remodel this, use a temporary stack of FunctionCall then
-    # as each is popped then append the encoded one into this tree (it being
-    # the final result).
-    def __init__(self, function_id, *args):
+    """This contains the current and historic call information from a single
+    function."""
+    def __init__(self, function_id, data_call):
         """Constructor is when a function (function_id) is called.
-        args is the data available at call time such as (time, memory_usage)."""
+        date_call is the data available at call time as a  CallReturnData
+        object, such as (time, memory_usage)."""
         # This node:
         self.function_id = function_id
-        self.data_call = args
+        self.data_call = data_call
         self.data_return = None
-        # Child nodes, each is a FunctionCallTree:
-        self._children = []
+        # Child nodes, each is a FunctionCallTree.
+        self.children = []
         
     @property
     def is_open(self):
-        return self.data_return is None 
+        """Returns True if this function has not yet seen a return event."""
+        return self.data_return is None
+    
+    def integrity(self):
+        """Returns True if the internal representation is OK."""
+        if not self.is_open:
+            for child in self.children:
+                if child.is_open:
+                    return False
+                if not child.integrity():
+                    return False
+        return True
         
-    def addCall(self, function_id, *args):
+    def add_call(self, function_id, data_call):
         """
         Initialise the call with the function ID, time of call and memory
         usage at the call.
         """
-        if len(self._children) and self._children[-1].is_open:
-            self._children[-1].addCall(function_id, *args)
+        if not self.is_open:
+            raise CallReturnSequenceError(
+                'FunctionCallTree.add_call() when not open for calls.'
+            )
+        if len(self.children) and self.children[-1].is_open:
+            self.children[-1].addCall(function_id, data_call)
         else:
-            self._children.append(FunctionCallTree(function_id, *args))
+            self.children.append(FunctionCallTree(function_id, data_call))
                
-    def addReturn(self, function_id, *args):
+    def add_return(self, function_id, data_return):
         """
-        Initialise the call with the function ID, time of call and memory
-        usage at the call.
+        Set the return data, this closes this function.
         """
-        if len(self._children) and self._children[-1].is_open:
-            self._children[-1].addReturn(function_id, *args)
+        if not self.is_open:
+            raise CallReturnSequenceError(
+                'FunctionCallTree.add_return() when not open for calls.'
+            )
+        if len(self.children) and self.children[-1].is_open:
+            self.children[-1].add_return(function_id, data_return)
         else:
-            self.data_return = args
-               
+            assert function_id == self.function_id
+            self.data_return = data_return
+        
+    def gen_call_return_data(self):
+        """
+        Yields all the data points recursively as a tuple::
+        
+            (event, function_id, CallReturnData)
+        """
+        yield 'call', self.function_id, self.data_call
+        for child in self.children:
+            for child_data in child.gen_call_return_data():
+                yield child_data
+        yield 'return', self.function_id, self.data_return
+
+class FunctionCallTreeSequence:
+    """
+    This contains the current and historic call information from a sequence
+    of function calls.
+    """
+    def __init__(self):
+        # List of FunctionCallTree objects.
+        self.function_trees = []
+        
+    def __len__(self):
+        return len(self.function_trees)
+        
+    def integrity(self):
+        """Returns True if the internal representation is OK."""
+        return all([v.integrity() for v in self.function_trees])
+    
+    def add_call_return_event(self, event, function_id, data):
+        assert event in ('call', 'return'), \
+            'Expected "call" or "return" not "{:s}"'.format(event)
+        if len(self.function_trees) and self.function_trees[-1].is_open:
+            # Pass the event down the stack.
+            if event == 'call':
+                self.function_trees[-1].add_call(function_id, data)
+            else:
+                assert event == 'return', 'Expected "return" not "{:s}"'.format(event)
+                self.function_trees[-1].add_return(function_id, data)
+        else:
+            # Create a new stack
+            assert event == 'call', 'Expected "call" not "{:s}"'.format(event)
+            self.function_trees.append(FunctionCallTree(function_id, data))
+
+    def gen_call_return_data(self):
+        """
+        Yields all the data points recursively as a tuple::
+        
+            (event, function_id, CallReturnData)
+        """
+        for ft in self.function_trees:
+            for value in ft.gen_call_return_data():
+                yield value
+
 class MemTrace:
     """
     Keeps track of overall memory usage at each function entry and exit point.
     """
     RE_TEMPORARY_FILE = re.compile(r'<(.+)>')
-    FALSE_FUNCTION_NAMES = ('<dictcomp>', '<genexpr>', '<listcomp>', '<module>', '<setcomp>')
+    FALSE_FUNCTION_NAMES = set(['<dictcomp>', '<genexpr>', '<listcomp>', '<module>', '<setcomp>'])
+    TRACE_FUNCTION_GET = sys.getprofile
+    TRACE_FUNCTION_SET = sys.setprofile
+    TRACE_EVENTS = False
     def __init__(self):
-        self._pid = psutil.Process()
-        # Don't really need these, or could create them in _finalise()
-        self._time_start = time.time()
-        self._mem_start = self.memory()
-        self._function_tree = FunctionCallTree()
-        
+        self.pid = psutil.Process()
+        self.function_encoder = FunctionEncoder()
+        # Wraps a ist of FunctionCallTree objects.
+        self.function_tree_seq = FunctionCallTreeSequence()
+        # Event number, for the curious.
+        self.eventno = 0
+        # Event counters for different events, for the curious.
+        self.event_counter = collections.Counter()
+        # Created by finalise() as CallReturnData objects.
+        self.data_min = None
+        self.data_max = None
+        # Allow re-entrancy with sys.settrace(function)
+        self._trace_fn_stack = []
+
     def memory(self):
-        mem_info = self._pid.mem_info()
+        """
+        Returns our estimate of the process memory usage, options::
+        
+            >>> pid = psutil.Process()
+            >>> mem_info = pid.mem_info()
+            # "Resident Set Size", non-swapped physical memory a process has used.
+            # On UNIX it matches 'top's RES column.
+            # On Windows this is an alias for wset field and it matches "Mem Usage" column
+            # of taskmgr.exe.
+            >>> rss = mem_info.rss
+            # "Virtual Memory Size", this is the total amount of virtual memory used by the
+            # process.
+            # On UNIX it matches top's VIRT column.
+            # On Windows this is an alias for pagefile field and it matches "Mem Usage"
+            # "VM Size" column of taskmgr.exe.
+            >>> vms = mem_info.vms
+            # Or:
+            >>> mem_full_info = pid.mem_full_info()
+            # uss (Linux, OSX, Windows): aka "Unique Set Size", this is the memory which is
+            # unique to a process and which would be freed if the process was terminated
+            # right now.
+            >>> mem_full_info.uss
+        """
+        memory_info = self.pid.memory_info()
         # "Resident Set Size", non-swapped physical memory a process has used.
         # On UNIX it matches 'top's RES column.
         # On Windows this is an alias for wset field and it matches "Mem Usage" column
         # of taskmgr.exe.
-        return mem_info.rss
+        return memory_info.rss
 
     def __call__(self, frame, event, arg):
         """Handle a trace event."""
-        self.event_counter.update({event : 1})
-        # A named tuple: Traceback(filename, lineno, function, code_context, index)
+        # frame_info is a named tuple:
+        # Traceback(filename, lineno, function, code_context, index)
+        # From the documentation:
+        # "The tuple contains the frame object, the filename, the line number of
+        # the current line, the function name, a list of lines of context from
+        # the source code, and the index of the current line within that list."
         frame_info = inspect.getframeinfo(frame)
-#         if self.trace_frame_event and (self.events_to_trace is None or event in self.events_to_trace):
-#             # The tuple contains the filename, the line number of the current line, the function name, a list of lines
-#             # of context from the source code, and the index of the current line within that list.
-#             # Traceback(filename='.../3.6/lib/python3.6/_sitebuiltins.py', lineno=19, function='__call__',
-#             #           code_context=['    def __call__(self, code=None):\n'], index=0)
-#             # Or:
-#             # Traceback(filename='<string>', lineno=12, function='__new__', code_context=None, index=None)
-#             try:
-#                 repr_arg = repr(arg)
-#             except Exception:# AttributeError: # ???
-#                 repr_arg = 'repr(arg) fails'
-#             # Order of columns is an attempt to make this very verbose output readable
-#             print('[{:8d}] {:9s} {!r:s}: arg="{:s}"'.format(self.eventno, event, frame_info, repr_arg), flush=True)
-#         try:
-#             self._debug(
-#                 'TypeInferencer.__call__(): file: {:s}#{:d} function: {:s} event:{:s} arg: {:s}'.format(
-#                     frame_info.filename,
-#                     frame_info.lineno,
-#                     frame_info.function,
-#                     repr(event),
-#                     repr(arg)
-#                 )
-#             )
-#         except Exception: # Or just AttributeError ???
-#             # This can happen when calling __repr__ on partially constructed objects
-#             # For example with argparse:
-#             # AttributeError: 'ArgumentParser' object has no attribute 'prog'
-#             self._warn(
-#                 'TypeInferencer.__call__(): failed, function: {:s} file: {:s}#{:d}'.format(
-#                     frame_info.function, frame_info.filename, frame_info.lineno
-#                 )
-#             )
-#         self._trace('TRACE: self.exception_in_progress', self.exception_in_progress)
-        if self.RE_TEMPORARY_FILE.match(frame_info.filename) \
-        or frame_info.function in self.FALSE_FUNCTION_NAMES:
-            # Ignore these.
+        firstlineno = frame.f_code.co_firstlineno
+        if self.TRACE_EVENTS:
+            print(
+                'TRACE: {:12} {:4d} {:4d} {:24s} {:s}'.format(
+                    event, frame_info.lineno, firstlineno,
+                    '{:s}()'.format(frame_info.function), frame_info.filename,
+                )
+            )
+        is_return_from_self_enter = event == 'return' \
+            and frame_info.filename == __file__ \
+            and firstlineno == self.__enter__lineno
+        is_call_self_exit = event == 'call' \
+            and frame_info.filename == __file__ \
+            and firstlineno == self.__exit__lineno
+        is_non_decl_function = self.RE_TEMPORARY_FILE.match(frame_info.filename) \
+            or frame_info.function in self.FALSE_FUNCTION_NAMES
+        if is_return_from_self_enter or is_call_self_exit or is_non_decl_function:
+            # Ignore artifacts of context manager and non-declared functions.
             pass
-        else:
+        elif event in ('call', 'return'):
             # Only look at 'real' files and functions
-            lineno = frame_info.lineno
-            lineno_decl = frame.f_code.co_firstlineno
-            if event in ('call', 'return', 'exception'):# and frame_info.filename != '<module>':
-                file_path = os.path.abspath(frame_info.filename)
-                # TODO: For methods use __qualname__
-                #             function_name = frame_info.function
-                q_name, bases, signature = self._qualified_name_bases_signature(frame)
-                self._debug(
-                    'TypeInferencer.__call__(): q_name="{:s}", bases={!r:s})'.format(
-                        q_name, bases
-                ))
-                if q_name != '':
-                    try:
-                        self._set_bases(file_path, lineno, q_name, bases)
-                        # func_types is a types.FunctionTypes object
-                        func_types = self._get_func_data(file_path, q_name, signature)
-                        self._process_call_return_exception(frame, event, arg,
-                                                            frame_info, func_types)
-                        if self.trace_frame_event and (self.events_to_trace is None or event in self.events_to_trace):
-                            print('[{:8d}] func_types now: {!r:s}'.format(self.eventno, func_types), flush=True)
-                    except Exception as err:
-                        self._error(
-                            'ERROR: Could not add event "{:s}" Function: {:s} File: {:s}#{:d}'.format(
-                                event,
-                                frame_info.function,
-                                frame_info.filename,
-                                frame_info.lineno,
-                            )
-                        )
-                        self._error('ERROR: Type error: {!r:s}, message: {:s}'.format(type(err), str(err)))
-                        self._error(''.join(traceback.format_exception(*sys.exc_info())))
-                else:
-                    self._error('Could not find qualified name in frame: {!r:s}'.format(frame_info))
-            elif event == 'line':
-                # Deferred decision about the exception reveals that
-                # this exception is caught within the function.
-                if self.exception_in_progress is not None:
-                    self._trace('TRACE: Exception in flight followed by line event', frame_info.filename, frame_info.function, lineno)
-                    # The exception has been caught within the function
-                    self._assert_exception_caught(event, arg, frame_info)
-                    self.exception_in_progress = None
+            function_id = self.function_encoder.encode(
+                    frame_info.filename,
+                    frame_info.function,
+                    firstlineno,
+            )
+            data = CallReturnData(time.time(), self.memory())
+            self.function_tree_seq.add_call_return_event(event, function_id, data)
+        self.event_counter.update({event : 1})
         self.eventno += 1
-        self._trace()
         return self
 
     def _cleanup(self):
@@ -344,8 +317,29 @@ class MemTrace:
         This extracts any overall data such as max memory usage, start/finish
         time etc.
         """
-        pass
+        self._cleanup()
+        for ft in self.function_tree_seq.function_trees:
+            assert not ft.is_open
+        # Find min/max, if available.
+        if len(self.function_tree_seq) > 0:
+            len_fields = len(CallReturnData._fields)
+            data_min = [None,] * len_fields
+            data_max = [None,] * len_fields
+            for _event, _function_id, data in self.function_tree_seq.gen_call_return_data():
+                assert len(data) == len_fields
+                for i in range(len_fields):
+                    if data_min[i] is None:
+                        data_min[i] = data[i]
+                    else:
+                        data_min[i] = min([data_min[i], data[i]])
+                    if data_max[i] is None:
+                        data_max[i] = data[i]
+                    else:
+                        data_max[i] = max([data_max[i], data[i]])
+            self.data_min = CallReturnData(*data_min)
+            self.data_max = CallReturnData(*data_max)
 
+    __enter__lineno = inspect.currentframe().f_lineno + 1
     def __enter__(self):
         """
         Context manager sets the profiling function. This saves the existing
@@ -354,10 +348,11 @@ class MemTrace:
         We use ``sys.setprofile()`` as we only want the granularity of
         call and return in functions, not line events.
         """
-        self._trace_fn_stack.append(sys.getprofile())
-        sys.setprofile(self)
+        self._trace_fn_stack.append(self.TRACE_FUNCTION_GET())
+        self.TRACE_FUNCTION_SET(self)
         return self
 
+    __exit__lineno = inspect.currentframe().f_lineno + 1
     def __exit__(self, exc_type, exc_value, traceback):
         """
         Exit the context manager. This performs some cleanup and then
@@ -365,6 +360,5 @@ class MemTrace:
         """
         # TODO: Check what is sys.gettrace(), if it is not self then someone has
         # monkeyed with the tracing.
-        sys.setprofile(self._trace_fn_stack.pop())
-        self._cleanup()
+        self.TRACE_FUNCTION_SET(self._trace_fn_stack.pop())
         self._finalise()
