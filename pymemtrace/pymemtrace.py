@@ -93,9 +93,6 @@ class FunctionEncoder:
                 return False
         return True
 
-# CallReturnData = collections.namedtuple(
-#     'CallReturnData', 'time, memory'
-# )
 class CallReturnData(collections.namedtuple('CallReturnData', ['time', 'memory'])):
     """Data obtained at cal and return points."""
     __slots__ = ()
@@ -149,6 +146,38 @@ class FunctionCallTree:
         """Returns True if this function has not yet seen a return event."""
         return self.data_return is None
     
+    def max_depth(self):
+        """
+        Returns the maximum call depth in this tree.
+        A single function would return 1 so that the depths reported by
+        ``gen_call_return_data()`` are 0 <= d < max_depth(). 
+        """
+        depth = 1
+        for child in self.children:
+            depth = max([depth, child._max_depth(depth)])
+        return depth
+    
+    def _max_depth(self, depth):
+        """
+        Returns the maximum call depth in this tree, recursive call.
+        A single function would return 1 so that the depths reported by
+        ``gen_call_return_data()`` are 0 <= d < max_depth(). 
+        """
+        depth += 1
+        for child in self.children:
+            depth = max([depth, child._max_depth(depth)])
+        return depth
+    
+    def max_width(self):
+        """
+        Returns the maximum call width in this tree.
+        A single function would return 1 so that the widths reported by
+        ``gen_call_return_data()`` are 0 <= w < max_width(). 
+        """
+        if len(self.children) == 0:
+            return 1
+        return sum([child.max_width() for child in self.children])
+    
     def integrity(self):
         """Returns True if the internal representation is OK."""
         if not self.is_open:
@@ -169,7 +198,7 @@ class FunctionCallTree:
                 'FunctionCallTree.add_call() when not open for calls.'
             )
         if len(self.children) and self.children[-1].is_open:
-            self.children[-1].addCall(function_id, data_call)
+            self.children[-1].add_call(function_id, data_call)
         else:
             self.children.append(FunctionCallTree(function_id, data_call))
                
@@ -184,7 +213,12 @@ class FunctionCallTree:
         if len(self.children) and self.children[-1].is_open:
             self.children[-1].add_return(function_id, data_return)
         else:
-            assert function_id == self.function_id
+            if self.function_id != function_id:
+                raise ValueError(
+                    'Returning from open function {!r:s} but given ID of {!r:s}'.format(
+                        self.function_id, function_id
+                    )
+                )
             self.data_return = data_return
         
     def gen_call_return_data(self):
@@ -225,8 +259,29 @@ class FunctionCallTreeSequence:
         self.function_trees = []
         
     def __len__(self):
+        """Returns the number of top level functions."""
         return len(self.function_trees)
         
+    def max_depth(self):
+        """
+        Returns the maximum call depth in this tree.
+        A single function would return 1 so that the depths reported by
+        ``gen_call_return_data()`` are 0 <= d < max_depth(). 
+        
+        If empty will raise ValueError: max() arg is an empty sequence
+        """
+        return max([tree.max_depth() for tree in self.function_trees])
+    
+    def max_width(self):
+        """
+        Returns the maximum call width as sum of all trees.
+        A single function would return 1 so that the widths reported by
+        ``gen_call_return_data()`` are 0 <= w < max_width(). 
+        
+        If empty this returns 0.
+        """
+        return sum([tree.max_width() for tree in self.function_trees])
+    
     def integrity(self):
         """Returns True if the internal representation is OK."""
         return all([v.integrity() for v in self.function_trees])
