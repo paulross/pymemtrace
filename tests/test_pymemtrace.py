@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """Tests for `pymemtrace` package."""
+import inspect
 import pprint
 import sys
+import time
 
 try:
     import hypothesis
@@ -37,6 +39,16 @@ def test_CallReturnData__isub__():
     crd -= pymemtrace.CallReturnData(16.0, 32)
     assert crd.time == -16.0
     assert crd.memory == -24
+
+def test_CallReturnData__str__():
+    crd = pymemtrace.CallReturnData(1.2, 14)
+    assert str(crd) == '1,200,000 (us) 0.014 (kb)'
+    assert '{!s:s}'.format(crd) == '1,200,000 (us) 0.014 (kb)'
+
+def test_CallReturnData__repr__():
+    crd = pymemtrace.CallReturnData(1.2, 14)
+    assert repr(crd) == 'CallReturnData(time=1.2, memory=14)'
+    assert '{!r:s}'.format(crd) == 'CallReturnData(time=1.2, memory=14)'
 
 #---- Test FunctionEncoder ----
 def test_FunctionEncoder_mt():
@@ -536,6 +548,20 @@ def test_MemTrace_single_function():
     print('Maximum:', mt.data_max)
     print('  Range:', mt.data_max - mt.data_min)
 
+def test_MemTrace_function_id():
+    single_function_lineno = inspect.currentframe().f_lineno + 1
+    def single_function(n):
+        return n * 2
+    
+    with pymemtrace.MemTrace() as mt:
+        assert single_function(5) == 10
+    expected = pymemtrace.FunctionLocation(__file__, 'single_function', single_function_lineno)
+    assert mt.decode_function_id(0) == expected
+
+def test_MemTrace_function_id_raises():
+    mt = pymemtrace.MemTrace()
+    with pytest.raises(KeyError):
+        mt.decode_function_id(0)
 
 def test_MemTrace_multiple_functions():
     def inner_function(n):
@@ -561,6 +587,103 @@ def test_MemTrace_multiple_functions():
     print('  Range:', mt.data_max - mt.data_min)
 
 
+def test_MemTrace_multiple_functions_real_memory_usage():
+    KILO = 1024
+    MEGA = KILO**2
+    MEGA_10 = KILO**2
+    def inner_function(lst):
+        print('  inner_function():    sys.getsizeof(lst)', sys.getsizeof(lst))
+        # Offset by 1024 to avoid interned numbers.
+        result = list(range(KILO, len(lst) * 2 + KILO))
+        print('  inner_function(): sys.getsizeof(result)', sys.getsizeof(result))
+        return result
+    
+    def outer_function_0():
+        lst = list(range(KILO, MEGA + KILO))
+        print('outer_function_0():    sys.getsizeof(lst)', sys.getsizeof(lst))
+        result = inner_function(lst)
+        print('outer_function_0(): sys.getsizeof(result)', sys.getsizeof(result))
+        return result
+    
+    def outer_function_1():
+        lst = list(range(KILO, MEGA_10 + KILO))
+        print('outer_function_1():    sys.getsizeof(lst)', sys.getsizeof(lst))
+        result = inner_function(lst)
+        print('outer_function_1(): sys.getsizeof(result)', sys.getsizeof(result))
+        return result
+    
+    print()
+    with pymemtrace.MemTrace() as mt:
+        assert len(outer_function_0()) == 2 * MEGA
+        assert len(outer_function_1()) == 2 * MEGA_10
+    call_return_data = list(mt.function_tree_seq.gen_call_return_data())
+    diff_data = [
+        (
+            mt.decode_function_id(v.function_id)[1:],
+            v.event,
+            str(v.data - call_return_data[0].data),
+        )
+        for v in call_return_data[1:]
+    ]
+    initial_diff_data = [
+        (
+            mt.decode_function_id(v.function_id)[1:],
+            v.event,
+            str(v.data - mt.data_initial),
+        )
+        for v in call_return_data
+    ]
+    print()
+#     print(mt.function_tree_seq.function_trees)
+    print('call_return_data:')
+    pprint.pprint(call_return_data)
+    print()
+    print('diff_data:')
+    pprint.pprint(diff_data, width=132)
+    print()
+    print('initial_diff_data:')
+    pprint.pprint(initial_diff_data, width=132)
+    print()
+    print('Initial:', mt.data_initial)
+    print('  Final:', mt.data_final)
+    print('  Range:', mt.data_final - mt.data_initial)
+    print('Minimum:', mt.data_min)
+    print('Maximum:', mt.data_max)
+    print('  Range:', mt.data_max - mt.data_min)
+
+def test_MemTrace_function_expected_time():
+    DELAY = 0.25
+    def timed_function():
+        time.sleep(DELAY)
+        
+    with pymemtrace.MemTrace() as mt:
+        assert timed_function() is None
+    call_return_data = list(mt.function_tree_seq.gen_call_return_data())
+    assert len(call_return_data) == 2
+    rng = mt.data_final - mt.data_initial
+    assert rng.time > DELAY
+    assert rng.time < DELAY + 0.010
+
+def test_MemTrace_function_expected_memory():
+    SIZE = 1024*1024
+    def memory_function():
+        long_str = ' ' * SIZE
+        return long_str
+        
+    sizeof = 0
+    with pymemtrace.MemTrace() as mt:
+        long_str = memory_function()
+        assert len(long_str) == SIZE
+        sizeof = sys.getsizeof(long_str)
+    call_return_data = list(mt.function_tree_seq.gen_call_return_data())
+    assert len(call_return_data) == 2
+    rng = mt.data_final - mt.data_initial
+    print()
+    print(rng)
+    # len: 1048576
+    # sizeof: 1048625, +49
+    # Memory: 1052672, +4047, or * 1.00385933961
+    assert sizeof < rng.memory < sizeof * 1.005
 
 #---- END: Test MemTrace ----
 

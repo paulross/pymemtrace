@@ -102,6 +102,9 @@ class CallReturnData(collections.namedtuple('CallReturnData', ['time', 'memory']
     
     def __isub__(self, other):
         return self - other
+    
+    def __str__(self):
+        return '{:0,.0f} (us) {:0,.3f} (kb)'.format(self.time * 1e6, self.memory / 1024)
 
 CallReturnData.time.__doc__ = 'Wall clock time as a float.' 
 CallReturnData.memory.__doc__ = 'Total memory usage in bytes as an int.' 
@@ -335,7 +338,7 @@ class MemTrace:
         # Allow re-entrancy with sys.settrace(function)
         self._trace_fn_stack = []
         # Create initial and final conditions
-        self.data_initial = self.create_data()
+        self.data_initial = self.create_data_point()
         # Created by finalise() as CallReturnData objects.
         self.data_final = None
         self.data_min = None
@@ -371,8 +374,18 @@ class MemTrace:
         # On Windows this is an alias for wset field and it matches "Mem Usage" column
         # of taskmgr.exe.
         return memory_info.rss
+    
+    def decode_function_id(self, function_id):
+        """
+        Given a function ID as an int this returns a named tuple::
+        
+            FunctionLocation(filename, function, lineno)
+        
+        Will raise a KeyError if the ``function_id`` is unknown.
+        """
+        return self.function_encoder.decode(function_id)
 
-    def create_data(self):
+    def create_data_point(self):
         """Snapshot a data point. Returns a CallReturnData named tuple.""" 
         return CallReturnData(time.time(), self.memory())
 
@@ -412,7 +425,7 @@ class MemTrace:
                     firstlineno,
             )
             self.function_tree_seq.add_call_return_event(
-                event, function_id, self.create_data()
+                event, function_id, self.create_data_point()
             )
         self.event_counter.update({event : 1})
         self.eventno += 1
@@ -430,7 +443,7 @@ class MemTrace:
         time etc.
         """
         self._cleanup()
-        self.data_final = self.create_data()
+        self.data_final = self.create_data_point()
         for ft in self.function_tree_seq.function_trees:
             assert not ft.is_open
         # Find min/max, if available.
