@@ -93,12 +93,42 @@ class FunctionEncoder:
                 return False
         return True
 
-CallReturnData = collections.namedtuple(
-    'CallReturnData', 'time, memory'
-)
-CallReturnData.__doc__ += ': Data obtained at cal and return points.'
+# CallReturnData = collections.namedtuple(
+#     'CallReturnData', 'time, memory'
+# )
+class CallReturnData(collections.namedtuple('CallReturnData', ['time', 'memory'])):
+    """Data obtained at cal and return points."""
+    __slots__ = ()
+    
+    def __sub__(self, other):
+        return CallReturnData(self.time - other.time, self.memory - other.memory)
+    
+    def __isub__(self, other):
+        return self - other
+
 CallReturnData.time.__doc__ = 'Wall clock time as a float.' 
 CallReturnData.memory.__doc__ = 'Total memory usage in bytes as an int.' 
+
+
+DepthEventFunctionData = collections.namedtuple(
+    'DepthEventFunctionData', ['depth', 'event', 'function_id', 'data']
+)
+DepthEventFunctionData.__doc__ += ': Function call depth data.'
+DepthEventFunctionData.depth.__doc__ = 'Call depth is an int (starting at 0).' 
+DepthEventFunctionData.event.__doc__ = 'Event: (\'call\', \'return\').' 
+DepthEventFunctionData.function_id.__doc__ = 'Function ID an int.' 
+DepthEventFunctionData.data.__doc__ = 'Call/return point data as a CallReturnData object' 
+
+WidthDepthEventFunctionData = collections.namedtuple(
+    'WidthDepthEventFunctionData',
+    ['width', 'depth', 'event', 'function_id', 'data']
+)
+WidthDepthEventFunctionData.__doc__ += ': Function call depth data.'
+WidthDepthEventFunctionData.width.__doc__ = 'Call width is an int (starting at 0).' 
+WidthDepthEventFunctionData.depth.__doc__ = 'Call depth is an int (starting at 0).' 
+WidthDepthEventFunctionData.event.__doc__ = 'Event: (\'call\', \'return\').' 
+WidthDepthEventFunctionData.function_id.__doc__ = 'Function ID an int.' 
+WidthDepthEventFunctionData.data.__doc__ = 'Call/return point data as a CallReturnData object' 
 
 class FunctionCallTree:
     """This contains the current and historic call information from a single
@@ -159,15 +189,31 @@ class FunctionCallTree:
         
     def gen_call_return_data(self):
         """
-        Yields all the data points recursively as a tuple::
+        Yields all the data points recursively as a named tuple::
         
-            (event, function_id, CallReturnData)
+            DepthEventFunctionData(depth, event, function_id, data)
+            
+        Where depth is an int (starting at 0), event ('call', 'return'),
+        function_id an int, data as a CallReturnData object.
         """
-        yield 'call', self.function_id, self.data_call
+        for child_data in self._gen_call_return_data(0):
+            yield child_data
+
+    def _gen_call_return_data(self, depth):
+        """
+        Recursive call to generate data points.
+        Yields all the data points recursively as a named tuple::
+        
+            DepthEventFunctionData(depth, event, function_id, data)
+            
+        Where depth is an int (starting at 0), event ('call', 'return'),
+        function_id an int, data as a CallReturnData object.
+        """
+        yield DepthEventFunctionData(depth, 'call', self.function_id, self.data_call)
         for child in self.children:
-            for child_data in child.gen_call_return_data():
+            for child_data in child._gen_call_return_data(depth + 1):
                 yield child_data
-        yield 'return', self.function_id, self.data_return
+        yield DepthEventFunctionData(depth, 'return', self.function_id, self.data_return)
 
 class FunctionCallTreeSequence:
     """
@@ -202,13 +248,16 @@ class FunctionCallTreeSequence:
 
     def gen_call_return_data(self):
         """
-        Yields all the data points recursively as a tuple::
+        Yields all the data points recursively as a named tuple::
         
-            (event, function_id, CallReturnData)
+            WidthDepthEventFunctionData(width, depth, event, function_id, data)
+            
+        Where width is an int (starting at 0), depth is an int (starting at 0),
+        event ('call', 'return'), function_id an int, data as a CallReturnData object.
         """
-        for ft in self.function_trees:
+        for width, ft in enumerate(self.function_trees):
             for value in ft.gen_call_return_data():
-                yield value
+                yield WidthDepthEventFunctionData(width, *value)
 
 class MemTrace:
     """
@@ -228,11 +277,14 @@ class MemTrace:
         self.eventno = 0
         # Event counters for different events, for the curious.
         self.event_counter = collections.Counter()
-        # Created by finalise() as CallReturnData objects.
-        self.data_min = None
-        self.data_max = None
         # Allow re-entrancy with sys.settrace(function)
         self._trace_fn_stack = []
+        # Create initial and final conditions
+        self.data_initial = self.create_data()
+        # Created by finalise() as CallReturnData objects.
+        self.data_final = None
+        self.data_min = None
+        self.data_max = None
 
     def memory(self):
         """
@@ -264,6 +316,10 @@ class MemTrace:
         # On Windows this is an alias for wset field and it matches "Mem Usage" column
         # of taskmgr.exe.
         return memory_info.rss
+
+    def create_data(self):
+        """Snapshot a data point. Returns a CallReturnData named tuple.""" 
+        return CallReturnData(time.time(), self.memory())
 
     def __call__(self, frame, event, arg):
         """Handle a trace event."""
@@ -300,8 +356,9 @@ class MemTrace:
                     frame_info.function,
                     firstlineno,
             )
-            data = CallReturnData(time.time(), self.memory())
-            self.function_tree_seq.add_call_return_event(event, function_id, data)
+            self.function_tree_seq.add_call_return_event(
+                event, function_id, self.create_data()
+            )
         self.event_counter.update({event : 1})
         self.eventno += 1
         return self
@@ -318,6 +375,7 @@ class MemTrace:
         time etc.
         """
         self._cleanup()
+        self.data_final = self.create_data()
         for ft in self.function_tree_seq.function_trees:
             assert not ft.is_open
         # Find min/max, if available.
@@ -325,17 +383,17 @@ class MemTrace:
             len_fields = len(CallReturnData._fields)
             data_min = [None,] * len_fields
             data_max = [None,] * len_fields
-            for _event, _function_id, data in self.function_tree_seq.gen_call_return_data():
-                assert len(data) == len_fields
+            for event_data in self.function_tree_seq.gen_call_return_data():
+                assert len(event_data.data) == len_fields
                 for i in range(len_fields):
                     if data_min[i] is None:
-                        data_min[i] = data[i]
+                        data_min[i] = event_data.data[i]
                     else:
-                        data_min[i] = min([data_min[i], data[i]])
+                        data_min[i] = min([data_min[i], event_data.data[i]])
                     if data_max[i] is None:
-                        data_max[i] = data[i]
+                        data_max[i] = event_data.data[i]
                     else:
-                        data_max[i] = max([data_max[i], data[i]])
+                        data_max[i] = max([data_max[i], event_data.data[i]])
             self.data_min = CallReturnData(*data_min)
             self.data_max = CallReturnData(*data_max)
 
