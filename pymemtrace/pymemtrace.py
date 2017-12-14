@@ -406,12 +406,40 @@ class MemTrace:
         self.event_counter = collections.Counter()
         # Allow re-entrancy with sys.settrace(function)
         self._trace_fn_stack = []
-        # Create initial and final conditions
-        self.data_initial = self.create_data_point()
         # Created by finalise() as CallReturnData objects.
         self.data_final = None
-        self.data_min = None
-        self.data_max = None
+        # These are maintained dynamically as a list of fields but then
+        # converted to a CallReturnData in finalise()
+        self.data_min = {f : None for f in CallReturnData._fields}
+        self.data_max = {f : None for f in CallReturnData._fields}
+        # Create initial and final conditions
+        self.data_initial = self.create_data_point()
+
+    def decode_function_id(self, function_id):
+        """
+        Given a function ID as an int this returns a named tuple::
+        
+            FunctionLocation(filename, function, lineno)
+        
+        Will raise a KeyError if the ``function_id`` is unknown.
+        """
+        return self.function_encoder.decode(function_id)
+
+    def _update_min_max_dicts(self, field, value):
+        """
+        Updates the pair of dicts ``{field : value, ...}`` with the
+        minimum and maximum value for the field.
+        """
+        assert field in self.data_min
+        assert field in self.data_max
+        if self.data_min[field] is None:
+            self.data_min[field] = value
+        else:
+            self.data_min[field] = min([value, self.data_min[field]])
+        if self.data_max[field] is None:
+            self.data_max[field] = value
+        else:
+            self.data_max[field] = max([value, self.data_max[field]])
 
     def memory(self):
         """
@@ -442,21 +470,22 @@ class MemTrace:
         # On UNIX it matches 'top's RES column.
         # On Windows this is an alias for wset field and it matches "Mem Usage" column
         # of taskmgr.exe.
-        return memory_info.rss
+        m = memory_info.rss
+        self._update_min_max_dicts('memory', m)
+        return m
     
-    def decode_function_id(self, function_id):
+    def time(self):
         """
-        Given a function ID as an int this returns a named tuple::
-        
-            FunctionLocation(filename, function, lineno)
-        
-        Will raise a KeyError if the ``function_id`` is unknown.
+        Returns our estimate of the process 'time'. We use time.time(), the
+        wall clock time.
         """
-        return self.function_encoder.decode(function_id)
-
+        t = time.time()
+        self._update_min_max_dicts('time', t)
+        return t
+    
     def create_data_point(self):
         """Snapshot a data point. Returns a CallReturnData named tuple.""" 
-        return CallReturnData(time.time(), self.memory())
+        return CallReturnData(self.time(), self.memory())
 
     def __call__(self, frame, event, arg):
         """Handle a trace event."""
@@ -515,24 +544,9 @@ class MemTrace:
         self.data_final = self.create_data_point()
         for ft in self.function_tree_seq.function_trees:
             assert not ft.is_open
-        # Find min/max, if available.
-        if len(self.function_tree_seq) > 0:
-            len_fields = len(CallReturnData._fields)
-            data_min = [None,] * len_fields
-            data_max = [None,] * len_fields
-            for event_data in self.function_tree_seq.gen_depth_first():
-                assert len(event_data.data) == len_fields
-                for i in range(len_fields):
-                    if data_min[i] is None:
-                        data_min[i] = event_data.data[i]
-                    else:
-                        data_min[i] = min([data_min[i], event_data.data[i]])
-                    if data_max[i] is None:
-                        data_max[i] = event_data.data[i]
-                    else:
-                        data_max[i] = max([data_max[i], event_data.data[i]])
-            self.data_min = CallReturnData(*data_min)
-            self.data_max = CallReturnData(*data_max)
+        # Convert data min/max frm dynamic dicts to immutable named tuples.
+        self.data_min = CallReturnData(**self.data_min)
+        self.data_max = CallReturnData(**self.data_max)
 
     __enter__lineno = inspect.currentframe().f_lineno + 1
     def __enter__(self):
