@@ -133,6 +133,11 @@ class Dim(collections.namedtuple('Dim', 'value units',)):
             myVal = self.value - convert(other.value, other.units, self.units)
             return Dim(myVal, self.units)
 
+    def __mul__(self, other):
+        """Overload self * other, returned result has the product of self and other.
+        Other is a float or int."""
+        return Dim(self.value * other, self.units)
+
     def __iadd__(self, other):
         """Addition in place, value of other is converted to my units and added."""
         # Use __add__()
@@ -143,6 +148,12 @@ class Dim(collections.namedtuple('Dim', 'value units',)):
         """Subtraction in place, value of other is subtracted."""
         # Use __sub__()
         self = self - other
+        return self
+
+    def __imul__(self, other):
+        """Overload self *= other, returned result has the product of self and other.
+        Other is a float or int."""
+        self = self * other
         return self
 
     def __lt__(self, other):

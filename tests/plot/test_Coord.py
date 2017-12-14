@@ -86,6 +86,14 @@ class TestCoordDim(unittest.TestCase):
         self.assertEqual(myResult.value, 0.75)
         self.assertEqual(myResult.units, 'in')
 
+    def testMul(self):
+        """Dim() addition."""
+        myObj = Coord.Dim(1, 'in')
+        myResult =  myObj * 4.0
+        #print myResult
+        self.assertEqual(myResult.value, 4.0)
+        self.assertEqual(myResult.units, 'in')
+
     def testIadd_00(self):
         """Dim() +=."""
         myObj_0 = Coord.Dim(1, 'in')
@@ -115,6 +123,14 @@ class TestCoordDim(unittest.TestCase):
         myObj_0 -= Coord.Dim(12, 'px')
         self.assertEqual(myObj_0.value, 24)
         self.assertEqual(myObj_0.units, 'px')
+
+    def testImul(self):
+        """Dim() addition."""
+        myObj = Coord.Dim(1, 'in')
+        myObj *=  4.0
+        #print myResult
+        self.assertEqual(myObj.value, 4.0)
+        self.assertEqual(myObj.units, 'in')
 
     def testScale(self):
         """Dim() scale()."""
