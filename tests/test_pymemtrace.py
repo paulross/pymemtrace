@@ -129,7 +129,8 @@ def test_FunctionCallTree_call_only():
         pymemtrace.DepthEventFunctionData(0, 'call', function_id, call_data),
         pymemtrace.DepthEventFunctionData(0, 'return', function_id, None),
     ]
-    assert list(fe.gen_call_return_data()) == expected
+    assert list(fe.gen_depth_first()) == expected
+    assert list(fe.gen_width_first(0)) == expected
     assert fe.integrity()
 
 def test_FunctionCallTree_call_return():
@@ -148,7 +149,8 @@ def test_FunctionCallTree_call_return():
         pymemtrace.DepthEventFunctionData(0, 'call', function_id, call_data),
         pymemtrace.DepthEventFunctionData(0, 'return', function_id, return_data),
     ]
-    assert list(fe.gen_call_return_data()) == expected
+    assert list(fe.gen_depth_first()) == expected
+    assert list(fe.gen_width_first(0)) == expected
     assert fe.integrity()
 
 def test_FunctionCallTree_call_return_raised_on_ID():
@@ -180,17 +182,33 @@ def test_FunctionCallTree_call_return_2():
     assert not fe.is_open
     
     assert len(fe.children) == 1
-    expected = [
+    assert fe.integrity()
+    # Depth first.
+    expected_depth = [
         pymemtrace.DepthEventFunctionData(0, 'call', function_id, call_data[0]),
         pymemtrace.DepthEventFunctionData(1, 'call', function_id + 1, call_data[1]),
         pymemtrace.DepthEventFunctionData(1, 'return', function_id + 1, return_data[1]),
         pymemtrace.DepthEventFunctionData(0, 'return', function_id, return_data[0]),
     ]
-    result = list(fe.gen_call_return_data())
+    result = list(fe.gen_depth_first())
 #     print()
 #     pprint.pprint(result)
-    assert result == expected
-    assert fe.integrity()
+    assert result == expected_depth
+    # Width first.
+    expected_width = [
+        [
+            pymemtrace.DepthEventFunctionData(0, 'call', function_id, call_data[0]),
+            pymemtrace.DepthEventFunctionData(0, 'return', function_id, return_data[0]),
+        ],
+        [
+            pymemtrace.DepthEventFunctionData(1, 'call', function_id + 1, call_data[1]),
+            pymemtrace.DepthEventFunctionData(1, 'return', function_id + 1, return_data[1]),
+        ],
+    ]
+    assert list(fe.gen_width_first(0)) == expected_width[0]
+#     print()
+#     pprint.pprint(list(fe.gen_width_first(1)))
+    assert list(fe.gen_width_first(1)) == expected_width[1]
 
 def test_FunctionCallTree_call_return_3():
     function_id = 0
@@ -219,7 +237,8 @@ def test_FunctionCallTree_call_return_3():
     assert not fe.is_open
     
     assert len(fe.children) == 1
-    expected = [
+    assert fe.integrity()
+    expected_depth = [
         pymemtrace.DepthEventFunctionData(0, 'call', function_id, call_data[0]),
         pymemtrace.DepthEventFunctionData(1, 'call', function_id + 1, call_data[1]),
         pymemtrace.DepthEventFunctionData(2, 'call', function_id + 2, call_data[2]),
@@ -227,11 +246,27 @@ def test_FunctionCallTree_call_return_3():
         pymemtrace.DepthEventFunctionData(1, 'return', function_id + 1, return_data[1]),
         pymemtrace.DepthEventFunctionData(0, 'return', function_id, return_data[0]),
     ]
-    result = list(fe.gen_call_return_data())
+    result = list(fe.gen_depth_first())
 #     print()
 #     pprint.pprint(result)
-    assert result == expected
-    assert fe.integrity()
+    assert result == expected_depth
+    expected_width = [
+        [
+            pymemtrace.DepthEventFunctionData(0, 'call', function_id, call_data[0]),
+            pymemtrace.DepthEventFunctionData(0, 'return', function_id, return_data[0]),
+        ],
+        [
+            pymemtrace.DepthEventFunctionData(1, 'call', function_id + 1, call_data[1]),
+            pymemtrace.DepthEventFunctionData(1, 'return', function_id + 1, return_data[1]),
+        ],
+        [
+            pymemtrace.DepthEventFunctionData(2, 'call', function_id + 2, call_data[2]),
+            pymemtrace.DepthEventFunctionData(2, 'return', function_id + 2, return_data[2]),
+        ],
+    ]
+    assert list(fe.gen_width_first(0)) == expected_width[0]
+    assert list(fe.gen_width_first(1)) == expected_width[1]
+    assert list(fe.gen_width_first(2)) == expected_width[2]
 
 def test_FunctionCallTree_call_return_call_raises():
     function_id = 0
@@ -248,7 +283,7 @@ def test_FunctionCallTree_call_return_call_raises():
     assert fe.is_open
     fe.add_return(function_id, return_data[0])
     assert not fe.is_open
-    with pytest.raises(pymemtrace.CallReturnSequenceError):
+    with pytest.raises(pymemtrace.PyMemTraceCallReturnSequenceError):
         # Can not call when not open
         fe.add_call(function_id + 1, call_data[1])
     assert fe.integrity()
@@ -260,7 +295,7 @@ def test_FunctionCallTree_call_return_return_raises():
     return_data = pymemtrace.CallReturnData(0.1, 2)
     fe.add_return(function_id, return_data)
     assert not fe.is_open
-    with pytest.raises(pymemtrace.CallReturnSequenceError):
+    with pytest.raises(pymemtrace.PyMemTraceCallReturnSequenceError):
         # Can not return when not open
         fe.add_return(function_id, return_data)
     assert fe.integrity()
@@ -366,6 +401,25 @@ def test_FunctionCallTree_max_width_2():
 #---- END: Test FunctionCallTree ----
 
 #---- Test FunctionCallTreeSequence ----
+def test_FunctionCallTreeSequence_empty():
+    fes = pymemtrace.FunctionCallTreeSequence()
+    assert len(fes) == 0
+    assert fes.integrity()
+
+def test_FunctionCallTreeSequence_empty_depth_first():
+    fes = pymemtrace.FunctionCallTreeSequence()
+    assert list(fes.gen_depth_first()) == []
+
+def test_FunctionCallTreeSequence_empty_width_first():
+    fes = pymemtrace.FunctionCallTreeSequence()
+    assert list(fes.gen_width_first()) == []
+
+def test_FunctionCallTreeSequence_empty_max_depth_raises():
+    fes = pymemtrace.FunctionCallTreeSequence()
+    with pytest.raises(pymemtrace.PyMemTraceMaxDepthOnEmptyTree) as err:
+        fes.max_depth()
+    assert err.value.args[0] == 'FunctionCallTreeSequence.max_depth() on empty tree'
+
 def test_FunctionCallTreeSequence_call_and_return_depth_two():
     function_id = 0
     call_data = [
@@ -383,17 +437,26 @@ def test_FunctionCallTreeSequence_call_and_return_depth_two():
     fes.add_call_return_event('return', function_id, return_data[0])
     
     assert len(fes) == 1
-    expected = [
+    assert fes.integrity()
+    expected_depth = [
         pymemtrace.WidthDepthEventFunctionData(0, 0, 'call', function_id, call_data[0]),
         pymemtrace.WidthDepthEventFunctionData(0, 1, 'call', function_id + 1, call_data[1]),
         pymemtrace.WidthDepthEventFunctionData(0, 1, 'return', function_id + 1, return_data[1]),
         pymemtrace.WidthDepthEventFunctionData(0, 0, 'return', function_id, return_data[0]),
     ]
-    result = list(fes.gen_call_return_data())
+    result = list(fes.gen_depth_first())
 #     print()
 #     pprint.pprint(result)
-    assert result == expected
-    assert fes.integrity()
+    assert result == expected_depth
+    expected_width = [
+        pymemtrace.WidthDepthEventFunctionData(0, 0, 'call', function_id, call_data[0]),
+        pymemtrace.WidthDepthEventFunctionData(0, 0, 'return', function_id, return_data[0]),
+        pymemtrace.WidthDepthEventFunctionData(0, 1, 'call', function_id + 1, call_data[1]),
+        pymemtrace.WidthDepthEventFunctionData(0, 1, 'return', function_id + 1, return_data[1]),
+    ]
+#     print()
+#     pprint.pprint(list(fes.gen_width_first()))
+    assert list(fes.gen_width_first()) == expected_width
 
 def test_FunctionCallTreeSequence_call_and_return_width_two():
     function_id = 0
@@ -413,17 +476,18 @@ def test_FunctionCallTreeSequence_call_and_return_width_two():
     fes.add_call_return_event('return', function_id + 1, return_data[1])
     
     assert len(fes) == 2
+    assert fes.integrity()
     expected = [
         pymemtrace.WidthDepthEventFunctionData(0, 0, 'call', function_id, call_data[0]),
         pymemtrace.WidthDepthEventFunctionData(0, 0, 'return', function_id, return_data[0]),
         pymemtrace.WidthDepthEventFunctionData(1, 0, 'call', function_id + 1, call_data[1]),
         pymemtrace.WidthDepthEventFunctionData(1, 0, 'return', function_id + 1, return_data[1]),
     ]
-    result = list(fes.gen_call_return_data())
+    result = list(fes.gen_depth_first())
 #     print()
 #     pprint.pprint(result)
     assert result == expected
-    assert fes.integrity()
+    assert list(fes.gen_width_first()) == expected
 
 def test_FunctionCallTreeSequence_call_and_return_depth_width_two():
     function_id = 0
@@ -453,7 +517,8 @@ def test_FunctionCallTreeSequence_call_and_return_depth_width_two():
     fes.add_call_return_event('return', function_id + 2, return_data[2])
     
     assert len(fes) == 2
-    expected = [
+    assert fes.integrity()
+    expected_depth = [
         pymemtrace.WidthDepthEventFunctionData(
             0, 0, 'call', 0, pymemtrace.CallReturnData(time=0.0, memory=1)),
         pymemtrace.WidthDepthEventFunctionData(
@@ -471,11 +536,31 @@ def test_FunctionCallTreeSequence_call_and_return_depth_width_two():
         pymemtrace.WidthDepthEventFunctionData(
             1, 0, 'return', 2, pymemtrace.CallReturnData(time=3.0, memory=30)),
     ]
-    result = list(fes.gen_call_return_data())
+    result = list(fes.gen_depth_first())
 #     print()
 #     pprint.pprint(result)
-    assert result == expected
-    assert fes.integrity()
+    assert result == expected_depth
+    expected_width = [
+        pymemtrace.WidthDepthEventFunctionData(
+            0, 0, 'call', 0, pymemtrace.CallReturnData(time=0.0, memory=1)),
+        pymemtrace.WidthDepthEventFunctionData(
+            0, 0, 'return', 0, pymemtrace.CallReturnData(time=1.0, memory=10)),
+        pymemtrace.WidthDepthEventFunctionData(
+            1, 0, 'call', 2, pymemtrace.CallReturnData(time=0.2, memory=3)),
+        pymemtrace.WidthDepthEventFunctionData(
+            1, 0, 'return', 2, pymemtrace.CallReturnData(time=3.0, memory=30)),
+        pymemtrace.WidthDepthEventFunctionData(
+            0, 1, 'call', 1, pymemtrace.CallReturnData(time=0.1, memory=2)),
+        pymemtrace.WidthDepthEventFunctionData(
+            0, 1, 'return', 1, pymemtrace.CallReturnData(time=2.0, memory=20)),
+        pymemtrace.WidthDepthEventFunctionData(
+            1, 1, 'call', 3, pymemtrace.CallReturnData(time=0.3, memory=4)),
+        pymemtrace.WidthDepthEventFunctionData(
+            1, 1, 'return', 3, pymemtrace.CallReturnData(time=4.0, memory=40)),
+    ]
+#     print()
+#     pprint.pprint(list(fes.gen_width_first()))
+    assert list(fes.gen_width_first()) == expected_width
 
 def test_FunctionCallTreeSequence_max_depth_two():
     function_id = 0
@@ -494,12 +579,6 @@ def test_FunctionCallTreeSequence_max_depth_two():
     fes.add_call_return_event('return', function_id, return_data[0])
     assert fes.integrity()
     assert fes.max_depth() == 2
-
-def test_FunctionCallTreeSequence_max_depth_raises():
-    fes = pymemtrace.FunctionCallTreeSequence()
-    assert fes.integrity()
-    with pytest.raises(ValueError):
-        fes.max_depth()
 
 def test_FunctionCallTreeSequence_max_width_two():
     function_id = 0
@@ -540,7 +619,7 @@ def test_MemTrace_single_function():
         assert single_function(5) == 10
     print()
 #     print(mt.function_tree_seq.function_trees)
-    pprint.pprint(list(mt.function_tree_seq.gen_call_return_data()))
+    pprint.pprint(list(mt.function_tree_seq.gen_depth_first()))
     print('Initial:', mt.data_initial)
     print('  Final:', mt.data_final)
     print('  Range:', mt.data_final - mt.data_initial)
@@ -578,7 +657,7 @@ def test_MemTrace_multiple_functions():
         assert outer_function_1(10) == 80
     print()
 #     print(mt.function_tree_seq.function_trees)
-    pprint.pprint(list(mt.function_tree_seq.gen_call_return_data()))
+    pprint.pprint(list(mt.function_tree_seq.gen_depth_first()))
     print('Initial:', mt.data_initial)
     print('  Final:', mt.data_final)
     print('  Range:', mt.data_final - mt.data_initial)
@@ -616,7 +695,7 @@ def test_MemTrace_multiple_functions_real_memory_usage():
     with pymemtrace.MemTrace() as mt:
         assert len(outer_function_0()) == 2 * MEGA
         assert len(outer_function_1()) == 2 * MEGA_10
-    call_return_data = list(mt.function_tree_seq.gen_call_return_data())
+    call_return_data = list(mt.function_tree_seq.gen_depth_first())
     diff_data = [
         (
             mt.decode_function_id(v.function_id)[1:],
@@ -658,7 +737,7 @@ def test_MemTrace_function_expected_time():
         
     with pymemtrace.MemTrace() as mt:
         assert timed_function() is None
-    call_return_data = list(mt.function_tree_seq.gen_call_return_data())
+    call_return_data = list(mt.function_tree_seq.gen_depth_first())
     assert len(call_return_data) == 2
     rng = mt.data_final - mt.data_initial
     assert rng.time > DELAY
@@ -675,7 +754,7 @@ def test_MemTrace_function_expected_memory():
         long_str = memory_function()
         assert len(long_str) == SIZE
         sizeof = sys.getsizeof(long_str)
-    call_return_data = list(mt.function_tree_seq.gen_call_return_data())
+    call_return_data = list(mt.function_tree_seq.gen_depth_first())
     assert len(call_return_data) == 2
     rng = mt.data_final - mt.data_initial
     print()

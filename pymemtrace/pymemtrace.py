@@ -14,7 +14,13 @@ import psutil
 class ExceptionPyMemTraceBase(Exception):
     pass
 
-class CallReturnSequenceError(ExceptionPyMemTraceBase):
+class PyMemTraceCallReturnSequenceError(ExceptionPyMemTraceBase):
+    pass
+
+class PyMemTraceMaxDepthOnEmptyTree(ExceptionPyMemTraceBase):
+    """Raised when max_depth() is called on an empty tree.
+    max() of an empty sequence raises a generic ValueError.
+    This specialises that error."""
     pass
 
 FunctionLocation = collections.namedtuple(
@@ -153,7 +159,7 @@ class FunctionCallTree:
         """
         Returns the maximum call depth in this tree.
         A single function would return 1 so that the depths reported by
-        ``gen_call_return_data()`` are 0 <= d < max_depth(). 
+        ``gen_depth_first()`` are 0 <= d < max_depth(). 
         """
         depth = 1
         for child in self.children:
@@ -164,7 +170,7 @@ class FunctionCallTree:
         """
         Returns the maximum call depth in this tree, recursive call.
         A single function would return 1 so that the depths reported by
-        ``gen_call_return_data()`` are 0 <= d < max_depth(). 
+        ``gen_depth_first()`` are 0 <= d < max_depth(). 
         """
         depth += 1
         for child in self.children:
@@ -175,7 +181,7 @@ class FunctionCallTree:
         """
         Returns the maximum call width in this tree.
         A single function would return 1 so that the widths reported by
-        ``gen_call_return_data()`` are 0 <= w < max_width(). 
+        ``gen_depth_first()`` are 0 <= w < max_width(). 
         """
         if len(self.children) == 0:
             return 1
@@ -197,7 +203,7 @@ class FunctionCallTree:
         usage at the call.
         """
         if not self.is_open:
-            raise CallReturnSequenceError(
+            raise PyMemTraceCallReturnSequenceError(
                 'FunctionCallTree.add_call() when not open for calls.'
             )
         if len(self.children) and self.children[-1].is_open:
@@ -210,7 +216,7 @@ class FunctionCallTree:
         Set the return data, this closes this function.
         """
         if not self.is_open:
-            raise CallReturnSequenceError(
+            raise PyMemTraceCallReturnSequenceError(
                 'FunctionCallTree.add_return() when not open for calls.'
             )
         if len(self.children) and self.children[-1].is_open:
@@ -224,19 +230,19 @@ class FunctionCallTree:
                 )
             self.data_return = data_return
         
-    def gen_call_return_data(self):
+    def gen_depth_first(self):
         """
-        Yields all the data points recursively as a named tuple::
+        Yields all the data points recursively, depth first, as a named tuple::
         
             DepthEventFunctionData(depth, event, function_id, data)
             
         Where depth is an int (starting at 0), event ('call', 'return'),
         function_id an int, data as a CallReturnData object.
         """
-        for child_data in self._gen_call_return_data(0):
+        for child_data in self._gen_depth_first(0):
             yield child_data
 
-    def _gen_call_return_data(self, depth):
+    def _gen_depth_first(self, depth):
         """
         Recursive call to generate data points.
         Yields all the data points recursively as a named tuple::
@@ -248,10 +254,47 @@ class FunctionCallTree:
         """
         yield DepthEventFunctionData(depth, 'call', self.function_id, self.data_call)
         for child in self.children:
-            for child_data in child._gen_call_return_data(depth + 1):
+#             for child_data in child._gen_call_return_data(depth + 1):
+            for child_data in child._gen_depth_first(depth + 1):
                 yield child_data
         yield DepthEventFunctionData(depth, 'return', self.function_id, self.data_return)
-
+    
+    def gen_width_first(self, depth):
+        """
+        Yields all the data points recursively, width first, as a named tuple::
+        
+            DepthEventFunctionData(depth, event, function_id, data)
+            
+        Where depth is an int (starting at 0), event ('call', 'return'),
+        function_id an int, data as a CallReturnData object.
+        """
+        for value in self._gen_width_first(depth, 0):
+            yield value
+                
+    def _gen_width_first(self, desired_depth, current_depth):
+        """
+        Recursive call to generate data points.
+        Yields all the data points recursively, width first, as a named tuple::
+        
+            DepthEventFunctionData(depth, event, function_id, data)
+            
+        Where depth is an int (starting at 0), event ('call', 'return'),
+        function_id an int, data as a CallReturnData object.
+        """
+        assert desired_depth >= 0
+        assert current_depth >= 0
+        if current_depth == desired_depth:
+            # TODO: depth is always 0 in the data rather than true depth.
+            yield DepthEventFunctionData(current_depth, 'call',
+                                         self.function_id, self.data_call)
+            yield DepthEventFunctionData(current_depth, 'return',
+                                         self.function_id, self.data_return)
+        else:
+            for child in self.children:
+                for child_data in child._gen_width_first(desired_depth,
+                                                         current_depth + 1):
+                    yield child_data
+                
 class FunctionCallTreeSequence:
     """
     This contains the current and historic call information from a sequence
@@ -269,17 +312,21 @@ class FunctionCallTreeSequence:
         """
         Returns the maximum call depth in this tree.
         A single function would return 1 so that the depths reported by
-        ``gen_call_return_data()`` are 0 <= d < max_depth(). 
+        ``gen_depth_first()`` are 0 <= d < max_depth(). 
         
-        If empty will raise ValueError: max() arg is an empty sequence
+        If empty will raise ValueError: 'max() arg is an empty sequence'
         """
+        if len(self.function_trees) == 0:
+            raise PyMemTraceMaxDepthOnEmptyTree(
+                'FunctionCallTreeSequence.max_depth() on empty tree'
+            )
         return max([tree.max_depth() for tree in self.function_trees])
     
     def max_width(self):
         """
         Returns the maximum call width as sum of all trees.
         A single function would return 1 so that the widths reported by
-        ``gen_call_return_data()`` are 0 <= w < max_width(). 
+        ``gen_depth_first()`` are 0 <= w < max_width(). 
         
         If empty this returns 0.
         """
@@ -304,9 +351,9 @@ class FunctionCallTreeSequence:
             assert event == 'call', 'Expected "call" not "{:s}"'.format(event)
             self.function_trees.append(FunctionCallTree(function_id, data))
 
-    def gen_call_return_data(self):
+    def gen_depth_first(self):
         """
-        Yields all the data points recursively as a named tuple::
+        Yields all the data points recursively, depth first, as a named tuple::
         
             WidthDepthEventFunctionData(width, depth, event, function_id, data)
             
@@ -314,8 +361,30 @@ class FunctionCallTreeSequence:
         event ('call', 'return'), function_id an int, data as a CallReturnData object.
         """
         for width, ft in enumerate(self.function_trees):
-            for value in ft.gen_call_return_data():
+            for value in ft.gen_depth_first():
                 yield WidthDepthEventFunctionData(width, *value)
+
+    def gen_width_first(self):
+        """
+        Yields all the data points recursively, width first, as a named tuple::
+        
+            WidthDepthEventFunctionData(width, depth, event, function_id, data)
+            
+        Where width is an int (starting at 0), depth is an int (starting at 0),
+        event ('call', 'return'), function_id an int, data as a CallReturnData object.
+        """
+        depth = 0
+        try:
+            max_depth = self.max_depth()
+        except PyMemTraceMaxDepthOnEmptyTree:
+            max_depth = 0 # Implicitly makes this function a NOP
+        for depth in range(max_depth):
+            width = 0
+            for ft in self.function_trees:
+                for value in ft.gen_width_first(depth):
+                    # Function events are in pairs (call/return) so // 2
+                    yield WidthDepthEventFunctionData(width // 2, *value)
+                    width += 1
 
 class MemTrace:
     """
@@ -451,7 +520,7 @@ class MemTrace:
             len_fields = len(CallReturnData._fields)
             data_min = [None,] * len_fields
             data_max = [None,] * len_fields
-            for event_data in self.function_tree_seq.gen_call_return_data():
+            for event_data in self.function_tree_seq.gen_depth_first():
                 assert len(event_data.data) == len_fields
                 for i in range(len_fields):
                     if data_min[i] is None:
