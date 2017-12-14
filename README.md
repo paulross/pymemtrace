@@ -1,2 +1,0 @@
-# pymemtrace
-Python memory tracing.
