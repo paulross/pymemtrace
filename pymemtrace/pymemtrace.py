@@ -413,6 +413,11 @@ class MemTrace:
         self.data_min = {f : None for f in CallReturnData._fields}
         self.data_max = {f : None for f in CallReturnData._fields}
         # Create initial and final conditions
+        # NOTE: self.data_initial and self.data_final are obtained by polling
+        # the OS.
+        # self.data_min/self.data_max are min/max seen by add_data_point() and
+        # these will ne be the same, particularly if synthetic call/return data
+        # is being injected with add_data_point().
         self.data_initial = self.create_data_point()
 
     def decode_function_id(self, function_id):
@@ -471,7 +476,7 @@ class MemTrace:
         # On Windows this is an alias for wset field and it matches "Mem Usage" column
         # of taskmgr.exe.
         m = memory_info.rss
-        self._update_min_max_dicts('memory', m)
+#         self._update_min_max_dicts('memory', m)
         return m
     
     def time(self):
@@ -480,7 +485,7 @@ class MemTrace:
         wall clock time.
         """
         t = time.time()
-        self._update_min_max_dicts('time', t)
+#         self._update_min_max_dicts('time', t)
         return t
     
     def create_data_point(self):
@@ -489,16 +494,19 @@ class MemTrace:
     
     def add_data_point(self, filename, function, firstlineno, event, data):
         """
-        Adds a data point.
+        Adds a data point. Test code can drive this to create synthetic
+        time/memory events.
         
-        data is normally a CallReturnData object.
-        
-        Test code can drive this to create synthetic time/memory events.
+        data is a CallReturnData object.
         """
         assert event in ('call', 'return')
         # Update the function encoder if necessary.
         function_id = self.function_encoder.encode(filename, function, firstlineno)
         self.function_tree_seq.add_call_return_event(event, function_id, data)
+        # Update max and min
+        self._update_min_max_dicts('time', data.time)
+        self._update_min_max_dicts('memory', data.memory)
+
 
     def __call__(self, frame, event, arg):
         """Handle a trace event."""
@@ -547,7 +555,7 @@ class MemTrace:
         """
         pass
     
-    def _finalise(self):
+    def finalise(self):
         """
         This extracts any overall data such as max memory usage, start/finish
         time etc.
@@ -582,4 +590,4 @@ class MemTrace:
         # TODO: Check what is sys.gettrace(), if it is not self then someone has
         # monkeyed with the tracing.
         self.TRACE_FUNCTION_SET(self._trace_fn_stack.pop())
-        self._finalise()
+        self.finalise()

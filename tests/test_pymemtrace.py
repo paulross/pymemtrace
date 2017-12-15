@@ -612,49 +612,83 @@ def test_MemTrace_ctor():
 
 def test_MemTrace_synthetic_events_single_call():
     mt = pymemtrace.MemTrace()
-    mt.add_data_point('filename', 'function', 12, 'call', 'call_data')
-    mt.add_data_point('filename', 'function', 12, 'return', 'return_data')
+    mt.add_data_point('filename', 'function', 12, 'call', pymemtrace.CallReturnData(0.1, 1000))
+    mt.add_data_point('filename', 'function', 12, 'return', pymemtrace.CallReturnData(0.2, 2000))
+    mt.finalise()
     results_depth = list(mt.function_tree_seq.gen_depth_first())
 #     print()
 #     pprint.pprint(results_depth)
+#     print()
+#     print('mt.data_initial:', mt.data_initial)
+#     print('    mt.data_min:', mt.data_min)
+#     print('    mt.data_max:', mt.data_max)
+#     print('  mt.data_final:', mt.data_final)
     assert results_depth == [
-        pymemtrace.WidthDepthEventFunctionData(width=0, depth=0, event='call', function_id=0, data='call_data'),
-        pymemtrace.WidthDepthEventFunctionData(width=0, depth=0, event='return', function_id=0, data='return_data')
+        pymemtrace.WidthDepthEventFunctionData(
+            width=0, depth=0, event='call', function_id=0,
+            data=pymemtrace.CallReturnData(0.1, 1000)),
+        pymemtrace.WidthDepthEventFunctionData(
+            width=0, depth=0, event='return', function_id=0,
+            data=pymemtrace.CallReturnData(0.2, 2000)),
     ]
+    assert mt.data_min == pymemtrace.CallReturnData(0.1, 1000)
+    assert mt.data_max == pymemtrace.CallReturnData(0.2, 2000)
 
 def test_MemTrace_synthetic_events_double_call_depth():
     mt = pymemtrace.MemTrace()
     # Line number is firstlineno
-    mt.add_data_point('filename', 'parent', 12, 'call', 'parent_call_data')
-    mt.add_data_point('filename', 'child', 15, 'call', 'child_call_data')
-    mt.add_data_point('filename', 'child', 15, 'return', 'child_return_data')
-    mt.add_data_point('filename', 'parent', 12, 'return', 'parent_return_data')
+    mt.add_data_point('filename', 'parent', 12, 'call', pymemtrace.CallReturnData(0.1, 1000))
+    mt.add_data_point('filename', 'child', 15, 'call', pymemtrace.CallReturnData(0.2, 2000))
+    mt.add_data_point('filename', 'child', 15, 'return', pymemtrace.CallReturnData(0.3, 3000))
+    mt.add_data_point('filename', 'parent', 12, 'return', pymemtrace.CallReturnData(0.4, 4000))
+    mt.finalise()
     results_depth = list(mt.function_tree_seq.gen_depth_first())
 #     print()
 #     pprint.pprint(results_depth)
     assert results_depth == [
-        pymemtrace.WidthDepthEventFunctionData(width=0, depth=0, event='call', function_id=0, data='parent_call_data'),
-        pymemtrace.WidthDepthEventFunctionData(width=0, depth=1, event='call', function_id=1, data='child_call_data'),
-        pymemtrace.WidthDepthEventFunctionData(width=0, depth=1, event='return', function_id=1, data='child_return_data'),
-        pymemtrace.WidthDepthEventFunctionData(width=0, depth=0, event='return', function_id=0, data='parent_return_data'),
+        pymemtrace.WidthDepthEventFunctionData(
+            width=0, depth=0, event='call', function_id=0,
+            data=pymemtrace.CallReturnData(0.1, 1000)),
+        pymemtrace.WidthDepthEventFunctionData(
+            width=0, depth=1, event='call', function_id=1,
+            data=pymemtrace.CallReturnData(0.2, 2000)),
+        pymemtrace.WidthDepthEventFunctionData(
+            width=0, depth=1, event='return', function_id=1,
+            data=pymemtrace.CallReturnData(0.3, 3000)),
+        pymemtrace.WidthDepthEventFunctionData(
+            width=0, depth=0, event='return', function_id=0,
+            data=pymemtrace.CallReturnData(0.4, 4000)),
     ]
+    assert mt.data_min == pymemtrace.CallReturnData(0.1, 1000)
+    assert mt.data_max == pymemtrace.CallReturnData(0.4, 4000)
 
 def test_MemTrace_synthetic_events_double_call_width():
     mt = pymemtrace.MemTrace()
     # Line number is firstlineno
-    mt.add_data_point('filename', 'parent', 12, 'call', 'parent_call_data')
-    mt.add_data_point('filename', 'parent', 12, 'return', 'parent_return_data')
-    mt.add_data_point('filename', 'child', 15, 'call', 'child_call_data')
-    mt.add_data_point('filename', 'child', 15, 'return', 'child_return_data')
+    mt.add_data_point('filename', 'parent', 12, 'call', pymemtrace.CallReturnData(0.1, 1000))
+    mt.add_data_point('filename', 'parent', 12, 'return', pymemtrace.CallReturnData(0.2, 2000))
+    mt.add_data_point('filename', 'child', 15, 'call', pymemtrace.CallReturnData(0.3, 3000))
+    mt.add_data_point('filename', 'child', 15, 'return', pymemtrace.CallReturnData(0.4, 4000))
+    mt.finalise()
     results_depth = list(mt.function_tree_seq.gen_depth_first())
     print()
     pprint.pprint(results_depth)
     assert results_depth == [
-        pymemtrace.WidthDepthEventFunctionData(width=0, depth=0, event='call', function_id=0, data='parent_call_data'),
-        pymemtrace.WidthDepthEventFunctionData(width=0, depth=0, event='return', function_id=0, data='parent_return_data'),
-        pymemtrace.WidthDepthEventFunctionData(width=1, depth=0, event='call', function_id=1, data='child_call_data'),
-        pymemtrace.WidthDepthEventFunctionData(width=1, depth=0, event='return', function_id=1, data='child_return_data'),
+        pymemtrace.WidthDepthEventFunctionData(
+            width=0, depth=0, event='call', function_id=0,
+            data=pymemtrace.CallReturnData(0.1, 1000)),
+        pymemtrace.WidthDepthEventFunctionData(
+            width=0, depth=0, event='return', function_id=0,
+            data=pymemtrace.CallReturnData(0.2, 2000)),
+        pymemtrace.WidthDepthEventFunctionData(
+            width=1, depth=0, event='call', function_id=1,
+            data=pymemtrace.CallReturnData(0.3, 3000)),
+        pymemtrace.WidthDepthEventFunctionData(
+            width=1, depth=0, event='return', function_id=1,
+            data=pymemtrace.CallReturnData(0.4, 4000)),
     ]
+    assert mt.data_min == pymemtrace.CallReturnData(0.1, 1000)
+    assert mt.data_max == pymemtrace.CallReturnData(0.4, 4000)
 
 def test_MemTrace_single_function():
     def single_function(n):
