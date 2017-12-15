@@ -486,6 +486,19 @@ class MemTrace:
     def create_data_point(self):
         """Snapshot a data point. Returns a CallReturnData named tuple.""" 
         return CallReturnData(self.time(), self.memory())
+    
+    def add_data_point(self, filename, function, firstlineno, event, data):
+        """
+        Adds a data point.
+        
+        data is normally a CallReturnData object.
+        
+        Test code can drive this to create synthetic time/memory events.
+        """
+        assert event in ('call', 'return')
+        # Update the function encoder if necessary.
+        function_id = self.function_encoder.encode(filename, function, firstlineno)
+        self.function_tree_seq.add_call_return_event(event, function_id, data)
 
     def __call__(self, frame, event, arg):
         """Handle a trace event."""
@@ -517,13 +530,12 @@ class MemTrace:
             pass
         elif event in ('call', 'return'):
             # Only look at 'real' files and functions
-            function_id = self.function_encoder.encode(
-                    frame_info.filename,
-                    frame_info.function,
-                    firstlineno,
-            )
-            self.function_tree_seq.add_call_return_event(
-                event, function_id, self.create_data_point()
+            self.add_data_point(
+                frame_info.filename,
+                frame_info.function,
+                firstlineno,
+                event,
+                self.create_data_point(),
             )
         self.event_counter.update({event : 1})
         self.eventno += 1

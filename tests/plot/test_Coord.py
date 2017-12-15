@@ -466,6 +466,28 @@ class TestMisc(unittest.TestCase):
         # print(myResult)
         self.assertEqual(myResult, expected)
 
+class TestScale(unittest.TestCase):
+
+    def test_offset_scale(self):
+        os = Coord.offset_scale(
+            Coord.Dim(100, 'mm'),
+            Coord.Dim(340, 'mm'),
+            2.0,
+            8.0,
+        )
+        self.assertEqual(os.offset, Coord.Dim(20, 'mm'))
+        self.assertEqual(os.scale, Coord.Dim(40, 'mm'))
+
+    def test_dim_from_offset_scale(self):
+        os = Coord.offset_scale(
+            Coord.Dim(100, 'mm'),
+            Coord.Dim(340, 'mm'),
+            2.0,
+            8.0,
+        )
+        self.assertEqual(Coord.dim_from_offset_scale(2.0, os), Coord.Dim(100, 'mm'))
+        self.assertEqual(Coord.dim_from_offset_scale(8.0, os), Coord.Dim(340, 'mm'))
+        self.assertEqual(Coord.dim_from_offset_scale(-0.5, os), Coord.Dim(0, 'mm'))
 
 def unitTest(theVerbosity=2):
     suite = unittest.TestLoader().loadTestsFromTestCase(TestCoordDim)
