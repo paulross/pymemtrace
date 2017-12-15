@@ -33,6 +33,8 @@ Features
 Credits
 ---------
 
+Phil Smth (AHL) with whom a casual lunchtime chat lead to the creation of an earlier, but quite different implemention, of the same idea.
+
 This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
 
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter

@@ -196,7 +196,8 @@ class TestXmlWrite(unittest.TestCase):
                         xS._elemStk.append('F')
                         raise Exception('Some exception')
         except Exception as e:
-            print(e)
+#             print(e)
+            pass
         else:
             print('No exception raised')
 #        print()

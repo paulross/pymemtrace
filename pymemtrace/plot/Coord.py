@@ -115,28 +115,45 @@ class Dim(collections.namedtuple('Dim', 'value units',)):
         """Overload self+other, returned result has the sum of self and other.
         The units chosen are self's unless self's units are None in which case other's
         units are used (if not None)."""
-        if self.units is None and other.units is not None:
-            myVal = other.value + convert(self.value, self.units, other.units)
-            return Dim(myVal, other.units)
-        else:
-            myVal = self.value + convert(other.value, other.units, self.units)
-            return Dim(myVal, self.units)
+        try:
+            if self.units is None and other.units is not None:
+                myVal = other.value + convert(self.value, self.units, other.units)
+                return Dim(myVal, other.units)
+            else:
+                myVal = self.value + convert(other.value, other.units, self.units)
+                return Dim(myVal, self.units)
+        except AttributeError:
+            return NotImplemented
 
     def __sub__(self, other):
         """Overload self-other, returned result has the difference of self and
         other. The units chosen are self's unless self's units are None in
         which case other's units are used (if not None)."""
-        if self.units is None and other.units is not None:
-            myVal = convert(self.value, self.units, other.units) - other.value
-            return Dim(myVal, other.units)
-        else:
-            myVal = self.value - convert(other.value, other.units, self.units)
-            return Dim(myVal, self.units)
+        try:
+            if self.units is None and other.units is not None:
+                myVal = convert(self.value, self.units, other.units) - other.value
+                return Dim(myVal, other.units)
+            else:
+                myVal = self.value - convert(other.value, other.units, self.units)
+                return Dim(myVal, self.units)
+        except AttributeError:
+            return NotImplemented
 
     def __mul__(self, other):
-        """Overload self * other, returned result has the product of self and other.
-        Other is a float or int."""
+        """Overload self * other, other is a float or int."""
         return Dim(self.value * other, self.units)
+
+    def __rmul__(self, other):
+        """Overload self * other, other is a float or int."""
+        return Dim(self.value * other, self.units)
+
+    def __truediv__(self, other):
+        """Overload self / other, other is a float or int."""
+        return Dim(self.value / other, self.units)
+
+    def __rtruediv__(self, other):
+        """Overload self / other, other is a float or int."""
+        return Dim(self.value / other, self.units)
 
     def __iadd__(self, other):
         """Addition in place, value of other is converted to my units and added."""
@@ -151,9 +168,13 @@ class Dim(collections.namedtuple('Dim', 'value units',)):
         return self
 
     def __imul__(self, other):
-        """Overload self *= other, returned result has the product of self and other.
-        Other is a float or int."""
+        """Overload self *= other, other is a float or int."""
         self = self * other
+        return self
+
+    def __itruediv__(self, other):
+        """Overload self /= other, other is a float or int."""
+        self = self / other
         return self
 
     def __lt__(self, other):

@@ -77,6 +77,14 @@ class TestCoordDim(unittest.TestCase):
         self.assertEqual(myResult.value, 1.25)
         self.assertEqual(myResult.units, 'in')
 
+    def testAdd_fails(self):
+        """Dim() addition to int."""
+        try:
+            Coord.Dim(1, 'in') + 4
+            self.fail('TypeError not raised')
+        except TypeError:
+            pass
+
     def testSub(self):
         """Dim() subtraction."""
         myObj_0 = Coord.Dim(1, 'in')
@@ -86,12 +94,68 @@ class TestCoordDim(unittest.TestCase):
         self.assertEqual(myResult.value, 0.75)
         self.assertEqual(myResult.units, 'in')
 
-    def testMul(self):
-        """Dim() addition."""
+    def testSub_fails(self):
+        """Dim() addition to int."""
+        try:
+            Coord.Dim(1, 'in') - 4
+            self.fail('TypeError not raised')
+        except TypeError:
+            pass
+
+    def testMul_float(self):
         myObj = Coord.Dim(1, 'in')
         myResult =  myObj * 4.0
         #print myResult
         self.assertEqual(myResult.value, 4.0)
+        self.assertEqual(myResult.units, 'in')
+
+    def testMul_int(self):
+        myObj = Coord.Dim(1, 'in')
+        myResult =  myObj * 4
+        #print myResult
+        self.assertEqual(myResult.value, 4)
+        self.assertEqual(myResult.units, 'in')
+
+    def test_rmul_float(self):
+        myObj = Coord.Dim(1, 'in')
+        myResult =  4.0 * myObj
+#         print(type(myResult), myResult)
+        self.assertEqual(myResult.value, 4.0)
+        self.assertEqual(myResult.units, 'in')
+
+    def test_rmul_int(self):
+        myObj = Coord.Dim(1, 'in')
+        myResult =  4 * myObj
+#         print(type(myResult), myResult)
+        self.assertEqual(myResult.value, 4.0)
+        self.assertEqual(myResult.units, 'in')
+
+    def testDiv_float(self):
+        myObj = Coord.Dim(4.0, 'in')
+        myResult =  myObj / 4.0
+        #print myResult
+        self.assertEqual(myResult.value, 1.0)
+        self.assertEqual(myResult.units, 'in')
+
+    def testDiv_int(self):
+        myObj = Coord.Dim(4.0, 'in')
+        myResult =  myObj / 4
+        #print myResult
+        self.assertEqual(myResult.value, 1.0)
+        self.assertEqual(myResult.units, 'in')
+
+    def test_rdiv_float(self):
+        myObj = Coord.Dim(4.0, 'in')
+        myResult =  4.0 / myObj
+        #print myResult
+        self.assertEqual(myResult.value, 1.0)
+        self.assertEqual(myResult.units, 'in')
+
+    def test_rdiv_int(self):
+        myObj = Coord.Dim(4.0, 'in')
+        myResult =  4 / myObj
+        #print myResult
+        self.assertEqual(myResult.value, 1.0)
         self.assertEqual(myResult.units, 'in')
 
     def testIadd_00(self):
@@ -130,6 +194,14 @@ class TestCoordDim(unittest.TestCase):
         myObj *=  4.0
         #print myResult
         self.assertEqual(myObj.value, 4.0)
+        self.assertEqual(myObj.units, 'in')
+
+    def testIDiv(self):
+        """Dim() addition."""
+        myObj = Coord.Dim(4, 'in')
+        myObj /=  4.0
+        #print myResult
+        self.assertEqual(myObj.value, 1.0)
         self.assertEqual(myObj.units, 'in')
 
     def testScale(self):
