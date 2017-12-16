@@ -13,12 +13,19 @@ def test_compute_offsets_scales():
         'right'     : Coord.Dim(8, 'mm'),
     }
     viewport = Coord.Box(
-        Coord.Dim(256 + 16, 'mm'), # .width, x, to right
-        Coord.Dim(512 + 16, 'mm'), # .depth, y, down.
+        Coord.Dim(256 + 16, 'mm'), # Memory: .width, x, to right
+        Coord.Dim(512 + 16, 'mm'), # Time: .depth, y, down.
     )
     data_min = pymemtrace.CallReturnData(8.0, 512.0)
     data_max = pymemtrace.CallReturnData(16.0, 1024.0)
     result = plot_memtrace.compute_offsets_scales(viewport, margins, data_min, data_max)
+    # Expected:
+    # Memory:
+    #    scale is (272mm - 8mm - 8mm) / (1024 - 512) == 256mm / 512 == 0.5mm/byte
+    #    offset is 8mm - 512 * 0.5mm/byte == 8mm - 256mm == 248mm
+    # Time: 
+    #    scale is (272mm - 8mm - 8mm) / (16 - 8) == 256mm / 8 == 64mm/second
+    #    offset is 8mm - 8 * 64mm/second == 8mm - 512mm == -504mm
     assert result == {
         'memory': Coord.OffsetScale(
             offset=Coord.Dim(value=-248.0, units='mm'),
@@ -30,9 +37,9 @@ def test_compute_offsets_scales():
         ),
     }
     assert Coord.dim_from_offset_scale(8, result['time']) == Coord.Dim(8, 'mm')
-    assert Coord.dim_from_offset_scale(16, result['time']) == Coord.Dim(256+16, 'mm')
+    assert Coord.dim_from_offset_scale(16, result['time']) == Coord.Dim(512+8, 'mm')
     assert Coord.dim_from_offset_scale(512.0, result['memory']) == Coord.Dim(8, 'mm')
-    assert Coord.dim_from_offset_scale(1024.0, result['memory']) == Coord.Dim(512+16, 'mm')
+    assert Coord.dim_from_offset_scale(1024.0, result['memory']) == Coord.Dim(256+8, 'mm')
 
 def test_plot_memtrace_MemTrace_simple():
     mt = pymemtrace.MemTrace()

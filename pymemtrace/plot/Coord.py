@@ -329,13 +329,18 @@ def convertPt(theP, theUnits):
 
 #---- Scaling functions
 
-#: offset_value is a float, offset_coord and scale are Coord.Dim()
+#: offset scale are Coord.Dim() objects
+#: Scale is computed as a multiplier so Dim = offset + scale * value
 OffsetScale = collections.namedtuple('OffsetScale', ['offset', 'scale'])
 
 def offset_scale(coord_min, coord_max, value_min, value_max):
     """
     coord_min, coord_max are Dim objects.
     value_min, value_max are floats or ints.
+    
+    Returns a named tuple::
+    
+        OffsetScale(offset, scale)
     """
     # delta d / delta v, the slope, a Dim object.
     scale = (coord_max - coord_min) / (value_max - value_min)
@@ -346,7 +351,11 @@ def offset_scale(coord_min, coord_max, value_min, value_max):
 def dim_from_offset_scale(value, offset_scale):
     """
     value is a float or int.
-    offset_scale is a OffsetScale object.
+    offset_scale is a named tuple::
+    
+        OffsetScale(offset, scale)
+    
+    Returns ``offset + scale * value``
     """
     return offset_scale.offset + offset_scale.scale * value
 

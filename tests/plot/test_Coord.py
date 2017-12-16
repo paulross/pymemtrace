@@ -475,8 +475,10 @@ class TestScale(unittest.TestCase):
             2.0,
             8.0,
         )
-        self.assertEqual(os.offset, Coord.Dim(20, 'mm'))
+        # Expect scale to be (8.0 - 2.0) / (340 - 100) == 6.0 / 240 == 40 
         self.assertEqual(os.scale, Coord.Dim(40, 'mm'))
+        # Expect offset to be 100 - 2.0 * scale == 100 - 80 == 20
+        self.assertEqual(os.offset, Coord.Dim(20, 'mm'))
 
     def test_dim_from_offset_scale(self):
         os = Coord.offset_scale(
@@ -485,8 +487,10 @@ class TestScale(unittest.TestCase):
             2.0,
             8.0,
         )
+        # Test origin min/max.
         self.assertEqual(Coord.dim_from_offset_scale(2.0, os), Coord.Dim(100, 'mm'))
         self.assertEqual(Coord.dim_from_offset_scale(8.0, os), Coord.Dim(340, 'mm'))
+        # -0.5 is 2.5 below origin, -2.5 * 40 == origin - 100 == 0
         self.assertEqual(Coord.dim_from_offset_scale(-0.5, os), Coord.Dim(0, 'mm'))
 
 def unitTest(theVerbosity=2):
