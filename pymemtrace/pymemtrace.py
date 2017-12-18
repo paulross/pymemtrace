@@ -358,7 +358,8 @@ class FunctionCallTreeSequence:
             WidthDepthEventFunctionData(width, depth, event, function_id, data)
             
         Where width is an int (starting at 0), depth is an int (starting at 0),
-        event ('call', 'return'), function_id an int, data as a CallReturnData object.
+        event is one of ``('call', 'return')``, function_id an int, data as a
+        named tuple ``CallReturnData(time, memory)`` object.
         """
         for width, ft in enumerate(self.function_trees):
             for value in ft.gen_depth_first():
@@ -371,7 +372,8 @@ class FunctionCallTreeSequence:
             WidthDepthEventFunctionData(width, depth, event, function_id, data)
             
         Where width is an int (starting at 0), depth is an int (starting at 0),
-        event ('call', 'return'), function_id an int, data as a CallReturnData object.
+        event is one of ``('call', 'return')``, function_id an int, data as a
+        named tuple ``CallReturnData(time, memory)`` object.
         """
         depth = 0
         try:

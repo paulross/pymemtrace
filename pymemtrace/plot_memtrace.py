@@ -29,6 +29,7 @@
 This plots the results of a pymemtrace.MemTrace object in SVG
 '''
 import collections
+import math
 import pprint
 
 # from pymemtrace import MemTrace
@@ -84,6 +85,29 @@ def compute_offsets_scales(viewport, margins, data_min, data_max):
     }
     return result
 
+def best_tick(largest, most_ticks):
+    """
+    Compute a pretty tick value. Adapted from:
+    https://stackoverflow.com/questions/361681/algorithm-for-nice-grid-line-intervals-on-a-graph
+    
+    """
+    minimum = largest / most_ticks
+    magnitude = 10 ** math.floor(math.log(minimum, 10))
+    residual = minimum / magnitude
+    if residual > 5:
+        tick = 10 * magnitude
+    elif residual > 2:
+        tick = 5 * magnitude
+    elif residual > 1:
+        tick = 2 * magnitude
+    else:
+        tick = magnitude
+    return tick
+
+def axis_bound(value):
+    pass
+
+
 def pt_from_time_and_memory(offsets_scales, tim, mem):
     """
     Returns a Cooord.Pt() from time ``tim`` and memory ``mem`` using a dict of
@@ -127,10 +151,13 @@ def plot_axes(memtrace, svgS, offsets_scales):
         pass
     # TODO: Axis text, axis tick marks, gridlines.
 
+def _plot_depth_generator(gen, event):
+    # call with memtrace.function_tree_seq.gen_width_first
+    pass
+
+
 def plot_history(memtrace, svgS, offsets_scales):
     """Plots all the history gathered by MemTrace."""
-    pt_prev = None
-    event_prev = None
     for wdefd in memtrace.function_tree_seq.gen_width_first():
         # wdefd is a named tuple:
         # WidthDepthEventFunctionData(width, depth, event, function_id, data)

@@ -41,6 +41,21 @@ def test_compute_offsets_scales():
     assert Coord.dim_from_offset_scale(512.0, result['memory']) == Coord.Dim(8, 'mm')
     assert Coord.dim_from_offset_scale(1024.0, result['memory']) == Coord.Dim(256+8, 'mm')
 
+def test_best_tick():
+    # best_tick(largest, most_ticks)
+    assert plot_memtrace.best_tick(10.0, 10) == 1
+    assert plot_memtrace.best_tick(10.0, 5) == 2
+    assert plot_memtrace.best_tick(200.0, 5) == 50
+
+
+
+
+
+
+
+
+
+
 def test_plot_memtrace_MemTrace_simple():
     mt = pymemtrace.MemTrace()
     # Add a couple of sequential functions
