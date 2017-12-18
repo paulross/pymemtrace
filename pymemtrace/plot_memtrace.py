@@ -2,19 +2,19 @@
 # -*- coding: utf-8 -*-
 #
 # MIT License
-# 
+#
 # Copyright (c) 2017 paulross
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in all
 # copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -22,7 +22,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-# 
+#
 # Paul Ross: apaulross@gmail.com
 
 '''
@@ -66,7 +66,7 @@ def compute_offsets_scales(viewport, margins, data_min, data_max):
     Returns a dict of Coord.OffsetScale for keys 'time' and 'memory' from the
     data in the MemTrace object. ``margins`` is a dict of margins:
     ``{position : Coord.Dim(), ...}`` where ``position`` is 'top', 'bottom',
-    'left', 'right'. 
+    'left', 'right'.
     """
     result = {
         # coord_min, coord_max, value_min, value_max
@@ -89,7 +89,7 @@ def best_tick(largest, most_ticks):
     """
     Compute a pretty tick value. Adapted from:
     https://stackoverflow.com/questions/361681/algorithm-for-nice-grid-line-intervals-on-a-graph
-    
+
     """
     minimum = largest / most_ticks
     magnitude = 10 ** math.floor(math.log(minimum, 10))
@@ -112,7 +112,7 @@ def pt_from_time_and_memory(offsets_scales, tim, mem):
     """
     Returns a Cooord.Pt() from time ``tim`` and memory ``mem`` using a dict of
     Coord.OffsetScale objects for each axis.
-    
+
     ``offsets_scales`` comes from ``compute_offsets_scales()``.
     """
     pt = Coord.Pt(
@@ -136,52 +136,87 @@ def plot_axes(memtrace, svgS, offsets_scales):
     # Memory axis
     with SVGWriter.SVGLine(
             svgS,
-            Coord.Pt(xy_min.x, xy_min.y), 
-            Coord.Pt(xy_max.x, xy_min.y), 
+            Coord.Pt(xy_min.x, xy_min.y),
+            Coord.Pt(xy_max.x, xy_min.y),
             {'stroke-width' : "5", 'stroke' : 'red'}
         ):
         pass
     # Memory axis
     with SVGWriter.SVGLine(
             svgS,
-            Coord.Pt(xy_min.x, xy_min.y), 
-            Coord.Pt(xy_min.x, xy_max.y), 
+            Coord.Pt(xy_min.x, xy_min.y),
+            Coord.Pt(xy_min.x, xy_max.y),
             {'stroke-width' : "5", 'stroke' : 'green'}
         ):
         pass
     # TODO: Axis text, axis tick marks, gridlines.
 
-def _plot_depth_generator(gen, event):
-    # call with memtrace.function_tree_seq.gen_width_first
-    pass
+def _plot_depth_generator(gen, wdefd, offsets_scales, svgS):
+    """
+    :param gen: A generator of WidthDepthEventFunctionData events.
+
+    :param wdefd: The current WidthDepthEventFunctionData event.
+    :type wdefd: A ``WidthDepthEventFunctionData(width, depth, event, function_id, data)`` object.
+
+    :param offsets_scales: Offset and scale for the two axis.
+    :type offsets_scales: ``{field : Coord.OffsetScale`` with keys ``'time'`` and ``'memory'``.
+
+    :param svgS: The SVG stream.
+    :type svgS: ``SVGWriter.SVGWriter``
+
+    :return: The outstanding ``WidthDepthEventFunctionData(width, depth, event, function_id, data)`` event.
+    """
+    svgS.comment('_plot_depth_generator(): Entry {!r:s}'.format(wdefd), newLine=True)
+    assert wdefd.event == 'call'
+    ptS = []
+    while True:
+        pt_call = pt_from_time_and_memory(offsets_scales, wdefd.data.time, wdefd.data.memory)
+        ptS.append(pt_call)
+        wdefd = next(gen)
+        if wdefd.event == 'call':
+            wdefd = _plot_depth_generator(gen, wdefd, offsets_scales, svgS)
+        elif wdefd.event == 'return':
+            break
+        else:
+            assert 0
+
+    with SVGWriter.SVGPolyline(svgS, ptS):
+        pass
+    svgS.comment('_plot_depth_generator():  Exit {!r:s}'.format(wdefd), newLine=True)
+    return wdefd
 
 
 def plot_history(memtrace, svgS, offsets_scales):
     """Plots all the history gathered by MemTrace."""
-    for wdefd in memtrace.function_tree_seq.gen_width_first():
-        # wdefd is a named tuple:
-        # WidthDepthEventFunctionData(width, depth, event, function_id, data)
-        #
-        # function_id can be decoded with:
-        # memtrace.decode_function_id(function_id) which returns a named tuple:
-        # FunctionLocation(filename, function, lineno)
-        #
-        # data is a named tuple:
-        # CallReturnData(time, memory)
-        pt = pt_from_time_and_memory(offsets_scales, wdefd.data.time, wdefd.data.memory)
-        if wdefd.event == 'return':
-            assert event_prev == 'call'
-            box = Coord.Box(pt.x - pt_prev.x, pt.y - pt_prev.y)
-            with SVGWriter.SVGRect(svgS, pt_prev, box):
-                pass
-        pt_prev = pt
-        event_prev = wdefd.event
+    try:
+        gen = memtrace.function_tree_seq.gen_width_first()
+        _plot_depth_generator(gen, next(gen), offsets_scales, svgS)
+    except StopIteration:
+        pass
+    # for wdefd in memtrace.function_tree_seq.gen_width_first():
+    #     # wdefd is a named tuple:
+    #     # WidthDepthEventFunctionData(width, depth, event, function_id, data)
+    #     #
+    #     # function_id can be decoded with:
+    #     # memtrace.decode_function_id(function_id) which returns a named tuple:
+    #     # FunctionLocation(filename, function, lineno)
+    #     #
+    #     # data is a named tuple:
+    #     # CallReturnData(time, memory)
+    #     pt = pt_from_time_and_memory(offsets_scales, wdefd.data.time, wdefd.data.memory)
+    #     if wdefd.event == 'return':
+    #         assert event_prev == 'call'
+    #         box = Coord.Box(pt.x - pt_prev.x, pt.y - pt_prev.y)
+    #         with SVGWriter.SVGRect(svgS, pt_prev, box):
+    #             pass
+    #     pt_prev = pt
+    #     event_prev = wdefd.event
 
 def plot_memtrace_to_path(memtrace, file_path):
     """Plots a pymemtrace.MemTrace object in SVG to the ``file_path``."""
     with open(file_path, 'w') as fobj:
         plot_memtrace_to_file(memtrace, fobj)
-        
+
 def plot_memtrace_to_file(memtrace, fobj):
     """Plots a pymemtrace.MemTrace object in SVG to the file like object ``fobj``."""
     viewport = get_viewport()
