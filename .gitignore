@@ -103,3 +103,9 @@ ENV/
 # PyCharm
 .idea/
 
+# Temporary files
+tmp/
+
+# Mac OS X
+.DS_Store
+

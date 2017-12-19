@@ -39,7 +39,7 @@ class ExceptionSVGWriter(Exception):
     """Exception class for SVGWriter."""
     pass
 
-def dimToTxt(theDim):
+def dimToTxt(theDim, incUnits=True):
     """Converts a Coord.Dim() object to text for SVG units.
 
     Examples:
@@ -55,7 +55,10 @@ def dimToTxt(theDim):
 
     :returns: ``str`` -- Text suitable for writing SVG, for example '0.667in'.
     """
-    return Coord.UNIT_MAP_DEFAULT_FORMAT_WITH_UNITS[theDim.units] % (theDim.value, theDim.units)
+    if incUnits and theDim.units is not None:
+        return Coord.UNIT_MAP_DEFAULT_FORMAT_WITH_UNITS[theDim.units] % (theDim.value, theDim.units)
+    return Coord.UNIT_MAP_DEFAULT_FORMAT[theDim.units] % (theDim.value)
+    
 
 class SVGWriter(XmlWrite.XmlStream):
     """An XML writer specialised for writing SVG."""
@@ -275,8 +278,13 @@ class SVGPointList(XmlWrite.Element):
 
         :returns: ``NoneType``
         """
+#         _attrs = {
+#             'points' : ' '.join(['%s,%s' % (p.x.value, p.y.value) for p in pointS])
+#         }
         _attrs = {
-            'points' : ' '.join(['%s,%s' % (p.x.value, p.y.value) for p in pointS])
+            'points' : ' '.join(
+                ['%s,%s' % (dimToTxt(p.x, incUnits=False),
+                            dimToTxt(p.y, incUnits=False)) for p in pointS])
         }
         if attrs:
             _attrs.update(attrs)
