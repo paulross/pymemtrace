@@ -63,7 +63,14 @@ def test_plot_memtrace_MemTrace_simple():
     print('    mt.data_max:', mt.data_max)
     print('  mt.data_final:', mt.data_final)
     fobj = io.StringIO()
-    plot_memtrace.plot_memtrace_to_file(mt, fobj)
+    fobj = io.StringIO()    
+    pmt = plot_memtrace.PlotMemTrace(
+        mt.function_encoder,
+        mt.function_tree_seq,
+        mt.data_min,
+        mt.data_max,
+        fobj)
+#     plot_memtrace.plot_memtrace_to_file(mt, fobj)
     print()
     print(fobj.getvalue())
 
@@ -92,7 +99,13 @@ def test_plot_memtrace_MemTrace_depth_two():
     print('    mt.data_max:', mt.data_max)
     print('  mt.data_final:', mt.data_final)
     pprint.pprint(list(mt.function_tree_seq.gen_depth_first()))
-    fobj = io.StringIO()
-    plot_memtrace.plot_memtrace_to_file(mt, fobj)
+    fobj = io.StringIO()    
+    pmt = plot_memtrace.PlotMemTrace(
+        mt.function_encoder,
+        mt.function_tree_seq,
+        mt.data_min,
+        mt.data_max,
+        fobj)
+#     plot_memtrace.plot_memtrace_to_file(mt, fobj)
     print()
     print(fobj.getvalue())

@@ -78,8 +78,9 @@ class FunctionEncoder:
     
     def decode(self, function_id):
         """
-        Decode the int function_id to the original:
-        FunctionLocation(file_path, function_name, lineno).
+        Decode the int function_id to the original as a named tuple::
+        
+            FunctionLocation(filename, function, lineno)
         
         Will raise KeyError if function_id unseen.
         """
@@ -110,7 +111,15 @@ class CallReturnData(collections.namedtuple('CallReturnData', ['time', 'memory']
         return self - other
     
     def __str__(self):
-        return '{:0,.0f} (us) {:0,.3f} (kb)'.format(self.time * 1e6, self.memory / 1024)
+#         return '{:0,.0f} (us) {:0,.3f} (kb)'.format(self.time * 1e6, self.memory / 1024)
+        return '{:s} {:s}'.format(*self.str_pair())
+
+    def str_pair(self):
+        """Returns the data nicely formated as a tuple of strings."""
+        return (
+            '{:0,.0f} (us)'.format(self.time * 1e6),
+            '{:0,.3f} (kb)'.format(self.memory / 1024)
+        )
 
 CallReturnData.time.__doc__ = 'Wall clock time as a float.' 
 CallReturnData.memory.__doc__ = 'Total memory usage in bytes as an int.' 
@@ -418,7 +427,7 @@ class MemTrace:
         # NOTE: self.data_initial and self.data_final are obtained by polling
         # the OS.
         # self.data_min/self.data_max are min/max seen by add_data_point() and
-        # these will ne be the same, particularly if synthetic call/return data
+        # these will not be the same, particularly if synthetic call/return data
         # is being injected with add_data_point().
         self.data_initial = self.create_data_point()
 
