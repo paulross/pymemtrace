@@ -76,7 +76,7 @@ class PlotMemTrace:
         'top'       : Coord.Dim(0.3, DEFAULT_PLOT_UNITS),
         'bottom'    : Coord.Dim(0.3, DEFAULT_PLOT_UNITS),
         'left'      : Coord.Dim(0.3, DEFAULT_PLOT_UNITS),
-        'right'     : Coord.Dim(0.3, DEFAULT_PLOT_UNITS),
+        'right'     : Coord.Dim(1.3, DEFAULT_PLOT_UNITS),
     }
     MARGIN_KEYS = tuple(MARGINS_ABS.keys())
     # MARGIN_AXIS = Coord.Dim(8, 'mm').convert(None) # Allow for axis text as well
@@ -145,7 +145,7 @@ class PlotMemTrace:
         # TODO: Axis text, axis tick marks, gridlines.
  
 
-    def _plot_depth_generator(self, gen, wdefd, svgS):
+    def _plot_depth_generator(self, gen, wdefd, svgS, data_hover_ptS):
         """
         :param gen: A generator of WidthDepthEventFunctionData events.
     
@@ -172,14 +172,14 @@ class PlotMemTrace:
         # The data points that are used to provide time/memory pop-up information.
         # There should be no duplicates with child functions.
         # A list of CallReturnData()
-        data_hover_ptS = [wdefd.data]
+        data_hover_ptS.append(wdefd.data)
         # TODO: Asserts about depth of event, function_id and so on.
         while True:
             wdefd = next(gen)
             assert wdefd.event in ('call', 'return')
             if wdefd.event == 'call':
                 function_wdefS.append(wdefd.data)
-                wdefd = self._plot_depth_generator(gen, wdefd, svgS)
+                wdefd = self._plot_depth_generator(gen, wdefd, svgS, data_hover_ptS)
                 if wdefd.data.memory > function_wdefS[-1].memory:
                     # Add synthetic point
                     synth_point = pymemtrace.CallReturnData(wdefd.data.time, function_wdefS[-1].memory)
@@ -205,16 +205,19 @@ class PlotMemTrace:
 #         }
 #         with SVGWriter.SVGPolygon(svgS, polygon_ptS, polyline_attrs):
 #             pass
-        self._write_data_hover_points_SVG(data_hover_ptS, svgS)
+
+#         self._write_data_hover_points_SVG(data_hover_ptS, svgS)
         return wdefd
     
     def plot_history(self, svgS):
         """Plots all the history gathered by MemTrace."""
+        data_hover_ptS = []
         try:
             gen = self.function_tree_seq.gen_depth_first()
-            self._plot_depth_generator(gen, next(gen), svgS)
+            self._plot_depth_generator(gen, next(gen), svgS, data_hover_ptS)
         except StopIteration:
             pass
+        self._write_data_hover_points_SVG(data_hover_ptS, svgS)
 
     def pt_from_cr_data(self, call_return_data, is_abs_units):
         """
@@ -369,6 +372,7 @@ class PlotMemTrace:
                     begin="data_pt_0.mouseover" end="data_pt_0.mouseout" /> 
             </g>
         """
+        svgS.comment('_write_data_hover_points_SVG():', newLine=True)
         for data_point in data_hover_ptS:
             pt_id = self._data_hover_new_id()
 #             print('TRACE:', data_point)
