@@ -32,12 +32,14 @@ import collections
 import math
 import pprint
 
-from pymemtrace import pymemtrace
-from pymemtrace.plot import Coord
-from pymemtrace.plot import SVGWriter
-from pymemtrace.plot import XmlWrite
-
-
+from pymemtrace import data
+try:
+    from pymemtrace.plot import Coord
+    from pymemtrace.plot import SVGWriter
+    from pymemtrace.plot import XmlWrite
+except ImportError:
+    from . import Coord, SVGWriter, XmlWrite
+    
 def compute_offsets_scales(viewport, margins, data_min, data_max):
     """
     Returns a dict of Coord.OffsetScale for keys 'time' and 'memory' from the
@@ -181,7 +183,7 @@ class PlotMemTrace:
                 wdefd = self._plot_depth_generator(gen, wdefd, svgS, data_hover_ptS)
                 if wdefd.data.memory > function_wdefS[-1].memory:
                     # Add synthetic point
-                    synth_point = pymemtrace.CallReturnData(wdefd.data.time, function_wdefS[-1].memory)
+                    synth_point = data.CallReturnData(wdefd.data.time, function_wdefS[-1].memory)
                     function_wdefS.append(synth_point)
                 function_wdefS.append(wdefd.data)
             else:
@@ -189,7 +191,7 @@ class PlotMemTrace:
                 data_hover_ptS.append(wdefd.data)
                 break
         # Make a synthetic point with return time and call memory
-        synth_point = pymemtrace.CallReturnData(wdefd.data.time, wdefd_call.data.memory)
+        synth_point = data.CallReturnData(wdefd.data.time, wdefd_call.data.memory)
         function_wdefS.append(synth_point)
         data_hover_ptS.append(synth_point)
         svgS.comment('_plot_depth_generator(): {!r:s}'.format(wdefd_call), newLine=True)
@@ -287,9 +289,9 @@ class PlotMemTrace:
         memory_max = max([d.memory for d in function_cr_data])
         time_min = min([d.time for d in function_cr_data])
         time_max = max([d.time for d in function_cr_data])
-        data_min = pymemtrace.CallReturnData(time=time_min, memory=memory_min)
-        data_max = pymemtrace.CallReturnData(time=time_max, memory=memory_max)
-        mid_data = pymemtrace.CallReturnData(
+        data_min = data.CallReturnData(time=time_min, memory=memory_min)
+        data_max = data.CallReturnData(time=time_max, memory=memory_max)
+        mid_data = data.CallReturnData(
             time=time_min + (time_max - time_min) / 2.0,
             memory=memory_min + (memory_max - memory_min) / 2.0,
         )
