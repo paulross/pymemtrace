@@ -1,15 +1,22 @@
 # -*- coding: utf-8 -*-
 
 """Main module."""
+import argparse
 import array
 import bisect
 import collections
 import inspect
+import logging
+# import os
 import re
 import sys
 import time
 
 import psutil
+
+# sys.path.append(os.path.dirname(__file__))
+# print(sys.path)
+# import plot_memtrace
 
 class ExceptionPyMemTraceBase(Exception):
     pass
@@ -602,3 +609,117 @@ class MemTrace:
         # monkeyed with the tracing.
         self.TRACE_FUNCTION_SET(self._trace_fn_stack.pop())
         self.finalise()
+
+def compile_and_exec(script_name, *args, **kwargs):
+    """
+    Main execution point to trace memory function calls.
+    
+    Returns a MemTrace object.
+    """
+#     print('TRACE: compile_and_exec()', script_name, args, kwargs)
+    sys.argv = [script_name] + list(args)
+#     logging.debug('typein_cli.compile_and_exec({:s})'.format(script_name))
+    with open(script_name) as f_obj:
+        src = f_obj.read()
+#         logging.debug('typein_cli.compile_and_exec() read {:d} lines'.format(src.count('\n')))
+        code = compile(src, script_name, 'exec')
+        with MemTrace() as mt:
+            try:
+                exec(code, globals())#, locals())
+            except SystemExit:
+                # Trap CLI code that calls exit() or sys.exit()
+                pass
+    return mt
+
+def main():
+    """Command line version of pymemtrace which executes arbitrary Python code
+    and for each function records all the types called, returned and raised.
+    For example::
+
+        python typin_cli.py --stubs=stubs -- example.py 'foo bar baz'
+
+    This will execute ``example.py`` with the options ``foo bar baz`` under the
+    control of typin and write all the type annotations to the stubs/ directory.
+    """
+    start_time = time.time()
+    start_clock = time.clock()
+    program_version = "v%s" % '0.1.0'
+    program_shortdesc = 'typin_cli - Infer types of Python functions.'
+    program_license = """%s
+  Created by Paul Ross on 2017-10-25. Copyright 2017. All rights reserved.
+  Version: %s Licensed under MIT License
+USAGE
+""" % (program_shortdesc, program_version)
+    parser = argparse.ArgumentParser(description=program_license,
+                            formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        "-l", "--loglevel",
+        type=int,
+        dest="loglevel",
+        default=30,
+        help="Log Level (debug=10, info=20, warning=30, error=40, critical=50)" \
+        " [default: %(default)s]"
+    )
+#     parser.add_argument("-d", "--dump", action="store_true", dest="dump",
+#                         default=False,
+#                         help="Dump results on stdout after processing. [default: %(default)s]")
+#     parser.add_argument("-t", "--trace-frame-events", action="store_true", dest="trace_frame_events",
+#                         default=False,
+#                         help="""Very verbose trace output, one line per frame event. [default: %(default)s]""")
+#     parser.add_argument("-e", "--events-to-trace", action='append', default=[], dest="events_to_trace",
+#                         help="Events to trace (additive). [default: %(default)s] i.e. every event.")
+    parser.add_argument(
+#         "-o", "--output",
+        type=str,
+        dest="output",
+        help="Output SVG file.",
+    )
+#     parser.add_argument(
+#         "-w", "--write-docstrings",
+#         type=str,
+#         dest="write_docstrings",
+#         default="",
+#         help="Directory to write source code with docstrings. [default: %(default)s]"
+#     )
+#     parser.add_argument(
+#         "-r", "--root",
+#         type=str,
+#         dest="root",
+#         default=".",
+#         help="Root path of the Python packages to generate stub files for."
+#         " [default: %(default)s]"
+#     )
+    parser.add_argument(dest="program",
+                        help="Python target file to be compiled and executed.")
+    parser.add_argument(dest="args",
+                        nargs=argparse.REMAINDER,
+                        help="Arguments to give to the target.")
+    cli_args = parser.parse_args()
+    logFormat = '%(asctime)s %(levelname)-8s %(message)s'
+    logging.basicConfig(level=cli_args.loglevel,
+                        format=logFormat,
+                        # datefmt='%y-%m-%d % %H:%M:%S',
+                        stream=sys.stdout)
+#     print(' START: typin_cli '.center(75, '='))
+#     print('typin_cli sys.argv:', sys.argv)
+#     print('sys.argv:', sys.argv)
+    print('cli_args', cli_args)
+    return
+
+    # Execution point
+    mem_trace = compile_and_exec(cli_args.program, *cli_args.args)
+    # Output: SVG.
+    plot_memtrace.plot_memtrace_to_path(mem_trace, cli_args.ouptut)
+    # Summary.
+    print('MemTrace total events: {:d}'.format(mem_trace.eventno))
+    print(' MemTrace event count:', mem_trace.event_counter)
+    print(' CPU time = {:8.3f} (S)'.format(time.time() - start_time))
+    print('CPU clock = {:8.3f} (S)'.format(time.clock() - start_clock))
+    print('Bye, bye!')
+    print(' FINISH: typin_cli '.center(75, '='))
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())
+
+

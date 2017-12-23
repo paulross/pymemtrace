@@ -341,6 +341,7 @@ def offset_scale(coord_min, coord_max, value_min, value_max):
     Returns a named tuple::
     
         OffsetScale(offset, scale)
+    :raises: ``ZeroDivisionError`` if ``value_min - value_max`` is zero.
     """
     # delta d / delta v, the slope, a Dim object.
     scale = (coord_max - coord_min) / (value_max - value_min)

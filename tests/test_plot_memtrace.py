@@ -1,6 +1,10 @@
 
 import io
 import pprint
+import time
+
+# import sys
+# print(sys.path)
 
 from pymemtrace import pymemtrace
 from pymemtrace import plot_memtrace
@@ -107,5 +111,41 @@ def test_plot_memtrace_MemTrace_depth_two():
         mt.data_max,
         fobj)
 #     plot_memtrace.plot_memtrace_to_file(mt, fobj)
+    print()
+    print(fobj.getvalue())
+
+def test_MemTrace_real_function_calls():
+    KILO = 1024
+    MEGA = 1024*1024
+    SIZE = KILO * 4
+    def function_A():
+        data = []
+        function_B(data)
+        function_C(data)
+        return data
+        
+    def function_B(data):
+        for i in range(SIZE):
+            data.append(i)
+        time.sleep(0.125)
+        
+    def function_C(data):
+        for i in range(SIZE // 2):
+            data.pop()
+        time.sleep(0.25)
+        
+    with pymemtrace.MemTrace() as mt:
+        data = function_A()
+        assert len(data) == SIZE // 2
+    print()
+    pprint.pprint(list(mt.function_tree_seq.gen_depth_first()))
+    
+    fobj = io.StringIO()    
+    pmt = plot_memtrace.PlotMemTrace(
+        mt.function_encoder,
+        mt.function_tree_seq,
+        mt.data_min,
+        mt.data_max,
+        fobj)
     print()
     print(fobj.getvalue())
