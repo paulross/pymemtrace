@@ -2,14 +2,14 @@
 Data structures used by pymemtrace
 '''
 # import argparse
-import array
-import bisect
+# import array
+# import bisect
 import collections
-import inspect
+# import inspect
 # import logging
 # import os
 # import re
-# import sys
+import sys
 # import time
 
 class ExceptionPyMemTraceBase(Exception):
@@ -24,10 +24,15 @@ class PyMemTraceMaxDepthOnEmptyTree(ExceptionPyMemTraceBase):
     This specialises that error."""
     pass
 
-FunctionLocation = collections.namedtuple(
-    'FunctionLocation', 'filename, function, lineno'
-)
-FunctionLocation.__doc__ += ': Function location.'
+class FunctionLocation(collections.namedtuple('FunctionLocation',
+                                              ['filename', 'function', 'lineno'])):
+    __slots__ = ()
+    
+    def __sizeof__(self):
+        return sys.getsizeof(tuple()) + sys.getsizeof(self.filename) \
+            + sys.getsizeof(self.function) + sys.getsizeof(self.lineno)
+
+FunctionLocation.__doc__ = 'Function location.'
 FunctionLocation.filename.__doc__ = 'Absolute file path as a string.' 
 FunctionLocation.function.__doc__ = 'Function (unqualified) name as a string.' 
 FunctionLocation.lineno.__doc__ = 'Line number of the event as an int.'
@@ -51,6 +56,15 @@ class FunctionEncoder:
     
     def __len__(self):
         return len(self.id_lookup)
+    
+    def __sizeof__(self):
+        # Will raise a RuntimeError if this is called within a trace function
+        # as the dict will be mutated whilst iterated.
+        s = sys.getsizeof(dict())
+        for k, v in self.id_lookup.items():
+            s += sys.getsizeof(k)
+            s += sys.getsizeof(v)
+        return 2 * s
     
     def encode(self, file_path, function_name, lineno):
         """
@@ -111,6 +125,9 @@ class CallReturnData(collections.namedtuple('CallReturnData', ['time', 'memory']
     def __isub__(self, other):
         return self - other
     
+    def __sizeof__(self):
+        return sys.getsizeof(tuple()) + sys.getsizeof(self.time) + sys.getsizeof(self.memory)
+    
     def __str__(self):
 #         return '{:0,.0f} (us) {:0,.3f} (kb)'.format(self.time * 1e6, self.memory / 1024)
         return '{:s} {:s}'.format(*self.str_pair())
@@ -119,7 +136,7 @@ class CallReturnData(collections.namedtuple('CallReturnData', ['time', 'memory']
         """Returns the data nicely formated as a tuple of strings."""
         return (
             '{:0,.0f} (us)'.format(self.time * 1e6),
-            '{:0,.3f} (kb)'.format(self.memory / 1024)
+            '{:0,.0f} (kb)'.format(self.memory / 1024)
         )
 
 CallReturnData.time.__doc__ = 'Wall clock time as a float.' 
@@ -154,12 +171,22 @@ class FunctionCallTree:
         date_call is the data available at call time as a  CallReturnData
         object, such as (time, memory_usage)."""
         # This node:
+        # An int
         self.function_id = function_id
+        # namedtuple CallReturnData
         self.data_call = data_call
+        # None or namedtuple CallReturnData
         self.data_return = None
         # Child nodes, each is a FunctionCallTree.
         self.children = []
-        
+    
+    def __sizeof__(self):
+        s = sys.getsizeof(self.function_id)
+        s += sys.getsizeof(self.data_call) 
+        s += sys.getsizeof(self.data_return)
+        s += sum([sys.getsizeof(c) for c in self.children])
+        return s 
+    
     @property
     def is_open(self):
         """Returns True if this function has not yet seen a return event."""
@@ -314,6 +341,11 @@ class FunctionCallTreeSequence:
         # List of FunctionCallTree objects.
         self.function_trees = []
         
+    def __sizeof__(self):
+        s = sys.getsizeof(list())
+        s += sum([sys.getsizeof(t) for t in self.function_trees])
+        return s 
+
     def __len__(self):
         """Returns the number of top level functions."""
         return len(self.function_trees)

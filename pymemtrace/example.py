@@ -20,11 +20,11 @@ def just_sleep(t):
     time.sleep(t)
 
 def main():
-    l = make_list_strings(1024 * 100)
+    l = make_list_strings(1024 * 10)
     just_sleep(0.5)
     trim_list(l, 1024)
     del l
-    l = trim_list(make_list_strings(1024 * 100), 1024)
+    l = trim_list(make_list_strings(1024 * 10), 1024)
     just_sleep(0.2)
     return 0
 

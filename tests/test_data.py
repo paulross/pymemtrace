@@ -20,6 +20,10 @@ def test_CallReturnData():
     assert crd.time == 1.2
     assert crd.memory == 14
 
+def test_CallReturnData__sizeof__():
+    crd = data.CallReturnData(1.2, 14)
+    assert sys.getsizeof(crd) == 124
+
 def test_CallReturnData__sub__():
     crd_0 = data.CallReturnData(0.0, 8)
     crd_1 = data.CallReturnData(16.0, 32)
@@ -55,9 +59,18 @@ def test_FunctionEncoder_mt():
     fe = data.FunctionEncoder()
     assert len(fe) == 0
 
+def test_FunctionEncoder_mt__sizeof__():
+    fe = data.FunctionEncoder()
+    assert sys.getsizeof(fe) == 504
+
 def test_FunctionEncoder_encode():
     fe = data.FunctionEncoder()
     assert fe.encode('file', 'function', 12) == 0
+
+def test_FunctionEncoder_encode__sizeof__():
+    fe = data.FunctionEncoder()
+    fe.encode('file', 'function', 12)
+    assert sys.getsizeof(fe) == 504 + (2 * 372)
 
 def test_FunctionEncoder_encode_same():
     fe = data.FunctionEncoder()
@@ -398,6 +411,13 @@ def test_FunctionCallTree_max_width_2():
     assert not fe.is_open
     
     assert fe.max_width() == 2
+
+def test_FunctionCallTree_mt___sizeof__():
+    fct = data.FunctionCallTree(0, data.CallReturnData(1.0, 1))
+    assert sys.getsizeof(fct) == 188
+    fct.add_return(0, data.CallReturnData(10.0, 10))
+    assert sys.getsizeof(fct) == 296
+
 #---- END: Test FunctionCallTree ----
 
 #---- Test FunctionCallTreeSequence ----

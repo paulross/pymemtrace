@@ -58,6 +58,22 @@ class MemTrace:
         # these will not be the same, particularly if synthetic call/return data
         # is being injected with add_data_point().
         self.data_initial = self.create_data_point()
+        # Capture sizeof at __inter__ and __exit__
+        self.sizeof_enter = 0
+        self.sizeof_exit = 0
+
+    def __sizeof__(self):
+        # TODO: Could iterate through __dict__
+        s = sys.getsizeof(self.function_encoder)
+        s += sys.getsizeof(self.function_tree_seq)
+        s += sys.getsizeof(self.eventno)
+        s += sys.getsizeof(self.event_counter)
+        s += sum([sys.getsizeof(f) for f in self._trace_fn_stack])
+        s += sys.getsizeof(self.data_initial)
+        s += sys.getsizeof(self.data_min)
+        s += sys.getsizeof(self.data_max)
+        s += sys.getsizeof(self.data_final)
+        return s 
 
     def decode_function_id(self, function_id):
         """
@@ -216,6 +232,7 @@ class MemTrace:
         We use ``sys.setprofile()`` as we only want the granularity of
         call and return in functions, not line events.
         """
+        self.sizeof_enter = sys.getsizeof(self)
         self._trace_fn_stack.append(self.TRACE_FUNCTION_GET())
         self.TRACE_FUNCTION_SET(self)
         return self
@@ -230,6 +247,7 @@ class MemTrace:
         # monkeyed with the tracing.
         self.TRACE_FUNCTION_SET(self._trace_fn_stack.pop())
         self.finalise()
+        self.sizeof_exit = sys.getsizeof(self)
 
 def compile_and_exec(script_name, *args, **kwargs):
     """
@@ -250,6 +268,8 @@ def compile_and_exec(script_name, *args, **kwargs):
             except SystemExit:
                 # Trap CLI code that calls exit() or sys.exit()
                 pass
+        print('sys.getsizeof(MemTrace) starts:', mt.sizeof_enter)
+        print('sys.getsizeof(MemTrace)   ends:', mt.sizeof_exit, ' diff: ', mt.sizeof_enter - mt.sizeof_exit)
     return mt
 
 def main():
