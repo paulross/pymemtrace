@@ -39,14 +39,14 @@ class FunctionEncoder:
     """
     def __init__(self):
         """Constructor, just initialises internal state."""
-        # {(file_path, function, lineno) : int, ...}
+        # {FunctionLocation(file_path, function, lineno) : int, ...}
         # Where lineno is the first call event, subsequent call events
         # might have greater line numbers (e.g. generators).
         # lineno of function declaration can be obtained from
         # frame.f_code.co_firstlineno  
         self.id_lookup = {}
         # Reverse lookup.
-        # {int : (file_path, function, lineno), ...}
+        # {int : FunctionLocation(file_path, function, lineno), ...}
         self.id_rev_lookup = {}
     
     def __len__(self):

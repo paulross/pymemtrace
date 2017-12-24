@@ -116,6 +116,12 @@ class PlotMemTrace:
         self.plot_offsets_scales = compute_offsets_scales(
             canvas, self.PLOT_MARGINS, data_min, data_max
         )
+        # This offset is used when presenting data in pop-ups
+        # Time is shown from trace start, memory is shown as is. 
+        self.data_text_offset = data.CallReturnData(data_min.time, 0)
+        # Auto increment for the id="..." for the function data.
+        # See _write_data_hover_points_SVG()
+        self.data_function_id = 0
         # Auto increment for the id="..." for the time/memory onhover data points.
         # See _write_data_hover_points_SVG()
         self.data_hover_id = 0
@@ -194,7 +200,13 @@ class PlotMemTrace:
         synth_point = data.CallReturnData(wdefd.data.time, wdefd_call.data.memory)
         function_wdefS.append(synth_point)
         data_hover_ptS.append(synth_point)
-        svgS.comment('_plot_depth_generator(): {!r:s}'.format(wdefd_call), newLine=True)
+        svgS.comment(
+            ' _plot_depth_generator(): {!r:s} {!r:s}'.format(
+                wdefd_call,
+                self.function_encoder.decode(function_id),
+            ),
+            newLine=True
+        )
         self._write_function_SVG(function_id, function_wdefS, svgS)
         return wdefd
     
@@ -241,30 +253,34 @@ class PlotMemTrace:
         return result
     
     def _function_id_attr(self, function_id):
-        return 'fn_{:d}'.format(function_id)
+        result = 'fn_{:d}'.format(self.data_function_id)
+        self.data_function_id += 1
+        return result
+#         return 'fn_{:d}'.format(function_id)
     
     def _write_function_SVG(self, function_id, function_cr_data, svgS):
         """
         Writes the function as a polygon and its pop-up data.
         """
         assert len(function_cr_data) > 1
-        print('TRACE: _write_function_SVG()', function_id)
+        print('TRACE: _write_function_SVG()', self.function_encoder.decode(function_id))
         pprint.pprint(function_cr_data)
         # The points that make up the polygon of this function.
         # There will be duplicates with child functions at the boundaries.
         # A list of Coord.Pt()
         polygon_ptS = [self.pt_from_cr_data(cr_data, is_abs_units=False) for cr_data in function_cr_data]
+        func_id_attr = self._function_id_attr(function_id)
         polygon_attrs = {
             'fill' : "white", # Need a fill for the mouseover to work
             'stroke' : "black",
             'stroke-width' : "1",
-            'id' : self._function_id_attr(function_id)
+            'id' : func_id_attr
         }
         with SVGWriter.SVGPolygon(svgS, polygon_ptS, polygon_attrs):
             pass
-        self._write_function_popup_SVG(function_id, function_cr_data, svgS)
+        self._write_function_popup_SVG(function_id, func_id_attr, function_cr_data, svgS)
 
-    def _write_function_popup_SVG(self, function_id, function_cr_data, svgS):
+    def _write_function_popup_SVG(self, function_id, func_id_attr, function_cr_data, svgS):
         """
         Writes the pop-up box thus:
         
@@ -302,8 +318,9 @@ class PlotMemTrace:
         textS = [
             'File: {:s}#{:d}'.format(fn_location.filename, fn_location.lineno),
             'Function: {:s}()'.format(fn_location.function),
-            '    Call: {!s:s}'.format(function_cr_data[0]),
-            '  Return: {!s:s}'.format(function_cr_data[-2]), # [-1] is synthetic
+            '    Call: {!s:s}'.format(function_cr_data[0] - self.data_text_offset),
+            '  Return: {!s:s}'.format(function_cr_data[-2] - self.data_text_offset), # [-1] is synthetic
+            '    Diff: {!s:s}'.format(function_cr_data[-2] - function_cr_data[0]),
 #             'Time range: {:s} to {:s}'.format(data_min.str_pair()[0], data_max.str_pair()[0]),
 #             'Memory range: {:s} to {:s}'.format(data_min.str_pair()[1], data_max.str_pair()[1]),
         ]
@@ -332,18 +349,17 @@ class PlotMemTrace:
                         'x' : SVGWriter.dimToTxt(text_pt.x),
                     }
             # set
-            fn_id = self._function_id_attr(function_id)
+#             fn_id = self._function_id_attr(function_id)
             set_attrs = {
                 'attributeName' : 'opacity',
                 'from' : '0.0',
                 'to' : '1.0',
-                'begin' : '{:s}.mouseover'.format(fn_id), 
-                'end' : '{:s}.mouseout'.format(fn_id), 
+                'begin' : '{:s}.mouseover'.format(func_id_attr), 
+                'end' : '{:s}.mouseout'.format(func_id_attr), 
             }
             with XmlWrite.Element(svgS, 'set', set_attrs):
                 pass
             
-
     def _write_data_hover_points_SVG(self, data_hover_ptS, svgS):
         """Write some invisible circles at the list of CallReturnData points with
         a hover pop-up giving the time and memory. There are three components:
@@ -381,7 +397,7 @@ class PlotMemTrace:
 #             rad = Coord.Dim(4, None)
 #             with SVGWriter.SVGCircle(svgS, pt, rad, {'fill' : 'red'}):
 #                 pass
-            text = str(data_point)
+            text = str(data_point - self.data_text_offset)
             with SVGWriter.SVGGroup(svgS, {'opacity' : '0.0'}):
                 # rect
                 box = Coord.Box(

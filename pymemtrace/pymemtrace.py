@@ -31,6 +31,8 @@ class MemTrace:
     FALSE_FUNCTION_NAMES = set(['<dictcomp>', '<genexpr>', '<listcomp>', '<module>', '<setcomp>'])
     TRACE_FUNCTION_GET = sys.getprofile
     TRACE_FUNCTION_SET = sys.setprofile
+#     TRACE_FUNCTION_GET = sys.gettrace
+#     TRACE_FUNCTION_SET = sys.settrace
     TRACE_EVENTS = False
     def __init__(self):
         self.pid = psutil.Process()
@@ -323,14 +325,13 @@ USAGE
 #     print('typin_cli sys.argv:', sys.argv)
 #     print('sys.argv:', sys.argv)
     print('cli_args', cli_args)
-    print(dir(PlotMemTrace))
-    print(PlotMemTrace.plot_memtrace_to_path)
-    return
+#     print(dir(PlotMemTrace))
+#     print(PlotMemTrace.plot_memtrace_to_path)
 
     # Execution point
     mem_trace = compile_and_exec(cli_args.program, *cli_args.args)
     # Output: SVG.
-    PlotMemTrace.plot_memtrace_to_path(mem_trace, cli_args.ouptut)
+    PlotMemTrace.plot_memtrace_to_path(mem_trace, cli_args.output)
     # Summary.
     print('MemTrace total events: {:d}'.format(mem_trace.eventno))
     print(' MemTrace event count:', mem_trace.event_counter)
