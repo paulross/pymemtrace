@@ -381,6 +381,8 @@ class FunctionCallTreeSequence:
     def add_call_return_event(self, event, function_id, data):
         assert event in ('call', 'return'), \
             'Expected "call" or "return" not "{:s}"'.format(event)
+        # TODO: Have a filter function to filter data value so that small
+        # values are not accumulated.
         if len(self.function_trees) and self.function_trees[-1].is_open:
             # Pass the event down the stack.
             if event == 'call':
@@ -403,8 +405,11 @@ class FunctionCallTreeSequence:
         event is one of ``('call', 'return')``, function_id an int, data as a
         named tuple ``CallReturnData(time, memory)`` object.
         """
+        # TODO: Could filter data here, or at acquisition time.
         for width, ft in enumerate(self.function_trees):
             for value in ft.gen_depth_first():
+                # value is a a named tuple:
+                # DepthEventFunctionData(depth, event, function_id, data)
                 yield WidthDepthEventFunctionData(width, *value)
 
     def gen_width_first(self):
