@@ -1,5 +1,4 @@
 
-import gc
 import sys
 import time
 
@@ -20,12 +19,11 @@ def just_sleep(t):
     time.sleep(t)
 
 def main():
-    l = make_list_strings(1024 * 10)
-    just_sleep(0.5)
-    trim_list(l, 1024)
-    del l
-    l = trim_list(make_list_strings(1024 * 10), 1024)
-    just_sleep(0.2)
+    for _i in range(3):
+        l = make_list_strings(1024 * 10)
+        just_sleep(0.5)
+        trim_list(l, 128)
+        just_sleep(0.2)
     return 0
 
 if __name__ == '__main__':

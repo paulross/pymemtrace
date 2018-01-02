@@ -135,7 +135,7 @@ class CallReturnData(collections.namedtuple('CallReturnData', ['time', 'memory']
     def str_pair(self):
         """Returns the data nicely formated as a tuple of strings."""
         return (
-            '{:0,.0f} (us)'.format(self.time * 1e6),
+            '{:0,.0f} (ms)'.format(self.time * 1e3),
             '{:0,.0f} (kb)'.format(self.memory / 1024)
         )
 
