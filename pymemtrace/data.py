@@ -258,6 +258,7 @@ class FunctionCallTree:
             )
         if len(self.children) and self.children[-1].is_open:
             self.children[-1].add_return(function_id, data_return)
+            # TODO: Event filtering: self.children.pop() if data_return is small?   
         else:
             if self.function_id != function_id:
                 raise ValueError(
