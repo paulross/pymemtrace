@@ -22,7 +22,7 @@ try:
     from pymemtrace import data
 except ImportError:
     import data
-    
+
 class MemTrace:
     """
     Keeps track of overall memory usage at each function entry and exit point.
@@ -34,6 +34,7 @@ class MemTrace:
 #     TRACE_FUNCTION_GET = sys.gettrace
 #     TRACE_FUNCTION_SET = sys.settrace
     TRACE_EVENTS = False
+    TRACE_ADD_DATA_POINT = False
     def __init__(self):
         self.pid = psutil.Process()
         self.function_encoder = data.FunctionEncoder()
@@ -73,14 +74,14 @@ class MemTrace:
         s += sys.getsizeof(self.data_min)
         s += sys.getsizeof(self.data_max)
         s += sys.getsizeof(self.data_final)
-        return s 
+        return s
 
     def decode_function_id(self, function_id):
         """
         Given a function ID as an int this returns a named tuple::
-        
+
             FunctionLocation(filename, function, lineno)
-        
+
         Will raise a KeyError if the ``function_id`` is unknown.
         """
         return self.function_encoder.decode(function_id)
@@ -104,7 +105,7 @@ class MemTrace:
     def memory(self):
         """
         Returns our estimate of the process memory usage, options::
-        
+
             >>> pid = psutil.Process()
             >>> mem_info = pid.mem_info()
             # "Resident Set Size", non-swapped physical memory a process has used.
@@ -133,7 +134,7 @@ class MemTrace:
         m = memory_info.rss
 #         self._update_min_max_dicts('memory', m)
         return m
-    
+
     def time(self):
         """
         Returns our estimate of the process 'time'. We use time.time(), the
@@ -142,19 +143,26 @@ class MemTrace:
         t = time.time()
 #         self._update_min_max_dicts('time', t)
         return t
-    
+
     def create_data_point(self):
-        """Snapshot a data point. Returns a CallReturnData named tuple.""" 
+        """Snapshot a data point. Returns a CallReturnData named tuple."""
         return data.CallReturnData(self.time(), self.memory())
-    
+
     def add_data_point(self, filename, function, firstlineno, event, data):
         """
         Adds a data point. Test code can drive this to create synthetic
         time/memory events.
-        
+
         data is a CallReturnData object.
         """
         assert event in ('call', 'return')
+        if self.TRACE_ADD_DATA_POINT:
+            print(
+                'TRACE add_data_point(): {:12} {:4d} {!s:40s} {:32s} {:s}'.format(
+                    event, firstlineno, data,
+                    '{:s}()'.format(function), filename,
+                )
+            )
         # Update the function encoder if necessary.
         function_id = self.function_encoder.encode(filename, function, firstlineno)
         self.function_tree_seq.add_call_return_event(event, function_id, data)
@@ -175,7 +183,7 @@ class MemTrace:
         firstlineno = frame.f_code.co_firstlineno
         if self.TRACE_EVENTS:
             print(
-                'TRACE: {:12} {:4d} {:4d} {:24s} {:s}'.format(
+                'TRACE __call__(): {:12} {:4d} {:4d} {:24s} {:s}'.format(
                     event, frame_info.lineno, firstlineno,
                     '{:s}()'.format(frame_info.function), frame_info.filename,
                 )
@@ -209,7 +217,7 @@ class MemTrace:
         This does any spring cleaning once tracing has stopped.
         """
         pass
-    
+
     def finalise(self):
         """
         This extracts any overall data such as max memory usage, start/finish
@@ -228,7 +236,7 @@ class MemTrace:
         """
         Context manager sets the profiling function. This saves the existing
         tracing function.
-        
+
         We use ``sys.setprofile()`` as we only want the granularity of
         call and return in functions, not line events.
         """
@@ -252,7 +260,7 @@ class MemTrace:
 def compile_and_exec(script_name, *args, **kwargs):
     """
     Main execution point to trace memory function calls.
-    
+
     Returns a MemTrace object.
     """
 #     print('TRACE: compile_and_exec()', script_name, args, kwargs)
@@ -268,8 +276,6 @@ def compile_and_exec(script_name, *args, **kwargs):
             except SystemExit:
                 # Trap CLI code that calls exit() or sys.exit()
                 pass
-        print('sys.getsizeof(MemTrace) starts:', mt.sizeof_enter)
-        print('sys.getsizeof(MemTrace)   ends:', mt.sizeof_exit, ' diff: ', mt.sizeof_enter - mt.sizeof_exit)
     return mt
 
 def main():
@@ -301,9 +307,9 @@ USAGE
         help="Log Level (debug=10, info=20, warning=30, error=40, critical=50)" \
         " [default: %(default)s]"
     )
-#     parser.add_argument("-d", "--dump", action="store_true", dest="dump",
-#                         default=False,
-#                         help="Dump results on stdout after processing. [default: %(default)s]")
+    parser.add_argument("-d", "--dump", action="store_true", dest="dump",
+                        default=False,
+                        help="Dump results on stdout after processing. [default: %(default)s]")
 #     parser.add_argument("-t", "--trace-frame-events", action="store_true", dest="trace_frame_events",
 #                         default=False,
 #                         help="""Very verbose trace output, one line per frame event. [default: %(default)s]""")
@@ -351,10 +357,22 @@ USAGE
     # Execution point
     mem_trace = compile_and_exec(cli_args.program, *cli_args.args)
     # Output: SVG.
-    PlotMemTrace.plot_memtrace_to_path(mem_trace, cli_args.output)
+    pmt = PlotMemTrace.plot_memtrace_to_path(mem_trace, cli_args.output)
+    # Dump.
+    if cli_args.dump:
+        print(' DUMP of MemTrace.function_tree_seq '.center(75, '='))
+        for thing in mem_trace.function_tree_seq.gen_depth_first():
+            print(thing)
+        print(' DUMP of MemTrace.function_tree_seq ENDS '.center(75, '='))
     # Summary.
+    print('sys.getsizeof(MemTrace) starts: {:12,d}'.format(mem_trace.sizeof_enter))
+    print('sys.getsizeof(MemTrace)   ends: {:12,d}'.format(mem_trace.sizeof_exit))
+    print('sys.getsizeof(MemTrace)   diff: {:12,d}'.format(mem_trace.sizeof_exit - mem_trace.sizeof_enter))
     print('MemTrace total events: {:d}'.format(mem_trace.eventno))
     print(' MemTrace event count:', mem_trace.event_counter)
+    print('    MemTrace data_min:', mem_trace.data_min)
+    print('    MemTrace data_max:', mem_trace.data_max)
+    print('Functions in SVG:', pmt.function_counter)
     print(' CPU time = {:8.3f} (S)'.format(time.time() - start_time))
     print('CPU clock = {:8.3f} (S)'.format(time.clock() - start_clock))
     print('Bye, bye!')

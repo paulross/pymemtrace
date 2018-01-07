@@ -39,7 +39,7 @@ try:
     from pymemtrace.plot import XmlWrite
 except ImportError:
     from . import Coord, SVGWriter, XmlWrite
-    
+
 def compute_offsets_scales(viewport, margins, data_min, data_max):
     """
     Returns a dict of Coord.OffsetScale for keys 'time' and 'memory' from the
@@ -92,8 +92,8 @@ class PlotMemTrace:
     MARGIN_AXIS = Coord.Dim(0.3, DEFAULT_PLOT_UNITS) # Allow for axis text as well
     MARGIN_FROM_AXIS = Coord.Dim(0.3, DEFAULT_PLOT_UNITS)
     SVG_CANVAS = Coord.Box(
-        Coord.Dim(8, DEFAULT_PLOT_UNITS), # .width, x, to right
-        Coord.Dim(12, DEFAULT_PLOT_UNITS), # .depth, y, down.
+        Coord.Dim(12, DEFAULT_PLOT_UNITS), # .width, x, to right
+        Coord.Dim(24, DEFAULT_PLOT_UNITS), # .depth, y, down.
     )
     def __init__(self,
                  function_encoder,
@@ -109,7 +109,7 @@ class PlotMemTrace:
             k : (PlotMemTrace.MARGINS_ABS[k] + PlotMemTrace.MARGIN_AXIS + PlotMemTrace.MARGIN_FROM_AXIS)
                 for k in PlotMemTrace.MARGINS_ABS
         }
-        self.function_encoder = function_encoder 
+        self.function_encoder = function_encoder
         self.function_tree_seq = function_tree_seq
         self.fobj = fobj
         canvas = canvas or self.SVG_CANVAS
@@ -117,7 +117,7 @@ class PlotMemTrace:
             canvas, self.PLOT_MARGINS, data_min, data_max
         )
         # This offset is used when presenting data in pop-ups
-        # Time is shown from trace start, memory is shown as is. 
+        # Time is shown from trace start, memory is shown as is.
         self.data_text_offset = data.CallReturnData(data_min.time, 0)
         # Auto increment for the id="..." for the function data.
         # See _write_data_hover_points_SVG()
@@ -125,8 +125,9 @@ class PlotMemTrace:
         # Auto increment for the id="..." for the time/memory onhover data points.
         # See _write_data_hover_points_SVG()
         self.data_hover_id = 0
-        
-        
+        # Statistics on functions written
+        self.function_counter = collections.Counter()
+        # Write SVG
         root_attrs = {
             'viewBox' : "0 0 {:f} {:f}".format(canvas.width.value * PlotMemTrace.VIEW_BOX_UNITS_PER_PLOT_UNITS,
                                                canvas.depth.value * PlotMemTrace.VIEW_BOX_UNITS_PER_PLOT_UNITS)
@@ -157,21 +158,21 @@ class PlotMemTrace:
             ):
             pass
         # TODO: Axis text, axis tick marks, gridlines.
- 
+
 
     def _plot_depth_generator(self, gen, wdefd, svgS, data_hover_ptS):
         """
         :param gen: A generator of WidthDepthEventFunctionData events.
-    
+
         :param wdefd: The current WidthDepthEventFunctionData event.
         :type wdefd: A ``WidthDepthEventFunctionData(width, depth, event, function_id, data)`` object.
-    
+
         :param offsets_scales: Offset and scale for the two axis.
         :type offsets_scales: ``{field : Coord.OffsetScale`` with keys ``'time'`` and ``'memory'``.
-    
+
         :param svgS: The SVG stream.
         :type svgS: ``SVGWriter.SVGWriter``
-    
+
         :return: The outstanding ``WidthDepthEventFunctionData(width, depth, event, function_id, data)`` event.
         """
         wdefd_call = wdefd
@@ -181,35 +182,31 @@ class PlotMemTrace:
         function_wdefS = [wdefd.data]
         data_hover_ptS.append(wdefd.data)
         # TODO: Asserts about depth of event, function_id and so on.
-        while True:
-            wdefd = next(gen)
-            assert wdefd.event in ('call', 'return')
-            if wdefd.event == 'call':
-                function_wdefS.append(wdefd.data)
-                wdefd = self._plot_depth_generator(gen, wdefd, svgS, data_hover_ptS)
-                if wdefd.data.memory > function_wdefS[-1].memory:
-                    # Add synthetic point
-                    synth_point = data.CallReturnData(wdefd.data.time, function_wdefS[-1].memory)
-                    function_wdefS.append(synth_point)
-                function_wdefS.append(wdefd.data)
-            else:
-                function_wdefS.append(wdefd.data)
-                data_hover_ptS.append(wdefd.data)
-                break
-        # Make a synthetic point with return time and call memory
-        synth_point = data.CallReturnData(wdefd.data.time, wdefd_call.data.memory)
-        function_wdefS.append(synth_point)
-        data_hover_ptS.append(synth_point)
-        svgS.comment(
-            ' _plot_depth_generator(): {!r:s} {!r:s}'.format(
-                wdefd_call,
-                self.function_encoder.decode(function_id),
-            ),
-            newLine=True
-        )
-        self._write_function_SVG(function_id, function_wdefS, svgS)
+        try:
+            while True:
+                wdefd = next(gen)
+                # print('TRACE: _plot_depth_generator(): wdefd', wdefd)
+                assert wdefd.event in ('call', 'return')
+                if wdefd.event == 'call':
+                    function_wdefS.append(wdefd.data)
+                    wdefd = self._plot_depth_generator(gen, wdefd, svgS, data_hover_ptS)
+                    if wdefd.data.memory > function_wdefS[-1].memory:
+                        # Add synthetic point
+                        synth_point = data.CallReturnData(wdefd.data.time, function_wdefS[-1].memory)
+                        function_wdefS.append(synth_point)
+                    function_wdefS.append(wdefd.data)
+                else:
+                    function_wdefS.append(wdefd.data)
+                    data_hover_ptS.append(wdefd.data)
+                    break
+        finally:
+            # Make a synthetic point with return time and call memory
+            synth_point = data.CallReturnData(wdefd.data.time, wdefd_call.data.memory)
+            function_wdefS.append(synth_point)
+            data_hover_ptS.append(synth_point)
+            self._write_function_SVG(wdefd_call, function_id, function_wdefS, svgS)
         return wdefd
-    
+
     def plot_history(self, svgS):
         """Plots all the history gathered by MemTrace."""
         # The data points that are used to provide time/memory pop-up information.
@@ -218,7 +215,8 @@ class PlotMemTrace:
         data_hover_ptS = []
         try:
             gen = self.function_tree_seq.gen_depth_first()
-            self._plot_depth_generator(gen, next(gen), svgS, data_hover_ptS)
+            while True:
+                self._plot_depth_generator(gen, next(gen), svgS, data_hover_ptS)
         except StopIteration:
             pass
         self._write_data_hover_points_SVG(data_hover_ptS, svgS)
@@ -226,14 +224,14 @@ class PlotMemTrace:
     def pt_from_cr_data(self, call_return_data, is_abs_units):
         """
         Returns a ``Coord.Pt()`` from a ``CallReturnData`` object.
-    
+
         :param call_return_data: CallReturnData named tuple.
         :type call_return_data: ``pymemtrace.CallReturnData``
-    
+
         :param offsets_scales: Offset and scale for the two axis.
             ``offsets_scales`` comes from ``compute_offsets_scales()``.
         :type offsets_scales: ``{field : Coord.OffsetScale`` with keys ``'time'`` and ``'memory'``.
-    
+
         :return: ``Coord.Pt()``
         """
         x = Coord.dim_from_offset_scale(call_return_data.memory,
@@ -246,48 +244,79 @@ class PlotMemTrace:
             y = y._replace(units=None)
             y *= PlotMemTrace.VIEW_BOX_UNITS_PER_PLOT_UNITS
         return Coord.Pt(x, y)
-    
+
     def _data_hover_new_id(self):
         result = 'data_pt_{:d}'.format(self.data_hover_id)
         self.data_hover_id += 1
         return result
-    
+
     def _function_id_attr(self, function_id):
         result = 'fn_{:d}'.format(self.data_function_id)
         self.data_function_id += 1
         return result
 #         return 'fn_{:d}'.format(function_id)
-    
-    def _write_function_SVG(self, function_id, function_cr_data, svgS):
+
+    def _write_function_SVG(self, wdefd_call, function_id, function_cr_data, svgS):
         """
         Writes the function as a polygon and its pop-up data.
         """
         assert len(function_cr_data) > 1
-        print('TRACE: _write_function_SVG()', self.function_encoder.decode(function_id))
-        pprint.pprint(function_cr_data)
         # The points that make up the polygon of this function.
         # There will be duplicates with child functions at the boundaries.
         # A list of Coord.Pt()
         polygon_ptS = [self.pt_from_cr_data(cr_data, is_abs_units=False) for cr_data in function_cr_data]
-        func_id_attr = self._function_id_attr(function_id)
-        polygon_attrs = {
-            'fill' : "white", # Need a fill for the mouseover to work
-            'stroke' : "black",
-            'stroke-width' : "1",
-            'id' : func_id_attr
-        }
-        with SVGWriter.SVGPolygon(svgS, polygon_ptS, polygon_attrs):
-            pass
-        self._write_function_popup_SVG(function_id, func_id_attr, function_cr_data, svgS)
+        # Reduce the polygons points to eliminate points that are the same x/y
+        distinct_polygon_ptS = polygon_ptS[:1]
+        for point in polygon_ptS[1:]:
+            if abs(point.x.value - distinct_polygon_ptS[-1].x.value) > 1 or abs(point.y.value - distinct_polygon_ptS[-1].y.value) > 1:
+                distinct_polygon_ptS.append(point)
+        # Ignore sub one pixel elements
+        diff_x = max([p.x.value for p in distinct_polygon_ptS]) - min([p.x.value for p in distinct_polygon_ptS])
+        diff_y = max([p.y.value for p in distinct_polygon_ptS]) - min([p.y.value for p in distinct_polygon_ptS])
+        diff_min = 2
+        if diff_x > diff_min and diff_y > diff_min:
+            print(
+                'TRACE: _write_function_SVG() dx={:6.1f} dy={:6.1f}  writing: {!s:s} {!s:s}'.format(
+                    diff_x, diff_y, self.function_encoder.decode(function_id), function_cr_data[-1] - function_cr_data[0]
+                )
+            )
+            # print('TRACE: function_cr_data: {!s:s}'.format(function_cr_data[-1] - function_cr_data[0]))
+            # pprint.pprint(function_cr_data)
+            svgS.comment(
+                ' _write_function_SVG(): {!r:s} {!r:s} '.format(
+                    wdefd_call,
+                    self.function_encoder.decode(function_id),
+                ),
+                newLine=True
+            )
+            func_id_attr = self._function_id_attr(function_id)
+            polygon_attrs = {
+                'fill' : "white", # Need a fill for the mouseover to work
+                'stroke' : "black",
+                'stroke-width' : "1",
+                'id' : func_id_attr
+            }
+            with SVGWriter.SVGPolygon(svgS, distinct_polygon_ptS, polygon_attrs):
+                pass
+            self._write_function_popup_SVG(function_id, func_id_attr, function_cr_data, svgS)
+            self.function_counter.update(Written=1)
+        else:
+            print(
+                'TRACE: _write_function_SVG() dx={:6.1f} dy={:6.1f} ignoring: {!s:s}'.format(
+                    diff_x, diff_y, self.function_encoder.decode(function_id)
+                )
+            )
+            self.function_counter.update(Ignored=1)
+            # pprint.pprint(function_cr_data)
 
     def _write_function_popup_SVG(self, function_id, func_id_attr, function_cr_data, svgS):
         """
         Writes the pop-up box thus:
-        
+
         .. code-block:: xml
-        
+
             <g id="fn_0.alt" opacity="0.0">
-                <rect fill="khaki" height="48pt" width="250" x="215" y="300" /> 
+                <rect fill="khaki" height="48pt" width="250" x="215" y="300" />
                 <text font-family="Courier" font-size="10" font-weight="normal" x="220" y="310">
                     <tspan>File: ../../demo/src/main.cpp#421 </tspan>
                     <tspan dy="1.5em" x="220">Function: get_something</tspan>
@@ -295,11 +324,11 @@ class PlotMemTrace:
                     <tspan dy="1.5em" x="220">Memory: min 234.123, max 598.454 (kb) </tspan>
                 </text>
                 <set attributeName="opacity" from="0.0" to="1.0"
-                    begin="fn_0.mouseover" end="fn_0.mouseout" /> 
+                    begin="fn_0.mouseover" end="fn_0.mouseout" />
             </g>
         """
         assert len(function_cr_data) > 2
-        svgS.comment('_write_function_popup_SVG(): {:d}'.format(function_id), newLine=True)
+        svgS.comment(' _write_function_popup_SVG(): {:d} '.format(function_id), newLine=True)
         # Where to pop-up
         memory_min = min([d.memory for d in function_cr_data])
         memory_max = max([d.memory for d in function_cr_data])
@@ -354,38 +383,42 @@ class PlotMemTrace:
                 'attributeName' : 'opacity',
                 'from' : '0.0',
                 'to' : '1.0',
-                'begin' : '{:s}.mouseover'.format(func_id_attr), 
-                'end' : '{:s}.mouseout'.format(func_id_attr), 
+                'begin' : '{:s}.mouseover'.format(func_id_attr),
+                'end' : '{:s}.mouseout'.format(func_id_attr),
             }
             with XmlWrite.Element(svgS, 'set', set_attrs):
                 pass
-            
+
     def _write_data_hover_points_SVG(self, data_hover_ptS, svgS):
         """Write some invisible circles at the list of CallReturnData points with
         a hover pop-up giving the time and memory. There are three components:
         and invisible circle that captures the mouseover/mouse out events, a small
         visible circle that hints that data is here and lastly a rect/text with the
         pop-up data in a group.
-        
+
         .. code-block:: xml
-        
+
             <circle id="data_pt_0" cx="600" cy="500" r="10" opacity="0.0" />
-            <circle cx="600" cy="500" r="4" fill="red" /> 
+            <circle cx="600" cy="500" r="4" fill="red" />
             <g opacity="0.0">
-                <rect fill="aliceblue" height="12pt" width="250" x="600" y="500" /> 
+                <rect fill="aliceblue" height="12pt" width="250" x="600" y="500" />
                 <text font-family="Courier" font-size="10" font-weight="normal"
                     x="610" y="510">
                     <tspan>1.234 (s) 598.454 (kb)</tspan>
                 </text>
                 <set attributeName="opacity" from="0.0" to="1.0"
-                    begin="data_pt_0.mouseover" end="data_pt_0.mouseout" /> 
+                    begin="data_pt_0.mouseover" end="data_pt_0.mouseout" />
             </g>
         """
-        svgS.comment('_write_data_hover_points_SVG():', newLine=True)
+        svgS.comment(' _write_data_hover_points_SVG(): ', newLine=True)
+        old_pt = None
         for data_point in data_hover_ptS:
             pt_id = self._data_hover_new_id()
 #             print('TRACE:', data_point)
             pt = self.pt_from_cr_data(data_point, is_abs_units=False)
+            if old_pt is not None and abs(pt.x.value - old_pt.x.value) < 4 and abs(pt.y.value - old_pt.y.value) < 4:
+                continue
+            old_pt = pt
 #             print('TRACE:', pt)
             # Larger, invisible, onhover circle:
             # <circle id="data_pt_0" cx="600" cy="500" r="10" opacity="0.0" />
@@ -419,8 +452,8 @@ class PlotMemTrace:
                     'attributeName' : 'opacity',
                     'from' : '0.0',
                     'to' : '1.0',
-                    'begin' : '{:s}.mouseover'.format(pt_id), 
-                    'end' : '{:s}.mouseout'.format(pt_id), 
+                    'begin' : '{:s}.mouseover'.format(pt_id),
+                    'end' : '{:s}.mouseout'.format(pt_id),
                 }
                 with XmlWrite.Element(svgS, 'set', set_attrs):
                     pass
@@ -430,7 +463,7 @@ class PlotMemTrace:
 #     """
 #     Compute a pretty tick value. Adapted from:
 #     https://stackoverflow.com/questions/361681/algorithm-for-nice-grid-line-intervals-on-a-graph
-# 
+#
 #     """
 #     minimum = largest / most_ticks
 #     magnitude = 10 ** math.floor(math.log(minimum, 10))
@@ -453,9 +486,11 @@ def plot_memtrace_to_file(memtrace, fobj):
         memtrace.data_min,
         memtrace.data_max,
         fobj,
+        canvas=None,
     )
+    return pmt
 
 def plot_memtrace_to_path(memtrace, file_path):
     """Plots a pymemtrace.MemTrace object in SVG to the ``file_path``."""
     with open(file_path, 'w') as fobj:
-        plot_memtrace_to_file(memtrace, fobj)
+        return plot_memtrace_to_file(memtrace, fobj)

@@ -20,7 +20,7 @@ def just_sleep(t):
 
 def main():
     for _i in range(3):
-        l = make_list_strings(1024 * 10)
+        l = make_list_strings(1024 * 100)
         just_sleep(0.5)
         trim_list(l, 128)
         just_sleep(0.2)
