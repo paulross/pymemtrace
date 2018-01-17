@@ -295,11 +295,11 @@ def create_filter_function(filter_min_time, filter_min_memory):
     """
     Given command line arguments minimum time and memory (us and kilobytes) this
     returns a function that filters function call data.
-    
+
     If both are default values this returns None, this is means all functions
     are captured, it is equivalent to
     ``filter_fn=lambda call_data, return_data: True``
-    
+
     If both values are non-default then this returns a function that filters
     functions where *either*
     """
@@ -347,14 +347,14 @@ def create_filter_function(filter_min_time, filter_min_memory):
 def dump_function_tree_seq(function_tree_seq, data_min, function_encoder):
     """
     Dumps MemTrace function tree sequence data to stdout.
-    
+
     :param function_tree_seq: The sequence of functions.
     :type function_tree_seq: ``pymemtrace.data.FunctionCallTreeSequence``
 
     :param data_min: The minimum discovered data value for each function.
         This will be subtracted from each item in the dump as a baseline.
     :type data_min: A named tuple ``pymemtrace.data.CallReturnData(time, memory)``.
-    
+
     :param function_encoder: The function encoder/decoder.
     :type function_encoder: ``pymemtrace.data.FunctionEncoder``
 
@@ -423,7 +423,7 @@ USAGE
         help="Output SVG file.",
     )
     parser.add_argument(
-        "-t", "--filter_min_time",
+        "-t", "--filter-min-time",
         type=int,
         dest="filter_min_time",
         default=DEFAULT_FILTER_MIN_TIME,
@@ -431,7 +431,7 @@ USAGE
         " microseconds. -1 means retain all. [default: %(default)s (microseconds)]"
     )
     parser.add_argument(
-        "-m", "--filter_min_memory",
+        "-m", "--filter-min-memory",
         type=int,
         dest="filter_min_memory",
         default=DEFAULT_FILTER_MIN_MEMORY,
