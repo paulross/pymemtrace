@@ -304,6 +304,7 @@ class FunctionCallTree:
             self.data_return = data_return
             # Do the comparison, True means keep the function record
             return_value = filter_fn is None or filter_fn(self.data_call, self.data_return)
+#         print('TRACE: add_return():', self.function_id, return_value)
         return return_value
 
     def gen_depth_first(self):

@@ -319,11 +319,13 @@ def create_filter_function(filter_min_time, filter_min_memory):
         # Filter on either
         def filter_either(data_call, data_return):
             diff = data_return - data_call
-            if diff.time * 1e6 >= filter_min_time:
-                return True
-            if abs(diff.memory / 1024) >= filter_min_memory:
-                return True
-            return False
+            if diff.time * 1e6 >= filter_min_time \
+            or abs(diff.memory / 1024) >= filter_min_memory:
+                return_value = True
+            else:
+                return_value = False
+#             print('TRACE: filter_either():', diff, return_value)
+            return return_value
         return filter_either
     # Filter on one or the other
     if filter_min_time != DEFAULT_FILTER_MIN_TIME:
