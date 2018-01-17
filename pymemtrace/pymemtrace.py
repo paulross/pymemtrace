@@ -389,15 +389,16 @@ def main():
     and for each function records all the types called, returned and raised.
     For example::
 
-        python typin_cli.py --stubs=stubs -- example.py 'foo bar baz'
+        python pymemtrace/pymemtrace.py result.svg example.py foo bar baz
 
     This will execute ``example.py`` with the options ``foo bar baz`` under the
-    control of typin and write all the type annotations to the stubs/ directory.
+    control of pymemtrace and write an SVG memory representation to
+    ``result.svg``.
     """
     start_time = time.time()
     start_clock = time.clock()
     program_version = "v%s" % '0.1.0'
-    program_shortdesc = 'typin_cli - Infer types of Python functions.'
+    program_shortdesc = 'pymemtrace - Track memory usage of a Python script.'
     program_license = """%s
   Created by Paul Ross on 2017-10-25. Copyright 2017. All rights reserved.
   Version: %s Licensed under MIT License
@@ -427,7 +428,7 @@ USAGE
         dest="filter_min_time",
         default=DEFAULT_FILTER_MIN_TIME,
         help="Ignore functions that execute in less than this number of"
-        " microseconds. -1 means retain all. [default: %(default)s]"
+        " microseconds. -1 means retain all. [default: %(default)s (microseconds)]"
     )
     parser.add_argument(
         "-m", "--filter_min_memory",
@@ -435,7 +436,7 @@ USAGE
         dest="filter_min_memory",
         default=DEFAULT_FILTER_MIN_MEMORY,
         help="Ignore functions that have a memory impact (+/-) of this number"
-        " of kilobytes. 0 means retain all. [default: %(default)s]"
+        " of kilobytes. 0 means retain all. [default: %(default)s (kilobytes)]"
     )
     parser.add_argument(dest="program",
                         help="Python target file to be compiled and executed.")
