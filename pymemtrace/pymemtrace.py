@@ -272,6 +272,7 @@ def compile_and_exec(script_name, filter_fn, *args, **kwargs):
 
     Returns a MemTrace object.
     """
+    logging.info('compile_and_exec(): START "{!s:s}"'.format(script_name))
     sys.argv = [script_name] + list(args)
     logging.debug('typein_cli.compile_and_exec({:s})'.format(script_name))
     with open(script_name) as f_obj:
@@ -284,6 +285,7 @@ def compile_and_exec(script_name, filter_fn, *args, **kwargs):
             except SystemExit:
                 # Trap CLI code that calls exit() or sys.exit()
                 pass
+    logging.info('compile_and_exec():  DONE "{!s:s}"'.format(script_name))
     return mt
 
 DEFAULT_FILTER_MIN_TIME = -1
@@ -342,6 +344,46 @@ def create_filter_function(filter_min_time, filter_min_memory):
         return False
     return filter_memory
 
+def dump_function_tree_seq(function_tree_seq, data_min, function_encoder):
+    """
+    Dumps MemTrace function tree sequence data to stdout.
+    
+    :param function_tree_seq: The sequence of functions.
+    :type function_tree_seq: ``pymemtrace.data.FunctionCallTreeSequence``
+
+    :param data_min: The minimum discovered data value for each function.
+        This will be subtracted from each item in the dump as a baseline.
+    :type data_min: A named tuple ``pymemtrace.data.CallReturnData(time, memory)``.
+    
+    :param function_encoder: The function encoder/decoder.
+    :type function_encoder: ``pymemtrace.data.FunctionEncoder``
+
+    :returns: ``None``
+    """
+    print(' DUMP of MemTrace.function_tree_seq '.center(75, '='))
+    # A pymemtrace.data.CallReturnData
+    data_previous = data.CallReturnData(0, 0)
+    for wdefd in function_tree_seq.gen_depth_first():
+        # Each object is a:
+        # WidthDepthEventFunctionData(width, depth, event, function_id, data)
+        #
+        # A FunctionLocation(filename, function, lineno)
+        function = function_encoder.decode(wdefd.function_id)
+        data_diff = wdefd.data - data_min
+        print('{:4d} {:s}{:s} {!s:28s} {!s:28s} {:32s} {:s}#{:d}'.format(
+                wdefd.width,
+                '  ' * wdefd.depth,
+                '>' if wdefd.event == 'call' else '<',
+                data_diff,
+                data_diff - data_previous,
+                function.function,
+                function.filename,
+                function.lineno,
+            )
+        )
+        data_previous = data_diff
+    print(' DUMP of MemTrace.function_tree_seq ENDS '.center(75, '='))
+
 def main():
     """Command line version of pymemtrace which executes arbitrary Python code
     and for each function records all the types called, returned and raised.
@@ -374,32 +416,11 @@ USAGE
     parser.add_argument("-d", "--dump", action="store_true", dest="dump",
                         default=False,
                         help="Dump results on stdout after processing. [default: %(default)s]")
-#     parser.add_argument("-t", "--trace-frame-events", action="store_true", dest="trace_frame_events",
-#                         default=False,
-#                         help="""Very verbose trace output, one line per frame event. [default: %(default)s]""")
-#     parser.add_argument("-e", "--events-to-trace", action='append', default=[], dest="events_to_trace",
-#                         help="Events to trace (additive). [default: %(default)s] i.e. every event.")
     parser.add_argument(
-#         "-o", "--output",
         type=str,
         dest="output",
         help="Output SVG file.",
     )
-#     parser.add_argument(
-#         "-w", "--write-docstrings",
-#         type=str,
-#         dest="write_docstrings",
-#         default="",
-#         help="Directory to write source code with docstrings. [default: %(default)s]"
-#     )
-#     parser.add_argument(
-#         "-r", "--root",
-#         type=str,
-#         dest="root",
-#         default=".",
-#         help="Root path of the Python packages to generate stub files for."
-#         " [default: %(default)s]"
-#     )
     parser.add_argument(
         "-t", "--filter_min_time",
         type=int,
@@ -433,7 +454,6 @@ USAGE
     print('cli_args', cli_args)
 #     print(dir(PlotMemTrace))
 #     print(PlotMemTrace.plot_memtrace_to_path)
-
     # Create filter function
     if cli_args.filter_min_memory < 0:
         logging.error(
@@ -444,26 +464,35 @@ USAGE
         return -1
     filter_fn = create_filter_function(cli_args.filter_min_time,
                                        cli_args.filter_min_memory)
-    logging.info('Filter function: {!s:s}'.format(filter_fn))
+    logging.info('Filter function created: {!s:s}'.format(filter_fn))
     # Execution point
     mem_trace = compile_and_exec(cli_args.program, filter_fn, *cli_args.args)
     # Output: SVG.
+    logging.info('Plotting SVG')
     pmt = PlotMemTrace.plot_memtrace_to_path(mem_trace, cli_args.output)
     # Dump.
     if cli_args.dump:
-        print(' DUMP of MemTrace.function_tree_seq '.center(75, '='))
-        for thing in mem_trace.function_tree_seq.gen_depth_first():
-            print(thing)
-        print(' DUMP of MemTrace.function_tree_seq ENDS '.center(75, '='))
+        dump_function_tree_seq(
+            mem_trace.function_tree_seq,
+            mem_trace.data_min,
+            mem_trace.function_encoder,
+        )
+    logging.info('All done, summary:')
     # Summary.
-    print('sys.getsizeof(MemTrace) starts: {:12,d}'.format(mem_trace.sizeof_enter))
-    print('sys.getsizeof(MemTrace)   ends: {:12,d}'.format(mem_trace.sizeof_exit))
-    print('sys.getsizeof(MemTrace)   diff: {:12,d}'.format(mem_trace.sizeof_exit - mem_trace.sizeof_enter))
     print('MemTrace total events: {:d}'.format(mem_trace.eventno))
     print(' MemTrace event count:', mem_trace.event_counter)
     print('    MemTrace data_min:', mem_trace.data_min)
     print('    MemTrace data_max:', mem_trace.data_max)
     print('Functions in SVG:', pmt.function_counter)
+    # sizeof
+    print()
+    print('sys.getsizeof(MemTrace) starts: {:12,d}'.format(mem_trace.sizeof_enter))
+    print('sys.getsizeof(MemTrace)   ends: {:12,d}'.format(mem_trace.sizeof_exit))
+    print('sys.getsizeof(MemTrace)   diff: {:12,d}'.format(mem_trace.sizeof_exit - mem_trace.sizeof_enter))
+    print('sys.getsizeof(FunctionEncoder): {:12,d}'.format(sys.getsizeof(mem_trace.function_encoder)))
+    print('sys.getsizeof(FunctionTree)   : {:12,d}'.format(sys.getsizeof(mem_trace.function_tree_seq)))
+    # Done
+    print()
     print(' CPU time = {:8.3f} (S)'.format(time.time() - start_time))
     print('CPU clock = {:8.3f} (S)'.format(time.clock() - start_clock))
     print('Bye, bye!')

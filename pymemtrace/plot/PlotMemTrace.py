@@ -29,8 +29,9 @@
 This plots the results of a pymemtrace.MemTrace object in SVG
 '''
 import collections
-import math
-import pprint
+import logging
+# import math
+# import pprint
 
 from pymemtrace import data
 try:
@@ -68,6 +69,13 @@ def compute_offsets_scales(viewport, margins, data_min, data_max):
             memory_max,
         ),
     }
+    logging.info('compute_offsets_scales():')
+    logging.info('Time: {:3f} to {:3f} Diff: {:3f}'.format(
+        data_min.time, time_max, time_max - data_min.time
+    ))
+    logging.info(' Mem: {:,d} to {:,d} Diff: {:,d}'.format(
+        data_min.memory, memory_max, memory_max - data_min.memory
+    ))
     return result
 
 class PlotMemTrace:
@@ -275,8 +283,8 @@ class PlotMemTrace:
         diff_y = max([p.y.value for p in distinct_polygon_ptS]) - min([p.y.value for p in distinct_polygon_ptS])
         diff_min = 2
         if diff_x > diff_min and diff_y > diff_min:
-            print(
-                'TRACE: _write_function_SVG() dx={:6.1f} dy={:6.1f}  writing: {!s:s} {!s:s}'.format(
+            logging.info(
+                '_write_function_SVG() dx={:6.1f} dy={:6.1f}  writing: {!s:s} {!s:s}'.format(
                     diff_x, diff_y, self.function_encoder.decode(function_id), function_cr_data[-1] - function_cr_data[0]
                 )
             )
@@ -301,8 +309,8 @@ class PlotMemTrace:
             self._write_function_popup_SVG(function_id, func_id_attr, function_cr_data, svgS)
             self.function_counter.update(Written=1)
         else:
-            print(
-                'TRACE: _write_function_SVG() dx={:6.1f} dy={:6.1f} ignoring: {!s:s}'.format(
+            logging.info(
+                '_write_function_SVG() dx={:6.1f} dy={:6.1f} ignoring: {!s:s}'.format(
                     diff_x, diff_y, self.function_encoder.decode(function_id)
                 )
             )
