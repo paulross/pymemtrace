@@ -55,7 +55,7 @@ def test_best_tick():
 
 
 def test_PlotMemTrace_MemTrace_simple():
-    mt = pymemtrace.MemTrace()
+    mt = pymemtrace.MemTrace(None)
     # Add a couple of sequential functions
     mt.add_data_point('filename', 'parent', 12, 'call', data.CallReturnData(0.1, 1000))
     mt.add_data_point('filename', 'parent', 12, 'return', data.CallReturnData(0.2, 1000))
@@ -80,7 +80,7 @@ def test_PlotMemTrace_MemTrace_simple():
     print(fobj.getvalue())
 
 def test_PlotMemTrace_MemTrace_depth_two():
-    mt = pymemtrace.MemTrace()
+    mt = pymemtrace.MemTrace(None)
     # Add a couple of sequential functions
     # See notebook for 2017-12-17 +2
     mt.add_data_point('filename', 'f0', 12, 'call',     data.CallReturnData(0.0, 1000))
@@ -135,7 +135,7 @@ def test_MemTrace_real_function_calls():
             data.pop()
         time.sleep(0.25)
         
-    with pymemtrace.MemTrace() as mt:
+    with pymemtrace.MemTrace(None) as mt:
         data = function_A()
         assert len(data) == SIZE // 2
     print()

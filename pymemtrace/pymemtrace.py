@@ -35,11 +35,20 @@ class MemTrace:
 #     TRACE_FUNCTION_SET = sys.settrace
     TRACE_EVENTS = False
     TRACE_ADD_DATA_POINT = False
-    def __init__(self):
+    def __init__(self, filter_fn):
+        """
+        :param filter_fn: A callable that takes two ``CallReturnData`` objects
+            and returns a boolean, if True this function record is kept, if
+            False it is discarded. If filter_fn is None it is ignored and all
+            function records are kept.
+            ``filter_fn=None`` means all functions are captured, it is equivalent
+            to ``filter_fn=lambda call_data, return_data: True``
+        :type filter_fn: A callable that takes two ``CallReturnData`` objects.
+        """
         self.pid = psutil.Process()
         self.function_encoder = data.FunctionEncoder()
-        # Wraps a ist of FunctionCallTree objects.
-        self.function_tree_seq = data.FunctionCallTreeSequence()
+        # Wraps a list of FunctionCallTree objects.
+        self.function_tree_seq = data.FunctionCallTreeSequence(filter_fn)
         # Event number, for the curious.
         self.eventno = 0
         # Event counters for different events, for the curious.
@@ -257,26 +266,81 @@ class MemTrace:
         self.finalise()
         self.sizeof_exit = sys.getsizeof(self)
 
-def compile_and_exec(script_name, *args, **kwargs):
+def compile_and_exec(script_name, filter_fn, *args, **kwargs):
     """
     Main execution point to trace memory function calls.
 
     Returns a MemTrace object.
     """
-#     print('TRACE: compile_and_exec()', script_name, args, kwargs)
     sys.argv = [script_name] + list(args)
-#     logging.debug('typein_cli.compile_and_exec({:s})'.format(script_name))
+    logging.debug('typein_cli.compile_and_exec({:s})'.format(script_name))
     with open(script_name) as f_obj:
         src = f_obj.read()
-#         logging.debug('typein_cli.compile_and_exec() read {:d} lines'.format(src.count('\n')))
+        logging.debug('typein_cli.compile_and_exec() read {:d} lines'.format(src.count('\n')))
         code = compile(src, script_name, 'exec')
-        with MemTrace() as mt:
+        with MemTrace(filter_fn) as mt:
             try:
                 exec(code, globals())#, locals())
             except SystemExit:
                 # Trap CLI code that calls exit() or sys.exit()
                 pass
     return mt
+
+DEFAULT_FILTER_MIN_TIME = -1
+DEFAULT_FILTER_MIN_MEMORY = 0
+
+def create_filter_function(filter_min_time, filter_min_memory):
+    """
+    Given command line arguments minimum time and memory (us and kilobytes) this
+    returns a function that filters function call data.
+    
+    If both are default values this returns None, this is means all functions
+    are captured, it is equivalent to
+    ``filter_fn=lambda call_data, return_data: True``
+    
+    If both values are non-default then this returns a function that filters
+    functions where *either*
+    """
+    if filter_min_memory < 0:
+        raise ValueError(
+            'filter_min_memory must be >= 0 not {!r:s}'.format(
+                filter_min_memory
+            )
+        )
+    if filter_min_time == DEFAULT_FILTER_MIN_TIME \
+    and filter_min_memory == DEFAULT_FILTER_MIN_MEMORY:
+        # return None which is a speed optimisation as no function call is made by
+        # pymemtrace.data.FunctionCallTree.add_return
+        return None
+    if filter_min_time != DEFAULT_FILTER_MIN_TIME \
+    and filter_min_memory != DEFAULT_FILTER_MIN_MEMORY:
+        # Filter on either
+        def filter_either(data_call, data_return):
+            diff = data_return - data_call
+            if diff.time * 1e6 >= filter_min_time:
+                return True
+            if abs(diff.memory / 1024) >= filter_min_memory:
+                return True
+            return False
+        return filter_either
+    # Filter on one or the other
+    if filter_min_time != DEFAULT_FILTER_MIN_TIME:
+        # Time only
+        assert filter_min_memory == DEFAULT_FILTER_MIN_MEMORY
+        def filter_time(data_call, data_return):
+            diff = data_return - data_call
+            if diff.time * 1e6 >= filter_min_time:
+                return True
+            return False
+        return filter_time
+    # Memory only
+    assert filter_min_time == DEFAULT_FILTER_MIN_TIME
+    def filter_memory(data_call, data_return):
+        diff = data_return - data_call
+        if abs(diff.memory / 1024) >= filter_min_memory:
+            return True
+        return False
+    return filter_memory
 
 def main():
     """Command line version of pymemtrace which executes arbitrary Python code
@@ -336,6 +400,22 @@ USAGE
 #         help="Root path of the Python packages to generate stub files for."
 #         " [default: %(default)s]"
 #     )
+    parser.add_argument(
+        "-t", "--filter_min_time",
+        type=int,
+        dest="filter_min_time",
+        default=DEFAULT_FILTER_MIN_TIME,
+        help="Ignore functions that execute in less than this number of"
+        " microseconds. -1 means retain all. [default: %(default)s]"
+    )
+    parser.add_argument(
+        "-m", "--filter_min_memory",
+        type=int,
+        dest="filter_min_memory",
+        default=DEFAULT_FILTER_MIN_MEMORY,
+        help="Ignore functions that have a memory impact (+/-) of this number"
+        " of kilobytes. 0 means retain all. [default: %(default)s]"
+    )
     parser.add_argument(dest="program",
                         help="Python target file to be compiled and executed.")
     parser.add_argument(dest="args",
@@ -354,8 +434,19 @@ USAGE
 #     print(dir(PlotMemTrace))
 #     print(PlotMemTrace.plot_memtrace_to_path)
 
+    # Create filter function
+    if cli_args.filter_min_memory < 0:
+        logging.error(
+            '--filter-min-memory must be >= 0 not {!r:s}'.format(
+                cli_args.filter_min_memory
+            )
+        )
+        return -1
+    filter_fn = create_filter_function(cli_args.filter_min_time,
+                                       cli_args.filter_min_memory)
+    logging.info('Filter function: {!s:s}'.format(filter_fn))
     # Execution point
-    mem_trace = compile_and_exec(cli_args.program, *cli_args.args)
+    mem_trace = compile_and_exec(cli_args.program, filter_fn, *cli_args.args)
     # Output: SVG.
     pmt = PlotMemTrace.plot_memtrace_to_path(mem_trace, cli_args.output)
     # Dump.

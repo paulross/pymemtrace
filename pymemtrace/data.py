@@ -119,7 +119,7 @@ class FunctionEncoder:
         return True
 
 class CallReturnData(collections.namedtuple('CallReturnData', ['time', 'memory'])):
-    """Data obtained at cal and return points."""
+    """Data obtained at call and return points."""
     __slots__ = ()
 
     def __sub__(self, other):
@@ -241,6 +241,14 @@ class FunctionCallTree:
         """
         Initialise the call with the function ID, time of call and memory
         usage at the call.
+        
+        :param function_id: The function ID.
+        :type function_id: ``int``
+    
+        :param data_call: The data at the point of the call.
+        :type data_call: A named tuple ``CallReturnData(time, memory)``.
+        
+        :returns: ``None``
         """
         if not self.is_open:
             raise PyMemTraceCallReturnSequenceError(
@@ -251,25 +259,52 @@ class FunctionCallTree:
         else:
             self.children.append(FunctionCallTree(function_id, data_call))
 
-    def add_return(self, function_id, data_return):
+    def add_return(self, function_id, data_return, filter_fn):
         """
         Set the return data, this closes this function.
+        
+        :param function_id: The function ID.
+        :type function_id: ``int``
+    
+        :param data_return: The data at the point of return.
+        :type data_return: A named tuple ``CallReturnData(time, memory)``.
+    
+        :param filter_fn: A callable that takes two ``CallReturnData`` objects
+            and returns a boolean, if True this function record is kept, if
+            False it is discarded. If filter_fn is None it is ignored and all
+            function records are kept.
+        :type filter_fn: A callable that takes two ``CallReturnData`` objects.
+    
+        :returns: ``bool`` -- Returns True if ``filter_fn(call_data, return_data)``
+            is True in which case this function record can be kept. Returns False
+            if ``filter_fn(call_data, return_data)`` is False as this record is
+            too small to be kept. 
         """
         if not self.is_open:
             raise PyMemTraceCallReturnSequenceError(
                 'FunctionCallTree.add_return() when not open for calls.'
             )
         if len(self.children) and self.children[-1].is_open:
-            self.children[-1].add_return(function_id, data_return)
-            # TODO: Event filtering: self.children.pop() if data_return is small?
+            if not self.children[-1].add_return(function_id, data_return, filter_fn):
+                # Event filtering: self.children.pop() if data_return is small
+                self.children.pop()
+            # Always return True after pop() as we defer to parent for its own
+            # return decision.
+            return_value = True
         else:
+            # Close self by adding return data
             if self.function_id != function_id:
                 raise ValueError(
                     'Returning from open function {!r:s} but given ID of {!r:s}'.format(
                         self.function_id, function_id
                     )
                 )
+            # TODO: Test that the return data makes sense compared to the call
+            # data. i.e. test time increases.
             self.data_return = data_return
+            # Do the comparison, True means keep the function record
+            return_value = filter_fn is None or filter_fn(self.data_call, self.data_return)
+        return return_value
 
     def gen_depth_first(self):
         """
@@ -340,10 +375,24 @@ class FunctionCallTreeSequence:
     """
     This contains the current and historic call information from a sequence
     of function calls.
+    
+    ``filter_fn=None`` means all function are captured, it is equivalent to
+    ``filter_fn=lambda call_data, return_data: True``
     """
-    def __init__(self):
+    def __init__(self, filter_fn):
+        """
+        :param filter_fn: A callable that takes two ``CallReturnData`` objects
+            and returns a boolean, if True this function record is kept, if
+            False it is discarded. If filter_fn is None it is ignored and all
+            function records are kept.
+            ``filter_fn=None`` means all functions are captured, it is equivalent
+            to ``filter_fn=lambda call_data, return_data: True``
+        :type filter_fn: A callable that takes two ``CallReturnData`` objects.
+        """
         # List of FunctionCallTree objects.
         self.function_trees = []
+        # Filter out small functions
+        self.filter_fn = filter_fn
 
     def __sizeof__(self):
         s = sys.getsizeof(list())
@@ -385,15 +434,18 @@ class FunctionCallTreeSequence:
     def add_call_return_event(self, event, function_id, data):
         assert event in ('call', 'return'), \
             'Expected "call" or "return" not "{:s}"'.format(event)
-        # TODO: Have a filter function to filter data value so that small
-        # values are not accumulated.
+        # TODO: Test that the return data makes sense compared to the previous
+        # data. i.e. time weakly increases.
         if len(self.function_trees) and self.function_trees[-1].is_open:
             # Pass the event down the stack.
             if event == 'call':
                 self.function_trees[-1].add_call(function_id, data)
             else:
                 assert event == 'return', 'Expected "return" not "{:s}"'.format(event)
-                self.function_trees[-1].add_return(function_id, data)
+                # If add_return() return False then the immediate function
+                # (a FunctionCallTree) is too small to be recorded.
+                if not self.function_trees[-1].add_return(function_id, data, self.filter_fn):
+                    self.function_trees.pop()
         else:
             # Create a new stack
             assert event == 'call', 'Expected "call" not "{:s}"'.format(event)
