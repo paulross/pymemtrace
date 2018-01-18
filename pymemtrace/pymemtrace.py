@@ -8,6 +8,7 @@ import collections
 import inspect
 import logging
 # import os
+import pprint
 import re
 import sys
 import time
@@ -33,7 +34,9 @@ class MemTrace:
     TRACE_FUNCTION_SET = sys.setprofile
 #     TRACE_FUNCTION_GET = sys.gettrace
 #     TRACE_FUNCTION_SET = sys.settrace
+    # Very verbose tracing of every event
     TRACE_EVENTS = False
+    # Verbose printing of events that are recorded
     TRACE_ADD_DATA_POINT = False
     def __init__(self, filter_fn):
         """
@@ -293,7 +296,7 @@ DEFAULT_FILTER_MIN_MEMORY = 0
 
 def create_filter_function(filter_min_time, filter_min_memory):
     """
-    Given command line arguments minimum time and memory (us and kilobytes) this
+    Given command line arguments minimum time and memory (ms and kilobytes) this
     returns a function that filters function call data.
 
     If both are default values this returns None, this is means all functions
@@ -319,6 +322,7 @@ def create_filter_function(filter_min_time, filter_min_memory):
         # Filter on either
         def filter_either(data_call, data_return):
             diff = data_return - data_call
+<<<<<<< HEAD
             if diff.time * 1e6 >= filter_min_time \
             or abs(diff.memory / 1024) >= filter_min_memory:
                 return_value = True
@@ -326,6 +330,13 @@ def create_filter_function(filter_min_time, filter_min_memory):
                 return_value = False
 #             print('TRACE: filter_either():', diff, return_value)
             return return_value
+=======
+            if diff.time * 1e3 >= filter_min_time:
+                return True
+            if abs(diff.memory / 1024) >= filter_min_memory:
+                return True
+            return False
+>>>>>>> origin/master
         return filter_either
     # Filter on one or the other
     if filter_min_time != DEFAULT_FILTER_MIN_TIME:
@@ -333,7 +344,7 @@ def create_filter_function(filter_min_time, filter_min_memory):
         assert filter_min_memory == DEFAULT_FILTER_MIN_MEMORY
         def filter_time(data_call, data_return):
             diff = data_return - data_call
-            if diff.time * 1e6 >= filter_min_time:
+            if diff.time * 1e3 >= filter_min_time:
                 return True
             return False
         return filter_time
@@ -365,6 +376,7 @@ def dump_function_tree_seq(function_tree_seq, data_min, function_encoder):
     print(' DUMP of MemTrace.function_tree_seq '.center(75, '='))
     # A pymemtrace.data.CallReturnData
     data_previous = data.CallReturnData(0, 0)
+    count = 0
     for wdefd in function_tree_seq.gen_depth_first():
         # Each object is a:
         # WidthDepthEventFunctionData(width, depth, event, function_id, data)
@@ -384,7 +396,16 @@ def dump_function_tree_seq(function_tree_seq, data_min, function_encoder):
             )
         )
         data_previous = data_diff
-    print(' DUMP of MemTrace.function_tree_seq ENDS '.center(75, '='))
+        count += 1
+    print(' DUMP of MemTrace.function_tree_seq ENDS [{:d}]'.format(count).center(75, '='))
+
+def dump_function_encoder(function_encoder):
+    print(' DUMP of MemTrace.function_encoder [{:d}]'.format(len(function_encoder.id_rev_lookup)).center(75, '='))
+    for key in sorted(function_encoder.id_rev_lookup.keys()):
+        # {int : FunctionLocation(filename, function, lineno), ...}
+        fn_loc = function_encoder.id_rev_lookup[key]
+        print('{:4d} {:32s} {:s}#{:d}'.format(key, fn_loc.function, fn_loc.filename, fn_loc.lineno))
+    print(' DUMP of MemTrace.function_encoder ENDS '.center(75, '='))
 
 def main():
     """Command line version of pymemtrace which executes arbitrary Python code
@@ -430,7 +451,7 @@ USAGE
         dest="filter_min_time",
         default=DEFAULT_FILTER_MIN_TIME,
         help="Ignore functions that execute in less than this number of"
-        " microseconds. -1 means retain all. [default: %(default)s (microseconds)]"
+        " milliseconds. -1 means retain all. [default: %(default)s (milliseconds)]"
     )
     parser.add_argument(
         "-m", "--filter-min-memory",
@@ -480,20 +501,28 @@ USAGE
             mem_trace.data_min,
             mem_trace.function_encoder,
         )
+        dump_function_encoder(mem_trace.function_encoder)
     logging.info('All done, summary:')
     # Summary.
-    print('MemTrace total events: {:d}'.format(mem_trace.eventno))
-    print(' MemTrace event count:', mem_trace.event_counter)
-    print('    MemTrace data_min:', mem_trace.data_min)
-    print('    MemTrace data_max:', mem_trace.data_max)
-    print('Functions in SVG:', pmt.function_counter)
+    print('MemTrace functions total: {:10d}'.format(mem_trace.function_tree_seq.function_count + mem_trace.function_tree_seq.filtered_function_count))
+    print('   MemTrace filtered out: {:10d}'.format(mem_trace.function_tree_seq.filtered_function_count))
+    print(' MemTrace functions kept: {:10d}'.format(mem_trace.function_tree_seq.function_count))
+    print('   MemTrace total events: {:10d}'.format(mem_trace.eventno))
+    print('    MemTrace event count: {:s}'.format(pprint.pformat(mem_trace.event_counter)))
+    print('       MemTrace data_min: {!s:s}'.format(mem_trace.data_min))
+    print('       MemTrace data_max: {!s:s}'.format(mem_trace.data_max))
+    print('              Difference: {!s:s}'.format(mem_trace.data_max - mem_trace.data_min))
+    print('   MemTrace data_initial: {!s:s}'.format(mem_trace.data_initial))
+    print('     MemTrace data_final: {!s:s}'.format(mem_trace.data_final))
+    print('              Difference: {!s:s}'.format(mem_trace.data_final - mem_trace.data_initial))
+    print('        Functions in SVG: {!r:s}'.format(pprint.pformat(pmt.function_counter)))
     # sizeof
     print()
-    print('sys.getsizeof(MemTrace) starts: {:12,d}'.format(mem_trace.sizeof_enter))
-    print('sys.getsizeof(MemTrace)   ends: {:12,d}'.format(mem_trace.sizeof_exit))
-    print('sys.getsizeof(MemTrace)   diff: {:12,d}'.format(mem_trace.sizeof_exit - mem_trace.sizeof_enter))
-    print('sys.getsizeof(FunctionEncoder): {:12,d}'.format(sys.getsizeof(mem_trace.function_encoder)))
-    print('sys.getsizeof(FunctionTree)   : {:12,d}'.format(sys.getsizeof(mem_trace.function_tree_seq)))
+    print('sys.getsizeof(MemTrace) starts: {:12,d} (bytes)'.format(mem_trace.sizeof_enter))
+    print('sys.getsizeof(MemTrace)   ends: {:12,d} (bytes)'.format(mem_trace.sizeof_exit))
+    print('sys.getsizeof(MemTrace)   diff: {:12,d} (bytes)'.format(mem_trace.sizeof_exit - mem_trace.sizeof_enter))
+    print('sys.getsizeof(FunctionEncoder): {:12,d} (bytes)'.format(sys.getsizeof(mem_trace.function_encoder)))
+    print('sys.getsizeof(FunctionTree)   : {:12,d} (bytes)'.format(sys.getsizeof(mem_trace.function_tree_seq)))
     # Done
     print()
     print(' CPU time = {:8.3f} (S)'.format(time.time() - start_time))
@@ -504,5 +533,3 @@ USAGE
 
 if __name__ == '__main__':
     sys.exit(main())
-
-

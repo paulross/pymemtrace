@@ -6,8 +6,8 @@ Data structures used by pymemtrace
 # import bisect
 import collections
 # import inspect
-# import logging
-# import os
+import logging
+import os
 # import re
 import sys
 # import time
@@ -47,14 +47,14 @@ class FunctionEncoder:
     """
     def __init__(self):
         """Constructor, just initialises internal state."""
-        # {FunctionLocation(file_path, function, lineno) : int, ...}
+        # {FunctionLocation(filename, function, lineno) : int, ...}
         # Where lineno is the first call event, subsequent call events
         # might have greater line numbers (e.g. generators).
         # lineno of function declaration can be obtained from
         # frame.f_code.co_firstlineno
         self.id_lookup = {}
         # Reverse lookup.
-        # {int : FunctionLocation(file_path, function, lineno), ...}
+        # {int : FunctionLocation(filename, function, lineno), ...}
         self.id_rev_lookup = {}
 
     def __len__(self):
@@ -83,7 +83,7 @@ class FunctionEncoder:
             raise ValueError(
                 'FunctionEncoder.encode(): line number must be >=1 not {!r:s}'.format(lineno)
             )
-        loc = FunctionLocation(file_path, function_name, lineno)
+        loc = FunctionLocation(os.path.abspath(file_path), function_name, lineno)
         try:
             val = self.id_lookup[loc]
         except KeyError:
@@ -182,6 +182,8 @@ class FunctionCallTree:
         self.data_return = None
         # Child nodes, each is a FunctionCallTree.
         self.children = []
+        # Count of how many functions have been filtered out
+        self._filtered_function_count = 0
 
     def __sizeof__(self):
         s = sys.getsizeof(self.function_id)
@@ -194,6 +196,14 @@ class FunctionCallTree:
     def is_open(self):
         """Returns True if this function has not yet seen a return event."""
         return self.data_return is None
+
+    @property
+    def filtered_function_count(self):
+        return self._filtered_function_count + sum([child.filtered_function_count for child in self.children])
+
+    @property
+    def function_count(self):
+        return 1 + sum([child.function_count for child in self.children])
 
     def max_depth(self):
         """
@@ -241,13 +251,13 @@ class FunctionCallTree:
         """
         Initialise the call with the function ID, time of call and memory
         usage at the call.
-        
+
         :param function_id: The function ID.
         :type function_id: ``int``
-    
+
         :param data_call: The data at the point of the call.
         :type data_call: A named tuple ``CallReturnData(time, memory)``.
-        
+
         :returns: ``None``
         """
         if not self.is_open:
@@ -262,23 +272,23 @@ class FunctionCallTree:
     def add_return(self, function_id, data_return, filter_fn):
         """
         Set the return data, this closes this function.
-        
+
         :param function_id: The function ID.
         :type function_id: ``int``
-    
+
         :param data_return: The data at the point of return.
         :type data_return: A named tuple ``CallReturnData(time, memory)``.
-    
+
         :param filter_fn: A callable that takes two ``CallReturnData`` objects
             and returns a boolean, if True this function record is kept, if
             False it is discarded. If filter_fn is None it is ignored and all
             function records are kept.
         :type filter_fn: A callable that takes two ``CallReturnData`` objects.
-    
+
         :returns: ``bool`` -- Returns True if ``filter_fn(call_data, return_data)``
             is True in which case this function record can be kept. Returns False
             if ``filter_fn(call_data, return_data)`` is False as this record is
-            too small to be kept. 
+            too small to be kept.
         """
         if not self.is_open:
             raise PyMemTraceCallReturnSequenceError(
@@ -287,7 +297,9 @@ class FunctionCallTree:
         if len(self.children) and self.children[-1].is_open:
             if not self.children[-1].add_return(function_id, data_return, filter_fn):
                 # Event filtering: self.children.pop() if data_return is small
+                logging.debug('Filtering out function id={:d} diff={!s:}'.format(function_id, data_return - self.data_call))
                 self.children.pop()
+                self._filtered_function_count += 1
             # Always return True after pop() as we defer to parent for its own
             # return decision.
             return_value = True
@@ -376,7 +388,7 @@ class FunctionCallTreeSequence:
     """
     This contains the current and historic call information from a sequence
     of function calls.
-    
+
     ``filter_fn=None`` means all function are captured, it is equivalent to
     ``filter_fn=lambda call_data, return_data: True``
     """
@@ -394,6 +406,8 @@ class FunctionCallTreeSequence:
         self.function_trees = []
         # Filter out small functions
         self.filter_fn = filter_fn
+        # Count of how many top level functions have been filtered out
+        self._filtered_function_count = 0
 
     def __sizeof__(self):
         s = sys.getsizeof(list())
@@ -403,6 +417,14 @@ class FunctionCallTreeSequence:
     def __len__(self):
         """Returns the number of top level functions."""
         return len(self.function_trees)
+
+    @property
+    def filtered_function_count(self):
+        return self._filtered_function_count + sum([tree.filtered_function_count for tree in self.function_trees])
+
+    @property
+    def function_count(self):
+        return sum([tree.function_count for tree in self.function_trees])
 
     def max_depth(self):
         """
@@ -446,7 +468,9 @@ class FunctionCallTreeSequence:
                 # If add_return() return False then the immediate function
                 # (a FunctionCallTree) is too small to be recorded.
                 if not self.function_trees[-1].add_return(function_id, data, self.filter_fn):
+                    logging.debug('Filtering out top level function id={:d} diff={!s:}'.format(function_id, data - self.function_trees[-1].data_call))
                     self.function_trees.pop()
+                    self._filtered_function_count += 1
         else:
             # Create a new stack
             assert event == 'call', 'Expected "call" not "{:s}"'.format(event)

@@ -273,7 +273,7 @@ class PlotMemTrace:
         # There will be duplicates with child functions at the boundaries.
         # A list of Coord.Pt()
         polygon_ptS = [self.pt_from_cr_data(cr_data, is_abs_units=False) for cr_data in function_cr_data]
-        # Reduce the polygons points to eliminate points that are the same x/y
+        # Reduce the polygons points to eliminate points that are the same x/y to within one pixel
         distinct_polygon_ptS = polygon_ptS[:1]
         for point in polygon_ptS[1:]:
             if abs(point.x.value - distinct_polygon_ptS[-1].x.value) > 1 or abs(point.y.value - distinct_polygon_ptS[-1].y.value) > 1:
@@ -281,9 +281,9 @@ class PlotMemTrace:
         # Ignore sub one pixel elements
         diff_x = max([p.x.value for p in distinct_polygon_ptS]) - min([p.x.value for p in distinct_polygon_ptS])
         diff_y = max([p.y.value for p in distinct_polygon_ptS]) - min([p.y.value for p in distinct_polygon_ptS])
-        diff_min = 2
-        if diff_x > diff_min and diff_y > diff_min:
-            logging.info(
+        diff_min = 1
+        if diff_x >= diff_min and diff_y >= diff_min:
+            logging.debug(
                 '_write_function_SVG() dx={:6.1f} dy={:6.1f}  writing: {!s:s} {!s:s}'.format(
                     diff_x, diff_y, self.function_encoder.decode(function_id), function_cr_data[-1] - function_cr_data[0]
                 )
@@ -309,11 +309,18 @@ class PlotMemTrace:
             self._write_function_popup_SVG(function_id, func_id_attr, function_cr_data, svgS)
             self.function_counter.update(Written=1)
         else:
-            logging.info(
+            logging.debug(
                 '_write_function_SVG() dx={:6.1f} dy={:6.1f} ignoring: {!s:s}'.format(
                     diff_x, diff_y, self.function_encoder.decode(function_id)
                 )
             )
+            # line_attributes = {
+            #     'stroke' : "blue",
+            #     'stroke-width' : "1",
+            #     # 'stroke-dasharray' : "5 5",
+            # }
+            # with SVGWriter.SVGLine(svgS, distinct_polygon_ptS[0], distinct_polygon_ptS[-1], line_attributes):
+            #     pass
             self.function_counter.update(Ignored=1)
             # pprint.pprint(function_cr_data)
 
@@ -420,24 +427,48 @@ class PlotMemTrace:
         """
         svgS.comment(' _write_data_hover_points_SVG(): ', newLine=True)
         old_pt = None
+        point_to_point_min = 4
         for data_point in data_hover_ptS:
             pt_id = self._data_hover_new_id()
-#             print('TRACE:', data_point)
             pt = self.pt_from_cr_data(data_point, is_abs_units=False)
-            if old_pt is not None and abs(pt.x.value - old_pt.x.value) < 4 and abs(pt.y.value - old_pt.y.value) < 4:
+            if old_pt is not None and abs(pt.x.value - old_pt.x.value) < point_to_point_min \
+            and abs(pt.y.value - old_pt.y.value) < point_to_point_min:
                 continue
+            line_attributes = {
+                'stroke' : "blue",
+                'stroke-width' : "1",
+                'stroke-dasharray' : "5 5",
+            }
+            # Draw a blue outline
+            if old_pt is not None:
+                with SVGWriter.SVGLine(svgS, old_pt, pt, line_attributes):
+                    pass
             old_pt = pt
-#             print('TRACE:', pt)
             # Larger, invisible, onhover circle:
-            # <circle id="data_pt_0" cx="600" cy="500" r="10" opacity="0.0" />
-            rad = Coord.Dim(20, None)
-            with SVGWriter.SVGCircle(svgS, pt, rad,
+            # <circle id="data_pt_0" cx="600" cy="500" r="20" opacity="0.0" />
+            with SVGWriter.SVGCircle(svgS, pt, Coord.Dim(20, None),
                                      {'id' : pt_id, 'opacity' : '0.0'}):
                 pass
-#             # Small, visible circle: <circle cx="600" cy="500" r="4" fill="red" />
-#             rad = Coord.Dim(4, None)
-#             with SVGWriter.SVGCircle(svgS, pt, rad, {'fill' : 'red'}):
-#                 pass
+            # # Small, visible circle: <circle cx="600" cy="500" r="4" fill="red" />
+            # with SVGWriter.SVGCircle(svgS, pt, Coord.Dim(4, None), {'stroke' : 'red', 'fill' : 'pink'}):
+            #     pass
+            # Small cross
+            line_attributes = {'stroke' : 'red'}
+            # Top left to bottom right
+            with SVGWriter.SVGLine(
+                svgS,
+                Coord.newPt(pt, incX=Coord.Dim(-4, None), incY=Coord.Dim(-4, None)),
+                Coord.newPt(pt, incX=Coord.Dim(4, None), incY=Coord.Dim(4, None)),
+                line_attributes):
+                pass
+            # Bottom left to top right
+            with SVGWriter.SVGLine(
+                svgS,
+                Coord.newPt(pt, incX=Coord.Dim(-4, None), incY=Coord.Dim(4, None)),
+                Coord.newPt(pt, incX=Coord.Dim(4, None), incY=Coord.Dim(-4, None)),
+                line_attributes):
+                pass
+            # Text pop-up
             text = str(data_point - self.data_text_offset)
             with SVGWriter.SVGGroup(svgS, {'opacity' : '0.0'}):
                 # rect
