@@ -1,4 +1,5 @@
 eclipse.preferences.version=1
+encoding//docs/source/conf.py=utf-8
 encoding//pymemtrace/__init__.py=utf-8
 encoding//pymemtrace/plot/PlotMemTrace.py=utf-8
 encoding//pymemtrace/pymemtrace.py=utf-8
