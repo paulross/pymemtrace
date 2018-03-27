@@ -1,4 +1,4 @@
-Welcome to pymemtrace's documentation!
+pymemtrace's documentation
 ======================================
 
 Contents:
@@ -9,10 +9,12 @@ Contents:
    readme
    installation
    usage
-   modules
+   reference
+   
    contributing
    authors
    history
+
 
 Indices and tables
 ==================

@@ -1,1 +1,4 @@
-.. include:: ../README.rst
+Read Me
+========
+
+.. include:: ../../README.rst

@@ -168,7 +168,7 @@ class Dim(collections.namedtuple('Dim', 'value units',)):
         return self
 
     def __imul__(self, other):
-        """Overload self *= other, other is a float or int."""
+        """Overload self \*= other, other is a float or int."""
         self = self * other
         return self
 
@@ -341,6 +341,7 @@ def offset_scale(coord_min, coord_max, value_min, value_max):
     Returns a named tuple::
     
         OffsetScale(offset, scale)
+    
     :raises: ``ZeroDivisionError`` if ``value_min - value_max`` is zero.
     """
     # delta d / delta v, the slope, a Dim object.
