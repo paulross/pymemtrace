@@ -109,3 +109,6 @@ tmp/
 # Mac OS X
 .DS_Store
 
+# cmake files
+cmake-build-debug/
+cmake-build-release/
