@@ -40,9 +40,10 @@
 
 #include "get_rss.h"
 
+
+
 static int
-_trace_function(PyObject *obj, PyFrameObject *frame, int what, PyObject *arg) {
-    (void)obj;
+trace_function(PyObject *Py_UNUSED(obj), PyFrameObject *frame, int what, PyObject *arg) {
     int line_number = PyFrame_GetLineNumber(frame);
     PyObject *file_name = frame->f_code->co_filename;
     Py_INCREF(file_name); // Hang on to a 'borrowed' reference.
@@ -55,7 +56,7 @@ _trace_function(PyObject *obj, PyFrameObject *frame, int what, PyObject *arg) {
         func_name = PyEval_GetFuncName(arg);
     }
     fprintf(stdout,
-            "%f %d Function: %s#%d RSS: %zu Peak RSS: %zu %s\n",
+            "%f %d Function: %s#%d %s RSS: %zu Peak RSS: %zu\n",
             clock_seconds, what, PyUnicode_1BYTE_DATA(file_name), line_number, func_name, rss, rss_peak
             );
     Py_DECREF(file_name); // Let go of borrowed reference
@@ -63,16 +64,24 @@ _trace_function(PyObject *obj, PyFrameObject *frame, int what, PyObject *arg) {
 }
 
 static PyObject *
-_trace_function_attach(PyObject *module) {
-    (void)module;
-//    PyEval_SetTrace(&_trace_function, NULL);
-    PyEval_SetProfile(&_trace_function, NULL);
+trace_function_attach(PyObject *Py_UNUSED(module), PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {"trace", NULL};
+    int trace = 0;
+
+    if (! PyArg_ParseTupleAndKeywords(args, kwds, "|p", kwlist, &trace)) {
+        return NULL;
+    }
+    if (trace) {
+        PyEval_SetTrace(&trace_function, NULL);
+    } else {
+        PyEval_SetProfile(&trace_function, NULL);
+    }
     Py_RETURN_NONE;
 }
 
 static PyObject *
-_trace_function_detach(PyObject *module) {
-    (void)module;
+trace_function_detach(PyObject *Py_UNUSED(module)) {
+    // TODO: decide which to do.
 //    PyEval_SetTrace(NULL, NULL);
     PyEval_SetProfile(NULL, NULL);
     Py_RETURN_NONE;
@@ -86,18 +95,14 @@ typedef struct {
 } CustomObject;
 
 static void
-Custom_dealloc(CustomObject *self)
-{
+Custom_dealloc(CustomObject *self) {
     Py_XDECREF(self->first);
     Py_XDECREF(self->last);
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
 static PyObject *
-Custom_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-    (void)args;
-    (void)kwds;
+Custom_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
     CustomObject *self;
     self = (CustomObject *) type->tp_alloc(type, 0);
     if (self != NULL) {
@@ -117,8 +122,7 @@ Custom_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static int
-Custom_init(CustomObject *self, PyObject *args, PyObject *kwds)
-{
+Custom_init(CustomObject *self, PyObject *args, PyObject *kwds) {
     static char *kwlist[] = {"first", "last", "number", NULL};
     PyObject *first = NULL, *last = NULL, *tmp;
 
@@ -149,17 +153,13 @@ static PyMemberDef Custom_members[] = {
 };
 
 static PyObject *
-Custom_getfirst(CustomObject *self, void *closure)
-{
-    (void) closure;
+Custom_getfirst(CustomObject *self, void *Py_UNUSED(closure)) {
     Py_INCREF(self->first);
     return self->first;
 }
 
 static int
-Custom_setfirst(CustomObject *self, PyObject *value, void *closure)
-{
-    (void) closure;
+Custom_setfirst(CustomObject *self, PyObject *value, void *Py_UNUSED(closure)) {
     PyObject *tmp;
     if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the first attribute");
@@ -178,17 +178,14 @@ Custom_setfirst(CustomObject *self, PyObject *value, void *closure)
 }
 
 static PyObject *
-Custom_getlast(CustomObject *self, void *closure)
-{
+Custom_getlast(CustomObject *self, void *closure) {
     (void) closure;
     Py_INCREF(self->last);
     return self->last;
 }
 
 static int
-Custom_setlast(CustomObject *self, PyObject *value, void *closure)
-{
-    (void) closure;
+Custom_setlast(CustomObject *self, PyObject *value, void *Py_UNUSED(closure)) {
     PyObject *tmp;
     if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the last attribute");
@@ -215,8 +212,7 @@ static PyGetSetDef Custom_getsetters[] = {
 };
 
 static PyObject *
-Custom_name(CustomObject *self, PyObject *Py_UNUSED(ignored))
-{
+Custom_name(CustomObject *self, PyObject *Py_UNUSED(ignored)) {
     return PyUnicode_FromFormat("%S %S", self->first, self->last);
 }
 
@@ -242,10 +238,11 @@ static PyTypeObject CustomType = {
     .tp_getset = Custom_getsetters,
 };
 
-
 static PyMethodDef Custom3Methods[] = {
-    {"attach",  (PyCFunction) _trace_function_attach, METH_NOARGS, "Attach a C trace function to the interpreter."},
-    {"detach",  (PyCFunction)_trace_function_detach, METH_NOARGS, "Detach the C trace function to the interpreter."},
+    {"attach",  (PyCFunction) trace_function_attach,
+     METH_VARARGS | METH_KEYWORDS, "Attach a C trace function to the interpreter."},
+    {"detach",  (PyCFunction) trace_function_detach,
+     METH_NOARGS, "Detach the C trace function to the interpreter."},
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
@@ -258,8 +255,7 @@ static PyModuleDef custommodule = {
 };
 
 PyMODINIT_FUNC
-PyInit_custom3(void)
-{
+PyInit_custom3(void) {
     PyObject *m;
     if (PyType_Ready(&CustomType) < 0)
         return NULL;
@@ -274,6 +270,5 @@ PyInit_custom3(void)
         Py_DECREF(m);
         return NULL;
     }
-
     return m;
 }
