@@ -36,14 +36,78 @@
 #include "structmember.h"
 #include "frameobject.h"
 
+#include <stdio.h>
 #include <time.h>
+//#include <stdlib.h>
+#include <unistd.h>
+#include <assert.h>
 
 #include "get_rss.h"
 
+typedef struct {
+    PyObject_HEAD
+    FILE* file;
+} TraceFileWrapper;
+
+static void
+TraceFileWrapper_dealloc(TraceFileWrapper *self) {
+    if (self->file) {
+        fclose(self->file);
+    }
+    Py_TYPE(self)->tp_free((PyObject *) self);
+}
+
+static PyObject *
+TraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
+    TraceFileWrapper *self;
+    self = (TraceFileWrapper *) type->tp_alloc(type, 0);
+    if (self != NULL) {
+        self->file = NULL;
+    }
+    return (PyObject *) self;
+}
+
+//static int
+//TraceFileWrapper_init(TraceFileWrapper *self, PyObject *args, PyObject *kwds) {
+//    static char *kwlist[] = {"trace", NULL};
+//
+//    if (! PyArg_ParseTupleAndKeywords(args, kwds, "|p", kwlist, &self->is_trace)) {
+//        return NULL;
+//    }
+//    return 0;
+//}
+
+//static PyMemberDef Custom_members[] = {
+//    {NULL, 0, 0, 0, NULL}  /* Sentinel */
+//};
+//
+//static PyGetSetDef Custom_getsetters[] = {
+//        {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
+//};
+//
+//static PyMethodDef Custom_methods[] = {
+//        {NULL, NULL, 0, NULL}  /* Sentinel */
+//};
+
+static PyTypeObject TraceFileWrapperType = {
+        PyVarObject_HEAD_INIT(NULL, 0)
+        .tp_name = "cPyMemTrace.TraceFileWrapper",
+        .tp_doc = "Wrapper round a trace-to-file object.",
+        .tp_basicsize = sizeof(TraceFileWrapper),
+        .tp_itemsize = 0,
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_new = TraceFileWrapper_new,
+//        .tp_init = (initproc) TraceFileWrapper_init,
+        .tp_dealloc = (destructor) TraceFileWrapper_dealloc,
+//        .tp_members = Custom_members,
+//        .tp_methods = Custom_methods,
+//        .tp_getset = Custom_getsetters,
+};
 
 
 static int
-trace_function(PyObject *Py_UNUSED(obj), PyFrameObject *frame, int what, PyObject *arg) {
+trace_or_profile_function(PyObject *trace_wrapper, PyFrameObject *frame, int what, PyObject *arg) {
+    assert(Py_TYPE(trace_wrapper) == &TraceFileWrapperType && "trace_wrapper is not a TraceFileWrapperType.");
     int line_number = PyFrame_GetLineNumber(frame);
     PyObject *file_name = frame->f_code->co_filename;
     Py_INCREF(file_name); // Hang on to a 'borrowed' reference.
@@ -55,7 +119,7 @@ trace_function(PyObject *Py_UNUSED(obj), PyFrameObject *frame, int what, PyObjec
     if (what == PyTrace_C_CALL || what == PyTrace_C_RETURN) {
         func_name = PyEval_GetFuncName(arg);
     }
-    fprintf(stdout,
+    fprintf(((TraceFileWrapper *)trace_wrapper)->file,
             "%f %d Function: %s#%d %s RSS: %zu Peak RSS: %zu\n",
             clock_seconds, what, PyUnicode_1BYTE_DATA(file_name), line_number, func_name, rss, rss_peak
             );
@@ -63,212 +127,121 @@ trace_function(PyObject *Py_UNUSED(obj), PyFrameObject *frame, int what, PyObjec
     return 0;
 }
 
-static PyObject *
-trace_function_attach(PyObject *Py_UNUSED(module), PyObject *args, PyObject *kwds) {
-    static char *kwlist[] = {"trace", NULL};
-    int trace = 0;
+static TraceFileWrapper *trace_wrapper = NULL;
+static TraceFileWrapper *profile_wrapper = NULL;
 
-    if (! PyArg_ParseTupleAndKeywords(args, kwds, "|p", kwlist, &trace)) {
+static char *
+create_filename() {
+    /* Not thread safe. */
+    static char filename[256];
+    static struct tm now;
+    time_t t = time(NULL);
+    gmtime_r(&t, &now);
+    size_t len = strftime(filename, 256, "%Y%m%d_%H%M%S", &now);
+    if (len == 0) {
+        fprintf(stderr, "create_filename(): strftime failed.");
         return NULL;
     }
-    if (trace) {
-        PyEval_SetTrace(&trace_function, NULL);
-    } else {
-        PyEval_SetProfile(&trace_function, NULL);
+    pid_t pid = getpid();
+    if (snprintf(filename + len, 256 - len - 1, "_%d.log", pid) == 0) {
+        fprintf(stderr, "create_filename(): failed to add PID.");
+        return NULL;
     }
+    fprintf(stdout, "Created filename: %s", filename);
+    return filename;
+}
+
+static TraceFileWrapper *
+new_trace_wrapper() {
+    if (trace_wrapper) {
+        TraceFileWrapper_dealloc(trace_wrapper);
+        trace_wrapper = NULL;
+    }
+    char *filename = create_filename();
+    if (filename) {
+        trace_wrapper = (TraceFileWrapper *)TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
+        if (trace_wrapper) {
+            trace_wrapper->file = fopen(filename, "w");
+        } else {
+            fprintf(stderr, "Can not create TraceFileWrapper.");
+        }
+    }
+    return trace_wrapper;
+}
+
+static PyObject *
+attach_trace_function(PyObject *Py_UNUSED(module)) {
+    TraceFileWrapper *wrapper = new_trace_wrapper();
+    if (wrapper) {
+        PyEval_SetTrace(&trace_or_profile_function, (PyObject *)wrapper);
+        Py_RETURN_NONE;
+    }
+    PyErr_SetString(PyExc_RuntimeError, "Could not attach trace function.");
+    return NULL;
+}
+
+static PyObject *
+attach_profile_function(PyObject *Py_UNUSED(module)) {
+    TraceFileWrapper *wrapper = new_trace_wrapper();
+    if (wrapper) {
+        PyEval_SetProfile(&trace_or_profile_function, (PyObject *)wrapper);
+        Py_RETURN_NONE;
+    }
+    PyErr_SetString(PyExc_RuntimeError, "Could not attach profile function.");
+    return NULL;
+}
+
+static PyObject *
+detach_trace_function(PyObject *Py_UNUSED(module)) {
+    if (trace_wrapper) {
+        TraceFileWrapper_dealloc(trace_wrapper);
+        trace_wrapper = NULL;
+    }
+    PyEval_SetTrace(NULL, NULL);
     Py_RETURN_NONE;
 }
 
 static PyObject *
-trace_function_detach(PyObject *Py_UNUSED(module)) {
-    // TODO: decide which to do.
-//    PyEval_SetTrace(NULL, NULL);
+detach_profile_function(PyObject *Py_UNUSED(module)) {
+    if (profile_wrapper) {
+        TraceFileWrapper_dealloc(profile_wrapper);
+        profile_wrapper = NULL;
+    }
     PyEval_SetProfile(NULL, NULL);
     Py_RETURN_NONE;
 }
 
-typedef struct {
-    PyObject_HEAD
-    PyObject *first; /* first name */
-    PyObject *last;  /* last name */
-    int number;
-} CustomObject;
-
-static void
-Custom_dealloc(CustomObject *self) {
-    Py_XDECREF(self->first);
-    Py_XDECREF(self->last);
-    Py_TYPE(self)->tp_free((PyObject *) self);
-}
-
-static PyObject *
-Custom_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
-    CustomObject *self;
-    self = (CustomObject *) type->tp_alloc(type, 0);
-    if (self != NULL) {
-        self->first = PyUnicode_FromString("");
-        if (self->first == NULL) {
-            Py_DECREF(self);
-            return NULL;
-        }
-        self->last = PyUnicode_FromString("");
-        if (self->last == NULL) {
-            Py_DECREF(self);
-            return NULL;
-        }
-        self->number = 0;
-    }
-    return (PyObject *) self;
-}
-
-static int
-Custom_init(CustomObject *self, PyObject *args, PyObject *kwds) {
-    static char *kwlist[] = {"first", "last", "number", NULL};
-    PyObject *first = NULL, *last = NULL, *tmp;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|UUi", kwlist,
-                                     &first, &last,
-                                     &self->number))
-        return -1;
-
-    if (first) {
-        tmp = self->first;
-        Py_INCREF(first);
-        self->first = first;
-        Py_DECREF(tmp);
-    }
-    if (last) {
-        tmp = self->last;
-        Py_INCREF(last);
-        self->last = last;
-        Py_DECREF(tmp);
-    }
-    return 0;
-}
-
-static PyMemberDef Custom_members[] = {
-    {"number", T_INT, offsetof(CustomObject, number), 0,
-     "custom number"},
-    {NULL, 0, 0, 0, NULL}  /* Sentinel */
-};
-
-static PyObject *
-Custom_getfirst(CustomObject *self, void *Py_UNUSED(closure)) {
-    Py_INCREF(self->first);
-    return self->first;
-}
-
-static int
-Custom_setfirst(CustomObject *self, PyObject *value, void *Py_UNUSED(closure)) {
-    PyObject *tmp;
-    if (value == NULL) {
-        PyErr_SetString(PyExc_TypeError, "Cannot delete the first attribute");
-        return -1;
-    }
-    if (!PyUnicode_Check(value)) {
-        PyErr_SetString(PyExc_TypeError,
-                        "The first attribute value must be a string");
-        return -1;
-    }
-    tmp = self->first;
-    Py_INCREF(value);
-    self->first = value;
-    Py_DECREF(tmp);
-    return 0;
-}
-
-static PyObject *
-Custom_getlast(CustomObject *self, void *closure) {
-    (void) closure;
-    Py_INCREF(self->last);
-    return self->last;
-}
-
-static int
-Custom_setlast(CustomObject *self, PyObject *value, void *Py_UNUSED(closure)) {
-    PyObject *tmp;
-    if (value == NULL) {
-        PyErr_SetString(PyExc_TypeError, "Cannot delete the last attribute");
-        return -1;
-    }
-    if (!PyUnicode_Check(value)) {
-        PyErr_SetString(PyExc_TypeError,
-                        "The last attribute value must be a string");
-        return -1;
-    }
-    tmp = self->last;
-    Py_INCREF(value);
-    self->last = value;
-    Py_DECREF(tmp);
-    return 0;
-}
-
-static PyGetSetDef Custom_getsetters[] = {
-    {"first", (getter) Custom_getfirst, (setter) Custom_setfirst,
-     "first name", NULL},
-    {"last", (getter) Custom_getlast, (setter) Custom_setlast,
-     "last name", NULL},
-    {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
-};
-
-static PyObject *
-Custom_name(CustomObject *self, PyObject *Py_UNUSED(ignored)) {
-    return PyUnicode_FromFormat("%S %S", self->first, self->last);
-}
-
-static PyMethodDef Custom_methods[] = {
-    {"name", (PyCFunction) Custom_name, METH_NOARGS,
-     "Return the name, combining the first and last name"
-    },
-    {NULL, NULL, 0, NULL}  /* Sentinel */
-};
-
-static PyTypeObject CustomType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "custom3.Custom",
-    .tp_doc = "Custom objects",
-    .tp_basicsize = sizeof(CustomObject),
-    .tp_itemsize = 0,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    .tp_new = Custom_new,
-    .tp_init = (initproc) Custom_init,
-    .tp_dealloc = (destructor) Custom_dealloc,
-    .tp_members = Custom_members,
-    .tp_methods = Custom_methods,
-    .tp_getset = Custom_getsetters,
-};
-
-static PyMethodDef Custom3Methods[] = {
-    {"attach",  (PyCFunction) trace_function_attach,
-     METH_VARARGS | METH_KEYWORDS, "Attach a C trace function to the interpreter."},
-    {"detach",  (PyCFunction) trace_function_detach,
-     METH_NOARGS, "Detach the C trace function to the interpreter."},
+static PyMethodDef cPyMemTraceMethods[] = {
+    {"attach_trace",   (PyCFunction) attach_trace_function, METH_NOARGS, "Attach a C trace function to the interpreter."},
+    {"detach_trace",   (PyCFunction) detach_trace_function, METH_NOARGS, "Detach the C trace function from the interpreter."},
+    {"attach_profile", (PyCFunction) attach_profile_function, METH_NOARGS, "Attach a C profile function to the interpreter."},
+    {"detach_profile", (PyCFunction) detach_profile_function, METH_NOARGS, "Detach the C profile function from the interpreter."},
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
-static PyModuleDef custommodule = {
+static PyModuleDef cPyMemTracemodule = {
     PyModuleDef_HEAD_INIT,
-    .m_name = "custom3",
-    .m_doc = "Example module that creates an extension type.",
+    .m_name = "cPyMemTrace",
+    .m_doc = "Module that contains C memory tracer functions.",
     .m_size = -1,
-    .m_methods = Custom3Methods,
+    .m_methods = cPyMemTraceMethods,
 };
 
 PyMODINIT_FUNC
-PyInit_custom3(void) {
+PyInit_cPyMemTrace(void) {
     PyObject *m;
-    if (PyType_Ready(&CustomType) < 0)
+    if (PyType_Ready(&TraceFileWrapperType) < 0)
         return NULL;
 
-    m = PyModule_Create(&custommodule);
+    m = PyModule_Create(&cPyMemTracemodule);
     if (m == NULL)
         return NULL;
 
-    Py_INCREF(&CustomType);
-    if (PyModule_AddObject(m, "Custom", (PyObject *) &CustomType) < 0) {
-        Py_DECREF(&CustomType);
-        Py_DECREF(m);
-        return NULL;
-    }
+//    Py_INCREF(&TraceFileWrapperType);
+//    if (PyModule_AddObject(m, "TraceFileWrapper", (PyObject *) &TraceFileWrapperType) < 0) {
+//        Py_DECREF(&TraceFileWrapperType);
+//        Py_DECREF(m);
+//        return NULL;
+//    }
     return m;
 }

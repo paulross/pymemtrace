@@ -28,6 +28,7 @@ add_executable(
     pymemtrace/src/include/get_rss.h
     pymemtrace/src/c/get_rss.c
     pymemtrace/src/cpy/cPyMemTrace.c
+    pymemtrace/src/cpy/cCustom.c
 )
 
 include_directories(

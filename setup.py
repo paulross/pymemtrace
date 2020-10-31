@@ -82,7 +82,19 @@ setup(
     setup_requires=setup_requirements,
     ext_modules=[
         Extension(
-            "custom3",
+            "custom",
+            sources=[
+              'pymemtrace/src/cpy/cCustom.c',
+            ],
+            include_dirs=[
+                '/usr/local/include',
+                # os.path.join('pymemtrace', 'src', 'include'),
+            ],
+            library_dirs=[os.getcwd(), ],  # path to .a or .so file(s)
+            extra_compile_args=extra_compile_args,
+        ),
+        Extension(
+            "cPyMemTrace",
             sources=[
               'pymemtrace/src/c/get_rss.c',
               'pymemtrace/src/cpy/cPyMemTrace.c',
