@@ -104,6 +104,29 @@ static PyTypeObject TraceFileWrapperType = {
 //        .tp_getset = Custom_getsetters,
 };
 
+/*
+ * Defined in Include/cpython/pystate.h
+ * #define PyTrace_CALL 0
+ * #define PyTrace_EXCEPTION 1
+ * #define PyTrace_LINE 2
+ * #define PyTrace_RETURN 3
+ * #define PyTrace_C_CALL 4
+ * #define PyTrace_C_EXCEPTION 5
+ * #define PyTrace_C_RETURN 6
+ * #define PyTrace_OPCODE 7
+ *
+ * These are trimmed to be a maximum of 8 long.
+ */
+static const char* WHAT_STRINGS[] = {
+    "CALL",
+    "EXCEPT",
+    "LINE",
+    "RETURN",
+    "C_CALL",
+    "C_EXCEPT",
+    "C_RETURN",
+    "OPCODE",
+};
 
 static int
 trace_or_profile_function(PyObject *trace_wrapper, PyFrameObject *frame, int what, PyObject *arg) {
@@ -112,16 +135,18 @@ trace_or_profile_function(PyObject *trace_wrapper, PyFrameObject *frame, int wha
     PyObject *file_name = frame->f_code->co_filename;
     Py_INCREF(file_name); // Hang on to a 'borrowed' reference.
     size_t rss = getCurrentRSS();
-    size_t rss_peak = getPeakRSS();
+//    size_t rss_peak = getPeakRSS();
     clock_t clock_time = clock();
     double clock_seconds = (double) clock_time / CLOCKS_PER_SEC;
     const char* func_name = NULL;
-    if (what == PyTrace_C_CALL || what == PyTrace_C_RETURN) {
+    if (what == PyTrace_C_CALL || what == PyTrace_C_EXCEPTION || what == PyTrace_C_RETURN) {
         func_name = PyEval_GetFuncName(arg);
+    } else {
+        func_name = (const char*)PyUnicode_1BYTE_DATA(frame->f_code->co_name);
     }
     fprintf(((TraceFileWrapper *)trace_wrapper)->file,
-            "%f %d Function: %s#%d %s RSS: %zu Peak RSS: %zu\n",
-            clock_seconds, what, PyUnicode_1BYTE_DATA(file_name), line_number, func_name, rss, rss_peak
+            "%-12.6f %-8s %-24s#%4d %-32s %12zu\n",
+            clock_seconds, WHAT_STRINGS[what], PyUnicode_1BYTE_DATA(file_name), line_number, func_name, rss
             );
     Py_DECREF(file_name); // Let go of borrowed reference
     return 0;
@@ -147,7 +172,7 @@ create_filename() {
         fprintf(stderr, "create_filename(): failed to add PID.");
         return NULL;
     }
-    fprintf(stdout, "Created filename: %s", filename);
+    fprintf(stdout, "Created filename: %s\n", filename);
     return filename;
 }
 
@@ -162,8 +187,18 @@ new_trace_wrapper() {
         trace_wrapper = (TraceFileWrapper *)TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
         if (trace_wrapper) {
             trace_wrapper->file = fopen(filename, "w");
+            if (trace_wrapper->file) {
+                fprintf(trace_wrapper->file, "%s\n", filename);
+                fprintf(trace_wrapper->file, "%-12s %-8s %-24s#%4s %-32s %12s\n",
+                        "Clock", "What", "File", "line", "Function", "RSS"
+                );
+            } else {
+                TraceFileWrapper_dealloc(trace_wrapper);
+                fprintf(stderr, "Can not open writable file for TraceFileWrapper at %s\n", filename);
+                return NULL;
+            }
         } else {
-            fprintf(stderr, "Can not create TraceFileWrapper.");
+            fprintf(stderr, "Can not create TraceFileWrapper.\n");
         }
     }
     return trace_wrapper;
