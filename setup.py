@@ -45,7 +45,7 @@ extra_compile_args = [
     '-Wno-unused-private-field',
 ]
 
-DEBUG = True
+DEBUG = False
 
 if DEBUG:
     extra_compile_args.extend(['-g3', '-O0', '-DDEBUG=1', '-UNDEBUG'])

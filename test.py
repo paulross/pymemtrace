@@ -23,11 +23,17 @@ def g():
 
 
 def main():
-    cPyMemTrace.attach_profile()
-    f(1024**2)
+    # cPyMemTrace._attach_profile()
     # f(1024**2)
-    g()
-    cPyMemTrace.detach_profile()
+    # # f(1024**2)
+    # g()
+    # cPyMemTrace._detach_profile()
+
+    with cPyMemTrace.Profile():
+        f(1024**2)
+        f(1024**2)
+        g()
+
     return 0
 
 

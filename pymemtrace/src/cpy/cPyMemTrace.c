@@ -2,25 +2,8 @@
  * Created by Paul Ross on 29/10/2020.
  * This contains the Python interface to the C memory tracer.
  *
- * Monitored events are:
- * PyTrace_CALL
- * PyTrace_C_CALL
- * PyTrace_C_EXCEPTION
- * PyTrace_C_RETURN
- * PyTrace_EXCEPTION
- * PyTrace_LINE
- * PyTrace_OPCODE
- * PyTrace_RETURN
- *
- * Defined in Include/cpython/pystate.h
- * #define PyTrace_CALL 0
- * #define PyTrace_EXCEPTION 1
- * #define PyTrace_LINE 2
- * #define PyTrace_RETURN 3
- * #define PyTrace_C_CALL 4
- * #define PyTrace_C_EXCEPTION 5
- * #define PyTrace_C_RETURN 6
- * #define PyTrace_OPCODE 7
+ * Monitored events are: PyTrace_CALL, PyTrace_C_CALL, PyTrace_C_EXCEPTION, PyTrace_C_RETURN, PyTrace_EXCEPTION,
+ * PyTrace_LINE, PyTrace_OPCODE, PyTrace_RETURN
  *
  * PyEval_SetProfile: The profile function is called for all monitored events except PyTrace_LINE PyTrace_OPCODE and PyTrace_EXCEPTION.
  *
@@ -28,7 +11,6 @@
  *  and per-opcode events, but does not receive any event related to C function objects being called. Any trace function
  *  registered using PyEval_SetTrace() will not receive PyTrace_C_CALL, PyTrace_C_EXCEPTION or PyTrace_C_RETURN as a
  *  value for the what parameter.
- *
  *
 */
 #define PY_SSIZE_T_CLEAN
@@ -38,15 +20,17 @@
 
 #include <stdio.h>
 #include <time.h>
-//#include <stdlib.h>
 #include <unistd.h>
 #include <assert.h>
 
 #include "get_rss.h"
 
+/* TODO: Add an event counter that can report the number of events?
+ * Trace classes could make this available by looking at trace_file_wrapper or profile_file_wrapper.
+ */
 typedef struct {
     PyObject_HEAD
-    FILE* file;
+    FILE *file;
 } TraceFileWrapper;
 
 static void
@@ -67,28 +51,6 @@ TraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py
     return (PyObject *) self;
 }
 
-//static int
-//TraceFileWrapper_init(TraceFileWrapper *self, PyObject *args, PyObject *kwds) {
-//    static char *kwlist[] = {"trace", NULL};
-//
-//    if (! PyArg_ParseTupleAndKeywords(args, kwds, "|p", kwlist, &self->is_trace)) {
-//        return NULL;
-//    }
-//    return 0;
-//}
-
-//static PyMemberDef Custom_members[] = {
-//    {NULL, 0, 0, 0, NULL}  /* Sentinel */
-//};
-//
-//static PyGetSetDef Custom_getsetters[] = {
-//        {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
-//};
-//
-//static PyMethodDef Custom_methods[] = {
-//        {NULL, NULL, 0, NULL}  /* Sentinel */
-//};
-
 static PyTypeObject TraceFileWrapperType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.TraceFileWrapper",
@@ -97,11 +59,7 @@ static PyTypeObject TraceFileWrapperType = {
         .tp_itemsize = 0,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
         .tp_new = TraceFileWrapper_new,
-//        .tp_init = (initproc) TraceFileWrapper_init,
         .tp_dealloc = (destructor) TraceFileWrapper_dealloc,
-//        .tp_members = Custom_members,
-//        .tp_methods = Custom_methods,
-//        .tp_getset = Custom_getsetters,
 };
 
 /*
@@ -129,26 +87,23 @@ static const char* WHAT_STRINGS[] = {
 };
 
 static int
-trace_or_profile_function(PyObject *trace_wrapper, PyFrameObject *frame, int what, PyObject *arg) {
-    assert(Py_TYPE(trace_wrapper) == &TraceFileWrapperType && "trace_wrapper is not a TraceFileWrapperType.");
-    int line_number = PyFrame_GetLineNumber(frame);
-    PyObject *file_name = frame->f_code->co_filename;
-    Py_INCREF(file_name); // Hang on to a 'borrowed' reference.
-    size_t rss = getCurrentRSS();
-//    size_t rss_peak = getPeakRSS();
-    clock_t clock_time = clock();
-    double clock_seconds = (double) clock_time / CLOCKS_PER_SEC;
+trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObject *arg) {
+    assert(Py_TYPE(pobj) == &TraceFileWrapperType && "trace_wrapper is not a TraceFileWrapperType.");
+    /* TODO: Add event count. */
     const char* func_name = NULL;
     if (what == PyTrace_C_CALL || what == PyTrace_C_EXCEPTION || what == PyTrace_C_RETURN) {
         func_name = PyEval_GetFuncName(arg);
     } else {
-        func_name = (const char*)PyUnicode_1BYTE_DATA(frame->f_code->co_name);
+        func_name = (const char *)PyUnicode_1BYTE_DATA(frame->f_code->co_name);
     }
-    fprintf(((TraceFileWrapper *)trace_wrapper)->file,
+    fprintf(((TraceFileWrapper *)pobj)->file,
             "%-12.6f %-8s %-24s#%4d %-32s %12zu\n",
-            clock_seconds, WHAT_STRINGS[what], PyUnicode_1BYTE_DATA(file_name), line_number, func_name, rss
-            );
-    Py_DECREF(file_name); // Let go of borrowed reference
+            (double) clock() / CLOCKS_PER_SEC,
+            WHAT_STRINGS[what],
+            PyUnicode_1BYTE_DATA(frame->f_code->co_filename),
+            PyFrame_GetLineNumber(frame),
+            func_name,
+            getCurrentRSS());
     return 0;
 }
 
@@ -172,8 +127,17 @@ create_filename() {
         fprintf(stderr, "create_filename(): failed to add PID.");
         return NULL;
     }
-    fprintf(stdout, "Created filename: %s\n", filename);
     return filename;
+}
+
+static char *
+current_working_directory() {
+    static char cwd[PATH_MAX];
+    if (getcwd(cwd, sizeof(cwd)) == NULL) {
+        fprintf(stderr, "Can not get current working directory.\n");
+        return NULL;
+    }
+    return cwd;
 }
 
 static TraceFileWrapper *
@@ -184,11 +148,17 @@ new_trace_wrapper() {
     }
     char *filename = create_filename();
     if (filename) {
+#ifdef _WIN32
+        char seperator = '\\';
+#else
+        char seperator = '/';
+#endif
+        fprintf(stdout, "Opening log file %s%c%s\n", current_working_directory(), seperator, filename);
         trace_wrapper = (TraceFileWrapper *)TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
         if (trace_wrapper) {
             trace_wrapper->file = fopen(filename, "w");
             if (trace_wrapper->file) {
-                fprintf(trace_wrapper->file, "%s\n", filename);
+//                fprintf(trace_wrapper->file, "%s\n", filename);
                 fprintf(trace_wrapper->file, "%-12s %-8s %-24s#%4s %-32s %12s\n",
                         "Clock", "What", "File", "line", "Function", "RSS"
                 );
@@ -247,12 +217,150 @@ detach_profile_function(PyObject *Py_UNUSED(module)) {
 }
 
 static PyMethodDef cPyMemTraceMethods[] = {
-    {"attach_trace",   (PyCFunction) attach_trace_function, METH_NOARGS, "Attach a C trace function to the interpreter."},
-    {"detach_trace",   (PyCFunction) detach_trace_function, METH_NOARGS, "Detach the C trace function from the interpreter."},
-    {"attach_profile", (PyCFunction) attach_profile_function, METH_NOARGS, "Attach a C profile function to the interpreter."},
-    {"detach_profile", (PyCFunction) detach_profile_function, METH_NOARGS, "Detach the C profile function from the interpreter."},
+    {"_attach_trace",   (PyCFunction) attach_trace_function, METH_NOARGS,
+     "Attach a C trace function to the interpreter.\n"
+     "This receives Python line-number events and per-opcode events, but does not receive any event related to C"
+     " function objects being called (PyTrace_C_CALL, PyTrace_C_EXCEPTION or PyTrace_C_RETURN)."
+     },
+    {"_detach_trace",   (PyCFunction) detach_trace_function, METH_NOARGS,
+     "Detach the C trace function from the interpreter."},
+    {"_attach_profile", (PyCFunction) attach_profile_function, METH_NOARGS,
+     "Attach a C profile function to the interpreter.\n"
+     "This is slightly less invasive profiling as the profile function is called for all monitored events except"
+     " the Python PyTrace_LINE PyTrace_OPCODE and PyTrace_EXCEPTION events."
+     },
+    {"_detach_profile", (PyCFunction) detach_profile_function, METH_NOARGS,
+     "Detach the C profile function from the interpreter."},
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
+
+/**** Context manager for attach_profile_function() and detach_profile_function() ****/
+typedef struct {
+    PyObject_HEAD
+} ProfileObject;
+
+static void
+ProfileObject_dealloc(ProfileObject *self) {
+    Py_TYPE(self)->tp_free((PyObject *) self);
+}
+
+static PyObject *
+ProfileObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
+    ProfileObject *self = (ProfileObject *) type->tp_alloc(type, 0);
+    return (PyObject *) self;
+}
+
+static int
+ProfileObject_init(PyTypeObject *Py_UNUSED(self), PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {NULL};
+    if (! PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist)) {
+        return -1;
+    }
+    return 0;
+}
+
+static PyObject *
+ProfileObject_enter(ProfileObject *self) {
+    /* Could use &cPyMemTracemodule */
+    attach_profile_function(NULL);
+    Py_INCREF(self);
+    return (PyObject *) self;
+}
+
+static PyObject *
+ProfileObject_exit(ProfileObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
+    /* Could use &cPyMemTracemodule */
+    detach_profile_function(NULL);
+    Py_RETURN_FALSE;
+}
+
+static PyMethodDef ProfileObject_methods[] = {
+        {"__enter__", (PyCFunction) ProfileObject_enter, METH_NOARGS,
+         "Attach a Profile object to the C runtime."},
+        {"__exit__", (PyCFunction) ProfileObject_exit, METH_VARARGS,
+         "Detach a Profile object from the C runtime."},
+        {NULL, NULL, 0, NULL}  /* Sentinel */
+};
+
+static PyTypeObject ProfileObjectType = {
+        PyVarObject_HEAD_INIT(NULL, 0)
+        .tp_name = "cPyMemTrace.Profile",
+        .tp_doc = "A context manager to attach a C profile function to the interpreter.\n"
+                  "This is slightly less invasive profiling as the profile function is called for all monitored events except"
+                  " the Python PyTrace_LINE PyTrace_OPCODE and PyTrace_EXCEPTION events.",
+        .tp_basicsize = sizeof(ProfileObject),
+        .tp_itemsize = 0,
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_new = ProfileObject_new,
+        .tp_init = (initproc) ProfileObject_init,
+        .tp_dealloc = (destructor) ProfileObject_dealloc,
+        .tp_methods = ProfileObject_methods,
+};
+/**** END: Context manager for attach_profile_function() and detach_profile_function() ****/
+
+/**** Context manager for attach_trace_function() and detach_trace_function() ****/
+typedef struct {
+    PyObject_HEAD
+} TraceObject;
+
+static void
+TraceObject_dealloc(TraceObject *self) {
+    Py_TYPE(self)->tp_free((PyObject *) self);
+}
+
+static PyObject *
+TraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
+    TraceObject *self = (TraceObject *) type->tp_alloc(type, 0);
+    return (PyObject *) self;
+}
+
+static int
+TraceObject_init(PyTypeObject *Py_UNUSED(self), PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {NULL};
+    if (! PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist)) {
+        return -1;
+    }
+    return 0;
+}
+
+static PyObject *
+TraceObject_enter(TraceObject *self) {
+    /* Could use cPyMemTracemodule. */
+    attach_trace_function(NULL);
+    Py_INCREF(self);
+    return (PyObject *) self;
+}
+
+static PyObject *
+TraceObject_exit(TraceObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
+    /* Could use cPyMemTracemodule. */
+    detach_trace_function(NULL);
+    Py_RETURN_FALSE;
+}
+
+static PyMethodDef TraceObject_methods[] = {
+        {"__enter__", (PyCFunction) TraceObject_enter, METH_NOARGS,
+         "Attach a Trace object to the C runtime."},
+        {"__exit__", (PyCFunction) TraceObject_exit, METH_VARARGS,
+         "Detach a Trace object from the C runtime."},
+        {NULL, NULL, 0, NULL}  /* Sentinel */
+};
+
+static PyTypeObject TraceObjectType = {
+        PyVarObject_HEAD_INIT(NULL, 0)
+        .tp_name = "cPyMemTrace.Trace",
+        .tp_doc = "A context manager to attach a C profile function to the interpreter.\n"
+                  " The tracing function does receive Python line-number events and per-opcode events"
+                  " but does not receive any event related to C function objects being called.",
+        .tp_basicsize = sizeof(TraceObject),
+        .tp_itemsize = 0,
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_new = TraceObject_new,
+        .tp_init = (initproc) TraceObject_init,
+        .tp_dealloc = (destructor) TraceObject_dealloc,
+        .tp_methods = TraceObject_methods,
+};
+/**** END: Context manager for attach_trace_function() and detach_trace_function() ****/
 
 static PyModuleDef cPyMemTracemodule = {
     PyModuleDef_HEAD_INIT,
@@ -264,19 +372,42 @@ static PyModuleDef cPyMemTracemodule = {
 
 PyMODINIT_FUNC
 PyInit_cPyMemTrace(void) {
-    PyObject *m;
-    if (PyType_Ready(&TraceFileWrapperType) < 0)
+    PyObject *m = PyModule_Create(&cPyMemTracemodule);
+    if(m == NULL) {
         return NULL;
+    }
+    /* TODO: decref the refcounts properly on failure. */
 
-    m = PyModule_Create(&cPyMemTracemodule);
-    if (m == NULL)
+    /* This is a PyObject that wraps a C FILE object.
+     * It is not visible at module level so PyModule_AddObject is not called.
+     */
+    if (PyType_Ready(&TraceFileWrapperType) < 0) {
         return NULL;
+    }
+    Py_INCREF(&TraceFileWrapperType);
 
-//    Py_INCREF(&TraceFileWrapperType);
-//    if (PyModule_AddObject(m, "TraceFileWrapper", (PyObject *) &TraceFileWrapperType) < 0) {
-//        Py_DECREF(&TraceFileWrapperType);
-//        Py_DECREF(m);
-//        return NULL;
-//    }
+    /* Add the Profile object. */
+    if (PyType_Ready(&ProfileObjectType) < 0) {
+        Py_DECREF(m);
+        return NULL;
+    }
+    Py_INCREF(&ProfileObjectType);
+    if (PyModule_AddObject(m, "Profile", (PyObject *) &ProfileObjectType) < 0) {
+        Py_DECREF(&ProfileObjectType);
+        Py_DECREF(m);
+        return NULL;
+    }
+
+    /* Add the Trace object. */
+    if (PyType_Ready(&TraceObjectType) < 0) {
+        Py_DECREF(m);
+        return NULL;
+    }
+    Py_INCREF(&TraceObjectType);
+    if (PyModule_AddObject(m, "Trace", (PyObject *) &TraceObjectType) < 0) {
+        Py_DECREF(&TraceObjectType);
+        Py_DECREF(m);
+        return NULL;
+    }
     return m;
 }

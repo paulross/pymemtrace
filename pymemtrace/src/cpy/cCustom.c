@@ -2,15 +2,11 @@
  * Created by Paul Ross on 31/10/2020.
  *
  * Typical extension type from the Python documentation, lightly edited.
+ *
 */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include "structmember.h"
-//#include "frameobject.h"
-//
-//#include <stdio.h>
-//#include <time.h>
-////#include <stdlib.h>
 
 typedef struct {
     PyObject_HEAD
