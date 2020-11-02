@@ -14,7 +14,14 @@ ELSE()
 ENDIF(CMAKE_BUILD_TYPE MATCHES DEBUG)
 
 add_compile_options(
-    "-Wall" "-Wpedantic" "-Wextra" "-fexceptions"
+    "-Wall"
+    "-Wextra"
+    "-Wpedantic"
+    "-Werror"
+    "-Wfatal-errors"
+    "-Wno-unused-variable" # Temporary
+    "-Wno-unused-parameter" # Temporary
+    "-fexceptions"
     "$<$<CONFIG:DEBUG>:-O0;-g3;-ggdb>"
 )
 

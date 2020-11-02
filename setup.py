@@ -32,17 +32,17 @@ extra_compile_args = [
     '-Wextra',
     '-Werror',
     '-Wfatal-errors',
-    # Some internal Python library code does not like this.
+    '-Wpedantic',
+    # Some internal Python library code does not like this with C++11.
     # '-Wno-c++11-compat-deprecated-writable-strings',
     # '-std=c++11',
     '-std=c99',
-    # '-Isrc/cpp',
-    # We implement mutex with Python's thread locking so we don't want the
-    # overhead of C++'s thread locking as well.
-    # '-USVF_THREAD_SAFE',
-
     # Until we use m_coalesce
-    '-Wno-unused-private-field',
+    # '-Wno-unused-private-field',
+
+    # Temporary
+    '-Wno-unused-variable',
+    '-Wno-unused-parameter',
 ]
 
 DEBUG = False
@@ -50,7 +50,7 @@ DEBUG = False
 if DEBUG:
     extra_compile_args.extend(['-g3', '-O0', '-DDEBUG=1', '-UNDEBUG'])
 else:
-    extra_compile_args.extend(['-O2', '-UDEBUG', '-DNDEBUG'])
+    extra_compile_args.extend(['-O3', '-UDEBUG', '-DNDEBUG'])
 
 setup(
     name='pymemtrace',

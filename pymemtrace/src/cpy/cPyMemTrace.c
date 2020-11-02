@@ -25,12 +25,14 @@
 
 #include "get_rss.h"
 
-/* TODO: Add an event counter that can report the number of events?
+/*
  * Trace classes could make this available by looking at trace_file_wrapper or profile_file_wrapper.
  */
 typedef struct {
     PyObject_HEAD
     FILE *file;
+    size_t event_number;
+    size_t rss;
 } TraceFileWrapper;
 
 static void
@@ -62,6 +64,13 @@ static PyTypeObject TraceFileWrapperType = {
         .tp_dealloc = (destructor) TraceFileWrapper_dealloc,
 };
 
+#define PY_MEM_TRACE_WRITE_OUTPUT
+//#undef PY_MEM_TRACE_WRITE_OUTPUT
+#define PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
+//#undef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
+/* If defined as non-zero then only output a result when the difference in RSS is +/- this value. */
+#define PY_MEM_TRACE_WRITE_OUTPUT_D_RSS 4096
+
 /*
  * Defined in Include/cpython/pystate.h
  * #define PyTrace_CALL 0
@@ -75,6 +84,7 @@ static PyTypeObject TraceFileWrapperType = {
  *
  * These are trimmed to be a maximum of 8 long.
  */
+#ifdef PY_MEM_TRACE_WRITE_OUTPUT
 static const char* WHAT_STRINGS[] = {
     "CALL",
     "EXCEPT",
@@ -85,25 +95,40 @@ static const char* WHAT_STRINGS[] = {
     "C_RETURN",
     "OPCODE",
 };
+#endif
 
 static int
 trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObject *arg) {
     assert(Py_TYPE(pobj) == &TraceFileWrapperType && "trace_wrapper is not a TraceFileWrapperType.");
-    /* TODO: Add event count. */
-    const char* func_name = NULL;
+
+    TraceFileWrapper *trace_wrapper = (TraceFileWrapper *)pobj;
+    size_t rss = getCurrentRSS();
+#ifdef PY_MEM_TRACE_WRITE_OUTPUT
+    const unsigned char *file_name = PyUnicode_1BYTE_DATA(frame->f_code->co_filename);
+    int line_number = PyFrame_GetLineNumber(frame);
+    const char *func_name = NULL;
     if (what == PyTrace_C_CALL || what == PyTrace_C_EXCEPTION || what == PyTrace_C_RETURN) {
         func_name = PyEval_GetFuncName(arg);
     } else {
         func_name = (const char *)PyUnicode_1BYTE_DATA(frame->f_code->co_name);
     }
-    fprintf(((TraceFileWrapper *)pobj)->file,
-            "%-12.6f %-8s %-24s#%4d %-32s %12zu\n",
-            (double) clock() / CLOCKS_PER_SEC,
-            WHAT_STRINGS[what],
-            PyUnicode_1BYTE_DATA(frame->f_code->co_filename),
-            PyFrame_GetLineNumber(frame),
-            func_name,
-            getCurrentRSS());
+    long d_rss = rss - trace_wrapper->rss;
+    if (labs(d_rss) >= PY_MEM_TRACE_WRITE_OUTPUT_D_RSS) {
+#ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
+        double clock_time = (double) clock() / CLOCKS_PER_SEC;
+        fprintf(trace_wrapper->file,
+                "%-12zu %-12.6f %-8s %-120s#%4d %-32s %12zu %12ld\n",
+                trace_wrapper->event_number, clock_time, WHAT_STRINGS[what], file_name, line_number, func_name, rss,
+                d_rss);
+#else
+        fprintf(trace_wrapper->file,
+                "%-12zu %-8s %-120s#%4d %-32s %12zu %12ld\n",
+                trace_wrapper->event_number, WHAT_STRINGS[what], file_name, line_number, func_name, rss, d_rss);
+#endif
+    }
+#endif
+    trace_wrapper->event_number++;
+    trace_wrapper->rss = rss;
     return 0;
 }
 
@@ -159,9 +184,17 @@ new_trace_wrapper() {
             trace_wrapper->file = fopen(filename, "w");
             if (trace_wrapper->file) {
 //                fprintf(trace_wrapper->file, "%s\n", filename);
-                fprintf(trace_wrapper->file, "%-12s %-8s %-24s#%4s %-32s %12s\n",
-                        "Clock", "What", "File", "line", "Function", "RSS"
+#ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
+                fprintf(trace_wrapper->file, "%-12s %-12s %-8s %-120s#%4s %-32s %12s\n",
+                        "Event", "Clock", "What", "File", "line", "Function", "RSS"
                 );
+#else
+                fprintf(trace_wrapper->file, "%-12s %-8s %-120s#%4s %-32s %12s\n",
+                        "Event", "What", "File", "line", "Function", "RSS"
+                );
+#endif
+                trace_wrapper->event_number = 0;
+                trace_wrapper->rss = 0;
             } else {
                 TraceFileWrapper_dealloc(trace_wrapper);
                 fprintf(stderr, "Can not open writable file for TraceFileWrapper at %s\n", filename);
