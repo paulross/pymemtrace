@@ -102,7 +102,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
     assert(Py_TYPE(pobj) == &TraceFileWrapperType && "trace_wrapper is not a TraceFileWrapperType.");
 
     TraceFileWrapper *trace_wrapper = (TraceFileWrapper *)pobj;
-    size_t rss = getCurrentRSS();
+    size_t rss = getCurrentRSS_alternate();
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
     const unsigned char *file_name = PyUnicode_1BYTE_DATA(frame->f_code->co_filename);
     int line_number = PyFrame_GetLineNumber(frame);
@@ -117,13 +117,14 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
         double clock_time = (double) clock() / CLOCKS_PER_SEC;
         fprintf(trace_wrapper->file,
-                "%-12zu %-12.6f %-8s %-120s#%4d %-32s %12zu %12ld\n",
+                "%-12zu %-12.6f %-8s %-120s#%4d %-32s %12zu %12ld %p\n",
                 trace_wrapper->event_number, clock_time, WHAT_STRINGS[what], file_name, line_number, func_name, rss,
-                d_rss);
+                d_rss, (void *)frame->f_code->co_filename);
 #else
         fprintf(trace_wrapper->file,
-                "%-12zu %-8s %-120s#%4d %-32s %12zu %12ld\n",
-                trace_wrapper->event_number, WHAT_STRINGS[what], file_name, line_number, func_name, rss, d_rss);
+                "%-12zu %-8s %-120s#%4d %-32s %12zu %12ld %p\n",
+                trace_wrapper->event_number, WHAT_STRINGS[what], file_name, line_number, func_name, rss,
+                d_rss, (void *)frame->f_code->co_filename);
 #endif
     }
 #endif

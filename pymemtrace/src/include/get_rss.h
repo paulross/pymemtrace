@@ -9,5 +9,6 @@
 
 size_t getPeakRSS(void);
 size_t getCurrentRSS(void);
+size_t getCurrentRSS_alternate(void);
 
 #endif //CPYMEMTRACE_GET_RSS_H

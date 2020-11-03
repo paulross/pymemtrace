@@ -7,7 +7,64 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <libproc.h>
+
 #include "get_rss.h"
+
+void macosx_get_pid_info() {
+    printf("macosx_get_pid_info()\n");
+    pid_t pid = getpid();
+    struct proc_bsdinfo proc;
+    int st = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &proc, PROC_PIDTBSDINFO_SIZE);
+    printf("Result: %d %lu\n", st, sizeof(proc));
+    printf("name: %s\n", proc.pbi_name);
+}
+
+/* PROC_PIDTASKINFO in /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/sys/proc_info.h:647 */
+void macosx_get_task_info() {
+    printf("macosx_get_task_info()\n");
+    pid_t pid = getpid();
+    struct proc_taskinfo proc;
+    int st = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &proc, PROC_PIDTASKINFO_SIZE);
+    printf("Result: %d %lu\n", st, sizeof(proc));
+    printf("RSS: %llu\n", proc.pti_resident_size);
+}
+
+void macosx_get_taskall_info() {
+    printf("macosx_get_taskall_info()\n");
+    pid_t pid = getpid();
+    struct proc_taskallinfo proc;
+    int st = proc_pidinfo(pid, PROC_PIDTASKALLINFO, 0, &proc, PROC_PIDTASKALLINFO_SIZE);
+    printf("Result: %d %lu\n", st, sizeof(proc));
+    printf("name: %s\n", proc.pbsd.pbi_name);
+}
+
+void macosx_get_just_rss_info() {
+    printf("macosx_get_just_rss_info()\n");
+    pid_t pid = getpid();
+    struct proc_taskallinfo proc;
+    int st = proc_pidinfo(pid, PROC_PID_RUSAGE, 0, &proc, PROC_PID_RUSAGE_SIZE);
+    printf("Result: %d %lu\n", st, sizeof(proc));
+    printf("name: %s\n", proc.pbsd.pbi_name);
+}
+
+void macosx_get_short_pid_info() {
+    pid_t pid = getpid();
+    struct proc_bsdshortinfo proc;
+
+    int st = proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0,
+                          &proc, PROC_PIDT_SHORTBSDINFO_SIZE);
+
+    if (st != PROC_PIDT_SHORTBSDINFO_SIZE) {
+        fprintf(stderr, "Cannot get process info\n");
+    }
+    printf(" pid: %d\n", (int)proc.pbsi_pid);
+    printf("ppid: %d\n", (int)proc.pbsi_ppid);
+    printf("comm: %s\n",      proc.pbsi_comm);
+    //printf("name: %s\n",      proc.pbsi_name);
+    printf(" uid: %d\n", (int)proc.pbsi_uid);
+    printf(" gid: %d\n", (int)proc.pbsi_gid);
+}
 
 int
 main (int argc, char **argv)
@@ -54,7 +111,22 @@ main (int argc, char **argv)
 
     size_t rss = getCurrentRSS();
     size_t rss_peak = getPeakRSS();
-    printf("RSS: %zu Peak RSS: %zu", rss, rss_peak);
+    printf("RSS: %zu Peak RSS: %zu\n", rss, rss_peak);
+
+    printf("\n");
+    macosx_get_short_pid_info();
+
+    printf("\n");
+    macosx_get_pid_info();
+
+    printf("\n");
+    macosx_get_task_info();
+
+    printf("\n");
+    macosx_get_taskall_info();
+
+    printf("\n");
+    macosx_get_just_rss_info();
 
     return 0;
 }

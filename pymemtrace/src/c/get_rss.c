@@ -19,6 +19,8 @@
 #elif defined(__unix__) || defined(__unix) || defined(unix) || (defined(__APPLE__) && defined(__MACH__))
     #include <unistd.h>
     #include <sys/resource.h>
+    /* Added for faster (?) Mac OS X RSS value in getCurrentRSS_alternate. */
+    #include <libproc.h>
     #if defined(__APPLE__) && defined(__MACH__)
         #include <mach/mach.h>
     #elif (defined(_AIX) || defined(__TOS__AIX__)) || (defined(__sun__) || defined(__sun) || defined(sun) && (defined(__SVR4) || defined(__svr4__)))
@@ -106,3 +108,25 @@ size_t getCurrentRSS(void) {
     return (size_t)0L;          /* Unsupported. */
 #endif
 }
+
+size_t getCurrentRSS_alternate(void) {
+#if defined(__APPLE__)
+    /* OSX ------------------------------------------------------ */
+    /* Empty fields in struct. */
+    /*
+    struct rusage rusage;
+    getrusage( RUSAGE_SELF, &rusage );
+    return (size_t)(rusage.ru_ixrss + rusage.ru_idrss + rusage.ru_isrss);
+     */
+    /*
+     * This works though.
+     * Could use PROC_PID_RUSAGE ?
+     */
+    pid_t pid = getpid();
+    struct proc_taskinfo proc;
+    int st = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &proc, PROC_PIDTASKINFO_SIZE);
+    return proc.pti_resident_size;
+#endif
+    return getCurrentRSS();
+}
+
