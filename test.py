@@ -6,6 +6,26 @@ import custom
 import cPyMemTrace
 
 
+def create_string(l: int) -> str:
+    return ' ' * l
+
+
+def test_under_512():
+    l = []
+    for i in range(1024):
+        l.append(create_string(256))
+    while len(l):
+        l.pop()
+
+
+def test_over_512():
+    l = []
+    for i in range(1024):
+        l.append(create_string(1024))
+    while len(l):
+        l.pop()
+
+
 def f(l):
     print('Hi')
     s = ' ' * l
@@ -29,10 +49,12 @@ def main():
     # g()
     # cPyMemTrace._detach_profile()
 
-    with cPyMemTrace.Profile():
-        f(1024**2)
-        f(1024**2)
-        g()
+    with cPyMemTrace.Profile(0):
+        # f(1024**2)
+        # f(1024**2)
+        # g()
+        test_under_512()
+        test_over_512()
 
     return 0
 

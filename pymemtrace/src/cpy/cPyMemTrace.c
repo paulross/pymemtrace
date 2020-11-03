@@ -39,7 +39,7 @@
  * #include <unistd.h>
  * int PAGE_SIZE = getpagesize();
  */
-#define PY_MEM_TRACE_WRITE_OUTPUT_D_RSS 4096
+//#define PY_MEM_TRACE_WRITE_OUTPUT_D_RSS 4096
 
 /*
  * Trace classes could make this available by looking at trace_file_wrapper or profile_file_wrapper.
@@ -49,6 +49,7 @@ typedef struct {
     FILE *file;
     size_t event_number;
     size_t rss;
+    int d_rss_trigger;
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
     size_t previous_event_number;
     char event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
@@ -126,8 +127,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
         func_name = (const char *)PyUnicode_1BYTE_DATA(frame->f_code->co_name);
     }
     long d_rss = rss - trace_wrapper->rss;
-    if (labs(d_rss) >= PY_MEM_TRACE_WRITE_OUTPUT_D_RSS
-        && PY_MEM_TRACE_WRITE_OUTPUT_D_RSS > 0
+    if (labs(d_rss) >= trace_wrapper->d_rss_trigger
         && trace_wrapper->event_number > 0
         && (trace_wrapper->event_number - trace_wrapper->previous_event_number) > 1) {
         // Previous event.
@@ -137,14 +137,14 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
     double clock_time = (double) clock() / CLOCKS_PER_SEC;
     snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             "%-12zu %-12.6f %-8s %-120s#%4d %-32s %12zu %12ld\n",
+             "%-12zu %-12.6f %-8s %-80s#%4d %-32s %12zu %12ld\n",
              trace_wrapper->event_number, clock_time, WHAT_STRINGS[what], file_name, line_number, func_name, rss, d_rss);
 #else
     snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             "%-12zu %-8s %-120s#%4d %-32s %12zu %12ld\n",
+             "%-12zu %-8s %-80s#%4d %-32s %12zu %12ld\n",
              trace_wrapper->event_number, WHAT_STRINGS[what], file_name, line_number, func_name, rss, d_rss);
 #endif // PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
-    if (labs(d_rss) >= PY_MEM_TRACE_WRITE_OUTPUT_D_RSS) {
+    if (labs(d_rss) >= trace_wrapper->d_rss_trigger) {
 //        fputs("NEXT: ", trace_wrapper->file);
         fputs(trace_wrapper->event_text, trace_wrapper->file);
         trace_wrapper->previous_event_number = trace_wrapper->event_number;
@@ -189,7 +189,7 @@ current_working_directory() {
 }
 
 static TraceFileWrapper *
-new_trace_wrapper() {
+new_trace_wrapper(int d_rss_trigger) {
     if (trace_wrapper) {
         TraceFileWrapper_dealloc(trace_wrapper);
         trace_wrapper = NULL;
@@ -208,16 +208,21 @@ new_trace_wrapper() {
             if (trace_wrapper->file) {
 //                fprintf(trace_wrapper->file, "%s\n", filename);
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
-                fprintf(trace_wrapper->file, "%-12s %-12s %-8s %-120s#%4s %-32s %12s %12s\n",
+                fprintf(trace_wrapper->file, "%-12s %-12s %-8s %-80s#%4s %-32s %12s %12s\n",
                         "Event", "Clock", "What", "File", "line", "Function", "RSS", "dRSS"
                 );
 #else
-                fprintf(trace_wrapper->file, "%-12s %-8s %-120s#%4s %-32s %12s %12s\n",
+                fprintf(trace_wrapper->file, "%-12s %-8s %-80s#%4s %-32s %12s %12s\n",
                         "Event", "What", "File", "line", "Function", "RSS", "dRSS"
                 );
 #endif
                 trace_wrapper->event_number = 0;
                 trace_wrapper->rss = 0;
+                if (d_rss_trigger < 0) {
+                    trace_wrapper->d_rss_trigger = getpagesize();
+                } else  {
+                    trace_wrapper->d_rss_trigger = d_rss_trigger;
+                }
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
                 trace_wrapper->previous_event_number = 0;
 #endif
@@ -234,8 +239,8 @@ new_trace_wrapper() {
 }
 
 static PyObject *
-attach_trace_function(PyObject *Py_UNUSED(module)) {
-    TraceFileWrapper *wrapper = new_trace_wrapper();
+py_attach_trace_function(int d_rss_trigger) {
+    TraceFileWrapper *wrapper = new_trace_wrapper(d_rss_trigger);
     if (wrapper) {
         PyEval_SetTrace(&trace_or_profile_function, (PyObject *)wrapper);
         Py_RETURN_NONE;
@@ -245,8 +250,8 @@ attach_trace_function(PyObject *Py_UNUSED(module)) {
 }
 
 static PyObject *
-attach_profile_function(PyObject *Py_UNUSED(module)) {
-    TraceFileWrapper *wrapper = new_trace_wrapper();
+py_attach_profile_function(int d_rss_trigger) {
+    TraceFileWrapper *wrapper = new_trace_wrapper(d_rss_trigger);
     if (wrapper) {
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *)wrapper);
         Py_RETURN_NONE;
@@ -256,7 +261,7 @@ attach_profile_function(PyObject *Py_UNUSED(module)) {
 }
 
 static PyObject *
-detach_trace_function(PyObject *Py_UNUSED(module)) {
+py_detach_trace_function() {
     if (trace_wrapper) {
         TraceFileWrapper_dealloc(trace_wrapper);
         trace_wrapper = NULL;
@@ -266,7 +271,7 @@ detach_trace_function(PyObject *Py_UNUSED(module)) {
 }
 
 static PyObject *
-detach_profile_function(PyObject *Py_UNUSED(module)) {
+py_detach_profile_function() {
     if (profile_wrapper) {
         TraceFileWrapper_dealloc(profile_wrapper);
         profile_wrapper = NULL;
@@ -276,26 +281,27 @@ detach_profile_function(PyObject *Py_UNUSED(module)) {
 }
 
 static PyMethodDef cPyMemTraceMethods[] = {
-    {"_attach_trace",   (PyCFunction) attach_trace_function, METH_NOARGS,
-     "Attach a C trace function to the interpreter.\n"
-     "This receives Python line-number events and per-opcode events, but does not receive any event related to C"
-     " function objects being called (PyTrace_C_CALL, PyTrace_C_EXCEPTION or PyTrace_C_RETURN)."
-     },
-    {"_detach_trace",   (PyCFunction) detach_trace_function, METH_NOARGS,
-     "Detach the C trace function from the interpreter."},
-    {"_attach_profile", (PyCFunction) attach_profile_function, METH_NOARGS,
-     "Attach a C profile function to the interpreter.\n"
-     "This is slightly less invasive profiling as the profile function is called for all monitored events except"
-     " the Python PyTrace_LINE PyTrace_OPCODE and PyTrace_EXCEPTION events."
-     },
-    {"_detach_profile", (PyCFunction) detach_profile_function, METH_NOARGS,
-     "Detach the C profile function from the interpreter."},
+//    {"_attach_trace",   (PyCFunction) attach_trace_function, METH_NOARGS,
+//     "Attach a C trace function to the interpreter.\n"
+//     "This receives Python line-number events and per-opcode events, but does not receive any event related to C"
+//     " function objects being called (PyTrace_C_CALL, PyTrace_C_EXCEPTION or PyTrace_C_RETURN)."
+//     },
+//    {"_detach_trace",   (PyCFunction) detach_trace_function, METH_NOARGS,
+//     "Detach the C trace function from the interpreter."},
+//    {"_attach_profile", (PyCFunction) attach_profile_function, METH_NOARGS,
+//     "Attach a C profile function to the interpreter.\n"
+//     "This is slightly less invasive profiling as the profile function is called for all monitored events except"
+//     " the Python PyTrace_LINE PyTrace_OPCODE and PyTrace_EXCEPTION events."
+//     },
+//    {"_detach_profile", (PyCFunction) detach_profile_function, METH_NOARGS,
+//     "Detach the C profile function from the interpreter."},
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
 /**** Context manager for attach_profile_function() and detach_profile_function() ****/
 typedef struct {
     PyObject_HEAD
+    int d_rss_trigger;
 } ProfileObject;
 
 static void
@@ -310,26 +316,26 @@ ProfileObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UN
 }
 
 static int
-ProfileObject_init(PyTypeObject *Py_UNUSED(self), PyObject *args, PyObject *kwds) {
-    static char *kwlist[] = {NULL};
-    if (! PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist)) {
+ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {"d_rss_trigger", NULL};
+    int d_rss_trigger = -1;
+    if (! PyArg_ParseTupleAndKeywords(args, kwds, "|i", kwlist, &d_rss_trigger)) {
         return -1;
     }
+    self->d_rss_trigger = d_rss_trigger;
     return 0;
 }
 
 static PyObject *
 ProfileObject_enter(ProfileObject *self) {
-    /* Could use &cPyMemTracemodule */
-    attach_profile_function(NULL);
+    py_attach_profile_function(self->d_rss_trigger);
     Py_INCREF(self);
     return (PyObject *) self;
 }
 
 static PyObject *
 ProfileObject_exit(ProfileObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
-    /* Could use &cPyMemTracemodule */
-    detach_profile_function(NULL);
+    py_detach_profile_function();
     Py_RETURN_FALSE;
 }
 
@@ -383,9 +389,9 @@ TraceObject_init(PyTypeObject *Py_UNUSED(self), PyObject *args, PyObject *kwds) 
 }
 
 static PyObject *
-TraceObject_enter(TraceObject *self) {
+TraceObject_enter(TraceObject *self, PyObject *args) {
     /* Could use cPyMemTracemodule. */
-    attach_trace_function(NULL);
+    attach_trace_function(NULL, args);
     Py_INCREF(self);
     return (PyObject *) self;
 }
@@ -398,7 +404,7 @@ TraceObject_exit(TraceObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
 }
 
 static PyMethodDef TraceObject_methods[] = {
-        {"__enter__", (PyCFunction) TraceObject_enter, METH_NOARGS,
+        {"__enter__", (PyCFunction) TraceObject_enter, METH_VARARGS,
          "Attach a Trace object to the C runtime."},
         {"__exit__", (PyCFunction) TraceObject_exit, METH_VARARGS,
          "Detach a Trace object from the C runtime."},
