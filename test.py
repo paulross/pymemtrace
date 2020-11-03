@@ -10,18 +10,32 @@ def create_string(l: int) -> str:
     return ' ' * l
 
 
+COUNT = 16
+
+
 def test_under_512():
+    print(f'test_under_512 {COUNT}')
     l = []
-    for i in range(1024):
+    for i in range(COUNT):
         l.append(create_string(256))
     while len(l):
         l.pop()
 
 
 def test_over_512():
+    print(f'test_over_512 {COUNT}')
     l = []
-    for i in range(1024):
+    for i in range(COUNT):
         l.append(create_string(1024))
+    while len(l):
+        l.pop()
+
+
+def test_well_over_512():
+    print(f'test_well_over_512 {COUNT}')
+    l = []
+    for i in range(COUNT):
+        l.append(create_string(1024**2))
     while len(l):
         l.pop()
 
@@ -49,12 +63,13 @@ def main():
     # g()
     # cPyMemTrace._detach_profile()
 
-    with cPyMemTrace.Profile(0):
+    with cPyMemTrace.Profile():
         # f(1024**2)
         # f(1024**2)
         # g()
         test_under_512()
         test_over_512()
+        test_well_over_512()
 
     return 0
 

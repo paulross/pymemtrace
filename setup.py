@@ -97,6 +97,7 @@ setup(
             "cPyMemTrace",
             sources=[
               'pymemtrace/src/c/get_rss.c',
+              'pymemtrace/src/c/pymemtrace_util.c',
               'pymemtrace/src/cpy/cPyMemTrace.c',
             ],
             include_dirs=[

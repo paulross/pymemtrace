@@ -36,6 +36,8 @@ add_executable(
     pymemtrace/src/c/get_rss.c
     pymemtrace/src/cpy/cPyMemTrace.c
     pymemtrace/src/cpy/cCustom.c
+    pymemtrace/src/include/pymemtrace_util.h
+    pymemtrace/src/c/pymemtrace_util.c
 )
 
 include_directories(
