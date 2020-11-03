@@ -121,6 +121,7 @@ For the 138,243,335 events (or 74,517 that are >= 4096) the run time can be used
 
 | Part of Tracing                  | Runtime cost in µs/event. |
 | -------------------------------- | ------------------------- |
+| Typical Python code              | 0.1 to 0.2                |
 | Attach and call C trace function | 0.2                       |
 | Calculate RSS                    | 1.5                       |
 | Log an event                     | 2.5                       |

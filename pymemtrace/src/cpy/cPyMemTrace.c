@@ -33,13 +33,9 @@
 #define PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
 //#undef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
 
-/*
- * If defined as non-zero then only output a result when the difference in RSS is +/- this value.
- * Typically found from the pagesize command or:
- * #include <unistd.h>
- * int PAGE_SIZE = getpagesize();
- */
-//#define PY_MEM_TRACE_WRITE_OUTPUT_D_RSS 4096
+#define PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
+//#undef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
+
 
 /*
  * Trace classes could make this available by looking at trace_file_wrapper or profile_file_wrapper.
@@ -131,7 +127,9 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
         && trace_wrapper->event_number > 0
         && (trace_wrapper->event_number - trace_wrapper->previous_event_number) > 1) {
         // Previous event.
-//        fputs("PREV: ", trace_wrapper->file);
+#ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
+        fputs("PREV: ", trace_wrapper->file);
+#endif
         fputs(trace_wrapper->event_text, trace_wrapper->file);
     }
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
@@ -147,7 +145,10 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
              WHAT_STRINGS[what], file_name, line_number, func_name, rss, d_rss);
 #endif // PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
     if (labs(d_rss) >= trace_wrapper->d_rss_trigger) {
+#ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
 //        fputs("NEXT: ", trace_wrapper->file);
+        fputs("      ", trace_wrapper->file);
+#endif
         fputs(trace_wrapper->event_text, trace_wrapper->file);
         trace_wrapper->previous_event_number = trace_wrapper->event_number;
     }
@@ -180,13 +181,25 @@ new_trace_wrapper(int d_rss_trigger) {
             if (trace_wrapper->file) {
 //                fprintf(trace_wrapper->file, "%s\n", filename);
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
-                fprintf(trace_wrapper->file, "%-12s %-6s %-12s %-8s %-80s#%4s %-32s %12s %12s\n",
+#ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
+                fprintf(trace_wrapper->file, "      %-12s %-6s  %-12s %-8s %-80s#%4s %-32s %12s %12s\n",
                         "Event", "dEvent", "Clock", "What", "File", "line", "Function", "RSS", "dRSS"
                 );
 #else
-                fprintf(trace_wrapper->file, "%-12s %-6s %-8s %-80s#%4s %-32s %12s %12s\n",
+                fprintf(trace_wrapper->file, "%-12s %-6s  %-12s %-8s %-80s#%4s %-32s %12s %12s\n",
+                        "Event", "dEvent", "Clock", "What", "File", "line", "Function", "RSS", "dRSS"
+                );
+#endif
+#else
+#ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
+                fprintf(trace_wrapper->file, "      %-12s %-6s  %-8s %-80s#%4s %-32s %12s %12s\n",
                         "Event", "dEvent", "What", "File", "line", "Function", "RSS", "dRSS"
                 );
+#else
+                fprintf(trace_wrapper->file, "%-12s %-6s  %-8s %-80s#%4s %-32s %12s %12s\n",
+                        "Event", "dEvent", "What", "File", "line", "Function", "RSS", "dRSS"
+                );
+#endif
 #endif
                 trace_wrapper->event_number = 0;
                 trace_wrapper->rss = 0;
