@@ -4,16 +4,18 @@ pymemtrace's documentation
 Contents:
 
 .. toctree::
-   :maxdepth: 2
+    :maxdepth: 2
 
-   readme
-   installation
-   usage
-   reference
-   
-   contributing
-   authors
-   history
+    readme
+    installation
+    usage
+    memory_leaks
+
+    reference
+
+    contributing
+    authors
+    history
 
 
 Indices and tables
