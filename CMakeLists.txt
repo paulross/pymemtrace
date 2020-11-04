@@ -19,8 +19,8 @@ add_compile_options(
     "-Wpedantic"
     "-Werror"
     "-Wfatal-errors"
-    "-Wno-unused-variable" # Temporary
-    "-Wno-unused-parameter" # Temporary
+#    "-Wno-unused-variable" # Temporary
+#    "-Wno-unused-parameter" # Temporary
     "-fexceptions"
     "$<$<CONFIG:DEBUG>:-O0;-g3;-ggdb>"
 )

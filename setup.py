@@ -40,9 +40,9 @@ extra_compile_args = [
     # Until we use m_coalesce
     # '-Wno-unused-private-field',
 
-    # Temporary
-    '-Wno-unused-variable',
-    '-Wno-unused-parameter',
+    # # Temporary
+    # '-Wno-unused-variable',
+    # '-Wno-unused-parameter',
 ]
 
 DEBUG = False

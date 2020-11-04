@@ -125,6 +125,9 @@ size_t getCurrentRSS_alternate(void) {
     pid_t pid = getpid();
     struct proc_taskinfo proc;
     int st = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &proc, PROC_PIDTASKINFO_SIZE);
+    if (st == 0) {
+        return 0;
+    }
     return proc.pti_resident_size;
 #endif
     return getCurrentRSS();
