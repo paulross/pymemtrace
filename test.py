@@ -56,6 +56,16 @@ def g():
     print(f'Done.')
 
 
+def example_for_documentation():
+    print(f'example_for_documentation()')
+    with cPyMemTrace.Profile(0):
+        l = []
+        for i in range(8):
+            l.append(create_string(1024**2))
+        while len(l):
+            l.pop()
+
+
 def main():
     # cPyMemTrace._attach_profile()
     # f(1024**2)
@@ -63,13 +73,15 @@ def main():
     # g()
     # cPyMemTrace._detach_profile()
 
-    with cPyMemTrace.Profile():
-        # f(1024**2)
-        # f(1024**2)
-        # g()
-        test_under_512()
-        test_over_512()
-        test_well_over_512()
+    # with cPyMemTrace.Profile():
+    #     # f(1024**2)
+    #     # f(1024**2)
+    #     # g()
+    #     test_under_512()
+    #     test_over_512()
+    #     test_well_over_512()
+
+    example_for_documentation()
 
     return 0
 

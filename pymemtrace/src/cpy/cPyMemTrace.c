@@ -92,7 +92,7 @@ static PyTypeObject TraceFileWrapperType = {
  * #define PyTrace_C_RETURN 6
  * #define PyTrace_OPCODE 7
  *
- * These are trimmed to be a maximum of 8 long.
+ * Here these are trimmed to be a maximum of 8 long.
  */
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
 static const char* WHAT_STRINGS[] = {
@@ -146,8 +146,8 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 #endif // PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
     if (labs(d_rss) >= trace_wrapper->d_rss_trigger) {
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
-//        fputs("NEXT: ", trace_wrapper->file);
-        fputs("      ", trace_wrapper->file);
+        fputs("NEXT: ", trace_wrapper->file);
+//        fputs("      ", trace_wrapper->file);
 #endif
         fputs(trace_wrapper->event_text, trace_wrapper->file);
         trace_wrapper->previous_event_number = trace_wrapper->event_number;
@@ -158,8 +158,8 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
     return 0;
 }
 
-static TraceFileWrapper *trace_wrapper = NULL;
 static TraceFileWrapper *profile_wrapper = NULL;
+static TraceFileWrapper *trace_wrapper = NULL;
 
 static TraceFileWrapper *
 new_trace_wrapper(int d_rss_trigger) {
@@ -265,7 +265,19 @@ py_detach_trace_function() {
     Py_RETURN_NONE;
 }
 
+static PyObject *
+py_rss() {
+    return PyLong_FromSize_t(getCurrentRSS_alternate());
+}
+
+static PyObject *
+py_rss_peak() {
+    return PyLong_FromSize_t(getPeakRSS());
+}
+
 static PyMethodDef cPyMemTraceMethods[] = {
+    {"rss",   (PyCFunction) py_rss, METH_NOARGS, "Return the current RSS in bytes."},
+    {"rss_peak",   (PyCFunction) py_rss_peak, METH_NOARGS, "Return the peak RSS in bytes."},
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
@@ -322,8 +334,13 @@ static PyTypeObject ProfileObjectType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.Profile",
         .tp_doc = "A context manager to attach a C profile function to the interpreter.\n"
-                  "This is slightly less invasive profiling as the profile function is called for all monitored events except"
-                  " the Python PyTrace_LINE PyTrace_OPCODE and PyTrace_EXCEPTION events.",
+                  "This takes one optional argument, d_rss_trigger, that decides when a trace event gets recorded."
+                  " Suitable values: -1 : whenever an RSS change >= page size (usually 4096 bytes) is noticed."
+                  " 0 : every event. n: whenever an RSS change >= n is noticed. Default is -1\n."
+                  "This is slightly less invasive profiling as the profile function is called for all monitored events"
+                  "  except the Python PyTrace_LINE PyTrace_OPCODE and PyTrace_EXCEPTION events."
+                  "Writes to a file in the current working directory named \"YYYYmmdd_HHMMSS_<PID>.log\""
+                  ,
         .tp_basicsize = sizeof(ProfileObject),
         .tp_itemsize = 0,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
@@ -389,8 +406,13 @@ static PyTypeObject TraceObjectType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.Trace",
         .tp_doc = "A context manager to attach a C profile function to the interpreter.\n"
-                  " The tracing function does receive Python line-number events and per-opcode events"
-                  " but does not receive any event related to C function objects being called.",
+                  "This takes one optional argument, d_rss_trigger, that decides when a trace event gets recorded."
+                  " Suitable values: -1 : whenever an RSS change >= page size (usually 4096 bytes) is noticed."
+                  " 0 : every event. n: whenever an RSS change >= n is noticed. Default is -1\n."
+                  "The tracing function does receive Python line-number events and per-opcode events"
+                  " but does not receive any event related to C function objects being called.\n"
+                  "Writes to a file in the current working directory named \"YYYYmmdd_HHMMSS_<PID>.log\""
+                  ,
         .tp_basicsize = sizeof(TraceObject),
         .tp_itemsize = 0,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
@@ -401,10 +423,17 @@ static PyTypeObject TraceObjectType = {
 };
 /**** END: Context manager for attach_trace_function() and detach_trace_function() ****/
 
+const char *PY_MEM_TRACE_DOC = "Module that contains C memory tracer classes and functions.";
+
+PyDoc_STRVAR(py_mem_trace_doc,
+"Module that contains C memory tracer classes and functions."
+"\nNotably this has Profile() and Trace() that can attach to the Python runtime and report memory usage events."
+);
+
 static PyModuleDef cPyMemTracemodule = {
     PyModuleDef_HEAD_INIT,
     .m_name = "cPyMemTrace",
-    .m_doc = "Module that contains C memory tracer functions.",
+    .m_doc = py_mem_trace_doc,
     .m_size = -1,
     .m_methods = cPyMemTraceMethods,
 };
