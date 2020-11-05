@@ -334,7 +334,7 @@ def main() -> int:
     parser.add_argument('path_out', type=str, help='Output path.', nargs='?')
     logging.basicConfig(
         level=logging.DEBUG,
-        format='%(asctime)s - %(filename)s - %(process)5d - (%(threadName)-10s) - %(levelname)-8s - %(message)s',
+        format='%(asctime)s - %(filename)s#%(lineno)d - %(process)5d - (%(threadName)-10s) - %(levelname)-8s - %(message)s',
     )
     args = parser.parse_args()
     if args.path_in and args.path_out:
