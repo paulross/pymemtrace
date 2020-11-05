@@ -109,6 +109,9 @@ tmp/
 # Mac OS X
 .DS_Store
 
+# pytest
+.pytest_cache
+
 # cmake files
 cmake-build-debug/
 cmake-build-release/
