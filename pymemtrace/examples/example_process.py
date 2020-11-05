@@ -13,7 +13,7 @@ logger = logging.getLogger(__file__)
 
 def main() -> int:
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.ERROR,
         format='%(asctime)s - %(filename)s#%(lineno)d - %(process)5d - (%(threadName)-10s) - %(levelname)-8s - %(message)s',
     )
     logger.info('Demonstration of logging a process')

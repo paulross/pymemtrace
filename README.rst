@@ -4,34 +4,49 @@ pymemtrace
 ``pymemtrace`` provides various ways of tracing Python memory usage.
 
 
-cPyMemTrace
+``process``
 -----------------------------
 
-``cPyMemTrace`` provides a couple of ways of tracing total memory usage for every function call and return.
+``process`` logs the total memory usage at regular time intervals.
 
+
+``cPyMemTrace``
+-----------------------------
+
+``cPyMemTrace`` is a memory tracer written in C that can report total memory usage for every function call and return for both C and Python sections.
+
+
+
+``trace_malloc``
+-----------------------------
+
+``trace_malloc`` is a convenient wrapper around the ``tracemalloc`` module that can report Python memory usage by module and line.
+
+
+``debug_malloc_stats``
+-----------------------------
+
+``debug_malloc_stats`` is a convenient wrapper around the ``sys._debugmallocstats`` module that can report Python memory usage by module and line.
 
 
 Summary
 =====================
 
-+-----------------------+-----------------------+-------------------------------+---------------+---------------+
-| Tool                  | Memory Granularity    | Code Granularity              | Memory Cost   | Runtime Cost  |
-+=======================+=======================+===============================+===============+===============+
-| ``cPyMemTrace``       | RSS                   | Per line or function call     | 0             | x10 to x22    |
-+-----------------------+-----------------------+-------------------------------+---------------+---------------+
-
-
-
-
-
-
-
-
-
-
-
-
-
++---------------------------+-----------------------+-------------------------------+-----------------------+---------------+
+| Tool                      | Memory Granularity    | Code Granularity              | Memory Cost           | Runtime Cost  |
++===========================+=======================+===============================+=======================+===============+
+| ``process``               | RSS (total Python     | At regular time intervals.    | Near zero             | Near zero     |
+|                           | and C Memory)         |                               | compensated.          |               |
++---------------------------+-----------------------+-------------------------------+-----------------------+---------------+
+| ``cPyMemTrace``           | RSS (total Python     | Per line or function call     | Near zero             | x10 to x20    |
+|                           | and C Memory)         |                               | compensated.          |               |
++---------------------------+-----------------------+-------------------------------+-----------------------+---------------+
+| ``trace_malloc``          | Every Python object   | Per line or function call     | Significant but       | x5 (?)        |
+|                           |                       |                               | compensated.          |               |
++---------------------------+-----------------------+-------------------------------+-----------------------+---------------+
+| ``debug_malloc_stats``    | Python memory pool    | Per line or function call     | Minimal except for    | Near zero     |
+|                           |                       |                               | Python debug builds.  |               |
++---------------------------+-----------------------+-------------------------------+-----------------------+---------------+
 
 
 
@@ -90,7 +105,7 @@ Features
 Credits
 ---------
 
-Phil Smith (AHL) with whom a casual lunch time chat lead to the creation of an earlier, but quite different implemention, of the same idea.
+Phil Smith (AHL) with whom a casual lunch time chat lead to the creation of an earlier, but quite different implemention, of ``cPyMemTrace``.
 
 This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
 
