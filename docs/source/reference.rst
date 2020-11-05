@@ -1,14 +1,6 @@
 pymemtrace Reference
 ************************
 
-Module ``pymemtrace.pymemtrace``
-=================================
-
-.. automodule:: pymemtrace.pymemtrace
-    :members:
-    :special-members:
-    :private-members:
-
 Module ``cPyMemTrace``
 =================================
 
@@ -97,39 +89,3 @@ And the log file looks like this::
     :members:
     :special-members:
     :private-members:
-
-Plotting
-===========
-
-Module: ``pymemtrace.plot.PlotMemTrace``
---------------------------------------------
-
-.. automodule:: pymemtrace.plot.PlotMemTrace
-    :members:
-    :special-members:
-    :private-members:
-
-Module: ``pymemtrace.plot.PlotMemTrace.Coord``
-------------------------------------------------
-
-.. automodule:: pymemtrace.plot.Coord
-    :members:
-    :special-members:
-    :private-members:
-
-Module: ``pymemtrace.plot.PlotMemTrace.Coord.SVGWriter``
---------------------------------------------------------------
-
-.. automodule:: pymemtrace.plot.SVGWriter
-    :members:
-    :special-members:
-    :private-members:
-
-Module: ``pymemtrace.plot.PlotMemTrace.Coord.XMLWrite``
---------------------------------------------------------------
-
-.. automodule:: pymemtrace.plot.XmlWrite
-    :members:
-    :special-members:
-    :private-members:
-
