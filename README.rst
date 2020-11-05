@@ -1,30 +1,43 @@
-==========
 pymemtrace
-==========
+======================
 
-``pymemtrace`` is a Python memory tracer.
-It uses the Python profiling system to intercept function call and return points where ``pymemtrace`` snapshots the memory the process consumes.
-The data gathered can be plotted as an interactive SVG diagram showing the memory usage over time for every function called.
+``pymemtrace`` provides various ways of tracing Python memory usage.
 
-Because of the current drawbacks this is just a proof-of-concept experimental project. 
 
-Drawbacks
------------
+cPyMemTrace
+-----------------------------
 
-There are several drawbacks and that makes ``pymemtrace`` not particularly useful (yet):
+``cPyMemTrace`` provides a couple of ways of tracing total memory usage for every function call and return.
 
-The Cost of Profiling
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-``pymemtrace`` uses ``sys.setprofile`` to get access to every function call and return event.
-This is expensive, typically by a factor of 100x, when a Python function is registered and this makes ``pymemtrace`` very slow.
-This problem would be particularly acute in real-time systems that then may fail.
 
-Mitigation: Look at using Python's C level tracing.
-This could be expensive to write compared to the existing code.
+Summary
+=====================
+
++-----------------------+-----------------------+-------------------------------+---------------+---------------+
+| Tool                  | Memory Granularity    | Code Granularity              | Memory Cost   | Runtime Cost  |
++=======================+=======================+===============================+===============+===============+
+| ``cPyMemTrace``       | RSS                   | Per line or function call     | 0             | x10 to x22    |
++-----------------------+-----------------------+-------------------------------+---------------+---------------+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 The OS's View of Memory
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+----------------------------------
 
 ``pymemtrace`` asks the OS for its opinion of memory usage at each function entry and exit point.
 For this to be acurate Python's memory pool system (the Python Object Allocator) must be disabled and this needs a special build of Python with ``--without-pymalloc`` set::
@@ -37,7 +50,7 @@ This version of Python runs about 2x to 4x slower without the Python object allo
 Mitigation: Run with the object allocator and accept the inaccuracy. This is probably not that important if we are looking for big memory moves.
 
 The Memory cost of ``pymemtrace``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+---------------------------------------------
 
 ``pymemtrace`` captures all the data from function call and return points and this can be expensive in a long running process.
 
@@ -61,7 +74,6 @@ Mitigation: Streaming.
     
 
 Python memory tracing.
-
 
 * Free software: MIT license
 
