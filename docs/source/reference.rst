@@ -1,7 +1,11 @@
 pymemtrace Reference
 ************************
 
-Module ``cPyMemTrace``
+.. toctree::
+    :maxdepth: 3
+
+
+Module ``pymemtrace.cPyMemTrace``
 =================================
 
 .. automodule:: pymemtrace.cPyMemTrace
@@ -83,9 +87,43 @@ And the log file looks like this::
     NEXT: 65           +1      0.084568     C_RETURN test.py #  65 len                                  17526784            0
 
 
-
-
 .. autoclass:: pymemtrace.cPyMemTrace.Trace
+    :members:
+    :special-members:
+    :private-members:
+
+
+Module ``pymemtrace.debug_malloc_stats``
+===================================================
+
+.. automodule:: pymemtrace.debug_malloc_stats
+    :members:
+    :special-members:
+    :private-members:
+
+
+Module ``pymemtrace.process``
+=================================
+
+.. automodule:: pymemtrace.process
+    :members:
+    :special-members:
+    :private-members:
+
+
+Module ``pymemtrace.redirect_stdout``
+===================================================
+
+.. automodule:: pymemtrace.redirect_stdout
+    :members:
+    :special-members:
+    :private-members:
+
+
+Module ``pymemtrace.trace_malloc``
+===================================================
+
+.. automodule:: pymemtrace.trace_malloc
     :members:
     :special-members:
     :private-members:
