@@ -188,9 +188,11 @@ class DebugMallocStat(typing.NamedTuple):
 def diff_debug_malloc_stat(a: DebugMallocStat, b: DebugMallocStat) -> str:
     """Takes two DebugMallocStat objects and returns a string with the difference.
     The string is of similar format to the input from ``sys._debugmallocstats``."""
+    assert a.block_class == b.block_class
+    assert a.size == b.size
     return (
-        f'{b.block_class - a.block_class:+5d}'
-        f'  {b.size - a.size:+5d}'
+        f'{a.block_class:5d}'
+        f'  {a.size:5d}'
         f'  {b.num_pools - a.num_pools:+10d}'
         f'  {b.blocks_in_use - a.blocks_in_use:+14d}'
         f'  {b.avail_blocks - a.avail_blocks:+12d}')
@@ -453,6 +455,15 @@ class DebugTypeStat(typing.NamedTuple):
 RE_DEBUG_MALLOC_TYPE_LINE = re.compile(rb'^\s*(\d+) free (.+?) \* (\d+) bytes each =\s+(.+)$')
 
 
+def diff_debug_type_stat(a: DebugTypeStat, b: DebugTypeStat) -> str:
+    """Takes two DebugMallocStat objects and returns a string with the difference.
+    The string is of similar format to the input from ``sys._debugmallocstats``."""
+    assert a.object_type == b.object_type
+    assert a.bytes_each == b.bytes_each
+    lhs = f'{b.free_count - a.free_count:+d} free {a.object_type} * {a.bytes_each} bytes each'
+    return f'{lhs:>48s} = {b.bytes_total - a.bytes_total:>+20,d}'
+
+
 #: Matches::
 #:
 #:      b'Small block threshold = 512, in 32 size classes.'
@@ -505,6 +516,19 @@ class SysDebugMallocStats:
         if not all(hasattr(self, name) for name in expected_attrs):
             raise ValueError(f'Can not find required attributes {expected_attrs}')
 
+    def object_types(self) -> typing.KeysView[bytes]:
+        """Return all the known object types."""
+        return self.type_map.keys()
+
+    def has_object_type(self, object_type: bytes):
+        """Return True if the object type is present."""
+        return object_type in self.type_map
+
+    def type_stat(self, object_type: bytes) -> DebugTypeStat:
+        """Return the DebugTypeStat for the named object type.
+        May raise an KeyError if the object_type doe not exist."""
+        return self.type_stats[self.type_map[object_type]]
+
     def __repr__(self):
         """Representation of self similar to the output of sys._debugmallocstats"""
         results = [
@@ -542,7 +566,8 @@ def diff_debugmallocstats(a_stats: SysDebugMallocStats, b_stats: SysDebugMallocS
     This takes two SysDebugMallocStats objects and identifies what is different between them.
     """
     ret: typing.List[str] = []
-    # TODO: Header?
+    # TODO: Header
+    has_header = False
 
     # Firstly the DebugMallocStat list
     if len(a_stats.malloc_stats) != len(b_stats.malloc_stats):
@@ -551,8 +576,32 @@ def diff_debugmallocstats(a_stats: SysDebugMallocStats, b_stats: SysDebugMallocS
         )
     for a, b in zip(a_stats.malloc_stats, b_stats.malloc_stats):
         if a != b:
+            if not has_header:
+                # TODO:
+                has_header = True
             ret.append(diff_debug_malloc_stat(a, b))
-    # Firstly the DebugTypeStat objects, the lists might not be the same.
+    # TODO: Header
+    has_header = False
+    # Then the DebugTypeStat objects, the lists might not be the same.
+    union_object_types = set(a_stats.object_types()) | set(b_stats.object_types())
+    for object_type in sorted(union_object_types):
+        diff_str = ''
+        if a_stats.has_object_type(object_type):
+            if b_stats.has_object_type(object_type):
+                if a_stats.type_stat(object_type) != b_stats.type_stat(object_type):
+                    diff_str = diff_debug_type_stat(a_stats.type_stat(object_type), b_stats.type_stat(object_type))
+            else:
+                # a only so dropped
+                diff_str = f'-{a_stats.type_stat(object_type)!r}'
+        else:
+            # b only so added
+            diff_str = f'+{a_stats.type_stat(object_type)!r}'
+        if diff_str:
+            if not has_header:
+                # TODO:
+                has_header = True
+            ret.append(diff_str)
+    return ret
 
 
 def main():
@@ -560,8 +609,18 @@ def main():
     print(get_debugmallocstats().decode('ascii'))
 
     print()
-    dms = SysDebugMallocStats()
-    print(repr(dms))
+    dms_a = SysDebugMallocStats()
+    # print(repr(dms_a))
+    l = []
+    l.append({})
+    l.append(set())
+    l.append((1, 2, 3))
+    for i in range(80):
+        l.append(tuple(list(range(4))))
+    dms_b = SysDebugMallocStats()
+
+    pprint.pprint(diff_debugmallocstats(dms_a, dms_b))
+
     return 0
 
 

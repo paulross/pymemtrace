@@ -121,7 +121,8 @@ pygments_style = 'sphinx'
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'default'
+# See https://sphinx-themes.org
+html_theme = 'nature'
 
 # Theme options are theme-specific and customize the look and feel of a
 # theme further.  For a list of options available for each theme, see the
@@ -268,7 +269,7 @@ texinfo_documents = [
      u'pymemtrace Documentation',
      u'Paul Ross',
      'pymemtrace',
-     'One line description of project.',
+     'Various ways of tracing Python memory usage.',
      'Miscellaneous'),
 ]
 
