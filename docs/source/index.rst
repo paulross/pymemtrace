@@ -9,7 +9,7 @@ Contents:
 
     readme
     installation
-    usage
+    examples
     memory_leaks
 
     reference
