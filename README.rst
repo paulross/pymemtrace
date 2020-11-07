@@ -1,36 +1,16 @@
+*******************
 pymemtrace
+*******************
+
+
+``pymemtrace`` provides a number of tools for tracking Python memory usage at different levels, different granularities and at different runtime costs.
+
+Summary of the Tools
 ======================
 
-``pymemtrace`` provides various ways of tracing Python memory usage.
 
+Here is a summary of the tools:
 
-``process``
------------------------------
-
-``process`` logs the total memory usage at regular time intervals.
-
-
-``cPyMemTrace``
------------------------------
-
-``cPyMemTrace`` is a memory tracer written in C that can report total memory usage for every function call and return for both C and Python sections.
-
-
-
-``trace_malloc``
------------------------------
-
-``trace_malloc`` is a convenient wrapper around the ``tracemalloc`` module that can report Python memory usage by module and line.
-
-
-``debug_malloc_stats``
------------------------------
-
-``debug_malloc_stats`` is a convenient wrapper around the ``sys._debugmallocstats`` module that can report Python memory usage by module and line.
-
-
-Summary
-=====================
 
 +---------------------------+-----------------------+-------------------------------+-----------------------+---------------+
 | Tool                      | Memory Granularity    | Code Granularity              | Memory Cost           | Runtime Cost  |
@@ -44,32 +24,38 @@ Summary
 | ``trace_malloc``          | Every Python object   | Per line or function call     | Significant but       | x5 (?)        |
 |                           |                       |                               | compensated.          |               |
 +---------------------------+-----------------------+-------------------------------+-----------------------+---------------+
-| ``debug_malloc_stats``    | Python memory pool    | Per line or function call     | Minimal except for    | Near zero     |
-|                           |                       |                               | Python debug builds.  |               |
+| ``debug_malloc_stats``    | Python memory pool    | Snapshot CPython memory       | Minimal except for    | Near zero     |
+|                           |                       | either side of a block of     | Python debug builds.  |               |
+|                           |                       | code.                         | Python debug builds.  |               |
 +---------------------------+-----------------------+-------------------------------+-----------------------+---------------+
 
 
 
+``process``
+================
 
-The OS's View of Memory
-----------------------------------
+``process`` logs the total memory usage at regular time intervals.
 
-``pymemtrace`` asks the OS for its opinion of memory usage at each function entry and exit point.
-For this to be acurate Python's memory pool system (the Python Object Allocator) must be disabled and this needs a special build of Python with ``--without-pymalloc`` set::
 
-    ../configure --with-pydebug --without-pymalloc
-    make
+``cPyMemTrace``
+================
 
-This version of Python runs about 2x to 4x slower without the Python object allocator and this makes ``pymemtrace`` even slower.
+``cPyMemTrace`` is a memory tracer written in C that can report total memory usage for every function call and return for both C and Python sections.
 
-Mitigation: Run with the object allocator and accept the inaccuracy. This is probably not that important if we are looking for big memory moves.
 
-The Memory cost of ``pymemtrace``
----------------------------------------------
 
-``pymemtrace`` captures all the data from function call and return points and this can be expensive in a long running process.
+``trace_malloc``
+================
 
-Mitigation: Streaming.
+``trace_malloc`` is a convenient wrapper around the ``tracemalloc`` module that can report Python memory usage by module and line.
+
+
+``debug_malloc_stats``
+==================================
+
+``debug_malloc_stats`` is a convenient wrapper around the ``sys._debugmallocstats`` module that can report Python memory usage by module and line.
+
+
 
 .. Commented out for now:
 
@@ -95,17 +81,6 @@ Python memory tracing.
 .. Commented out for now:
 
     * Documentation: https://pymemtrace.readthedocs.io.
-
-
-Features
---------
-
-* TODO
-
-Credits
----------
-
-Phil Smith (AHL) with whom a casual lunch time chat lead to the creation of an earlier, but quite different implemention, of ``cPyMemTrace``.
 
 This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
 
