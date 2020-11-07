@@ -37,11 +37,7 @@ This calls::
 
 Note that only dict, float, frame, list, tuple are reported.
 """
-import contextlib
-import difflib
-import enum
 import io
-import pprint
 import re
 import sys
 import typing
@@ -58,41 +54,6 @@ def get_debugmallocstats() -> bytes:
     # return stream.getvalue().decode('ascii', 'replace')
 
 
-# class DiffType(enum.Enum):
-#     NDIFF = 1
-#     CONTEXT = 2
-#     UNIFIED = 3
-#
-#
-# class DebugMallocStatsDiff:
-#     """Class that acts as a context manager and takes a before and after snaphot of sys._debugmallocstats and
-#     provides a simple textural diff."""
-#     def __init__(self, diff_type: DiffType = DiffType.UNIFIED):
-#         self.diff_type = diff_type
-#         self.before: typing.Optional[bytes] = None
-#         self.after: typing.Optional[bytes] = None
-#         self.diff: typing.Optional[bytes] = None
-#
-#     def __enter__(self):
-#         self.before = get_debugmallocstats()
-#         return self
-#
-#     def __exit__(self, exc_type, exc_val, exc_tb):
-#         self.after = get_debugmallocstats()
-#         if self.diff_type == DiffType.NDIFF:
-#             self.diff = list(
-#                 difflib.ndiff(
-#                     self.before.decode('ascii').splitlines(keepends=False),
-#                     self.after.decode('ascii').splitlines(keepends=False),
-#                 )
-#             )
-#         elif self.diff_type == DiffType.CONTEXT:
-#             self.diff = list(difflib.diff_bytes(difflib.context_diff, self.before.split(b'\n'), self.after.split(b'\n')))
-#         elif self.diff_type == DiffType.UNIFIED:
-#             self.diff = list(difflib.diff_bytes(difflib.unified_diff, self.before.split(b'\n'), self.after.split(b'\n')))
-#         return False
-
-
 #: In ``Object/obmalloc.c``:
 #:
 #: .. code-block:: text
@@ -101,13 +62,15 @@ def get_debugmallocstats() -> bytes:
 #:
 POOL_SIZE = 4096
 
+#: This value is initially approximate.
 #: In ``Object/obmalloc.c``:
 #:
-#: .. code-block:: text
+#: .. code-block:: c
 #:
 #:      #define POOL_OVERHEAD   _Py_SIZE_ROUND_UP(sizeof(struct pool_header), ALIGNMENT)
 #:
-#: TODO: We can calculate this from the sum of num_pools divided into '# bytes lost to pool headers'.
+#: We can calculate this from the sum of num_pools divided into ``'# bytes lost to pool headers'``.
+#: This is done whenever a :py:class:`SysDebugMallocStats` is created.
 POOL_OVERHEAD = 48
 
 
@@ -188,8 +151,10 @@ class DebugMallocStat(typing.NamedTuple):
 def diff_debug_malloc_stat(a: DebugMallocStat, b: DebugMallocStat) -> str:
     """Takes two DebugMallocStat objects and returns a string with the difference.
     The string is of similar format to the input from ``sys._debugmallocstats``."""
-    assert a.block_class == b.block_class
-    assert a.size == b.size
+    if a.block_class != b.block_class:
+        raise ValueError(f'a.block_class != b.block_class: {a.block_class} != {b.block_class}')
+    if a.size != b.size:
+        raise ValueError(f'a.size != b.size: {a.size} != {b.size}')
     return (
         f'{a.block_class:5d}'
         f'  {a.size:5d}'
@@ -217,33 +182,6 @@ def last_value_as_int(line: bytes) -> int:
     return int(line.split(b'=')[1].replace(b',', b''))
 
 
-# Understanding the middle section.
-# First arenas:
-#
-# From Object/obmalloc.c
-# (void)printone(out, "# arenas allocated total", ntimes_arena_allocated);
-# (void)printone(out, "# arenas reclaimed", ntimes_arena_allocated - narenas);
-# (void)printone(out, "# arenas highwater mark", narenas_highwater);
-# (void)printone(out, "# arenas allocated current", narenas);
-#
-# /* Total number of times malloc() called to allocate an arena. */
-# static size_t ntimes_arena_allocated = 0;
-# b'# arenas allocated total           =                2,033'
-#
-# /* High water mark (max value ever seen) for narenas_currently_allocated. */
-# static size_t narenas_highwater = 0;
-# b'# arenas highwater mark            =                   18'
-#
-# /* # of arenas actually allocated. */
-# size_t narenas = 0;
-# b'# arenas allocated current         =                   18'
-#
-# PyOS_snprintf(buf, sizeof(buf), "%" PY_FORMAT_SIZE_T "u arenas * %d bytes/arena", narenas, ARENA_SIZE);
-# (void)printone(out, buf, narenas * ARENA_SIZE);
-#
-# b'18 arenas * 262144 bytes/arena     =            4,718,592'
-# Simple calculation: 18 * 262144 = 4718592
-
 #: Matches::
 #:
 #:      b'18 arenas * 262144 bytes/arena     =            4,718,592'
@@ -264,8 +202,46 @@ class DebugMallocArenas:
     Into values for: ntimes_arena_allocated, narenas, narenas_highwater, ARENA_SIZE.
 
     Infers: arenas_reclaimed, arenas_total.
+
+    From Object/obmalloc.c:
+
+    .. code-block:: c
+
+        (void)printone(out, "# arenas allocated total", ntimes_arena_allocated);
+        (void)printone(out, "# arenas reclaimed", ntimes_arena_allocated - narenas);
+        (void)printone(out, "# arenas highwater mark", narenas_highwater);
+        (void)printone(out, "# arenas allocated current", narenas);
+
+        /* Total number of times malloc() called to allocate an arena. */
+        static size_t ntimes_arena_allocated = 0;
+        // b'# arenas allocated total           =                2,033'
+
+        /* High water mark (max value ever seen) for narenas_currently_allocated. */
+        static size_t narenas_highwater = 0;
+        // b'# arenas highwater mark            =                   18'
+
+        /* # of arenas actually allocated. */
+        size_t narenas = 0;
+        // b'# arenas allocated current         =                   18'
+
+        PyOS_snprintf(buf, sizeof(buf), "%" PY_FORMAT_SIZE_T "u arenas * %d bytes/arena", narenas, ARENA_SIZE);
+        (void)printone(out, buf, narenas * ARENA_SIZE);
+        // b'18 arenas * 262144 bytes/arena     =            4,718,592'
+        // Simple calculation: 18 * 262144 = 4718592
+
     """
     def __init__(self, debug_malloc: bytes):
+        """Constructor, decomposes this:
+
+        .. code-block:: text
+
+            # arenas allocated total        -> self.ntimes_arena_allocated
+            # arenas reclaimed              -> self.arenas_reclaimed
+            # arenas highwater mark         -> self.narenas_highwater
+            # arenas allocated current      -> self.narenas
+            18 arenas * 262144 bytes/arena  -> self.narenas * self.arena_size  = self.arenas_total
+
+        """
         for line in debug_malloc.splitlines(keepends=False):
             if line.startswith(b'# arenas allocated total'):
                 # (void)printone(out, "# arenas allocated total", ntimes_arena_allocated);
@@ -392,6 +368,17 @@ class DebugMallocPoolsBlocks:
         return self.allocated_bytes + self.available_bytes + self.unused_pool_total + self.pool_header_bytes \
                + self.quantization + self.arena_alignment
 
+    def pool_overhead(self, num_pools: int) -> int:
+        """Returns the POOL_OVERHEAD as self.pool_header_bytes // the number of pools.
+
+        self.pool_header_bytes comes from::
+
+            # bytes lost to pool headers       =               51,264
+
+        Number of pools comes from the sum of ``num pools`` from DebugMallocStat.num_pools
+        """
+        return self.pool_header_bytes // num_pools
+
     def __repr__(self):
         """Returns a string similar to sys._debugmallocstats."""
         ret = [
@@ -426,7 +413,7 @@ class DebugTypeStat(typing.NamedTuple):
     bytes_total: int
 
     def __repr__(self):
-        """Returns a string of the form:
+        """Returns a string of the form of these lines:
 
         .. code-block:: text
 
@@ -458,8 +445,10 @@ RE_DEBUG_MALLOC_TYPE_LINE = re.compile(rb'^\s*(\d+) free (.+?) \* (\d+) bytes ea
 def diff_debug_type_stat(a: DebugTypeStat, b: DebugTypeStat) -> str:
     """Takes two DebugMallocStat objects and returns a string with the difference.
     The string is of similar format to the input from ``sys._debugmallocstats``."""
-    assert a.object_type == b.object_type
-    assert a.bytes_each == b.bytes_each
+    if a.object_type != b.object_type:
+        raise ValueError(f'a.object_type != b.object_type: {a.object_type} != {b.object_type}')
+    if a.bytes_each != b.bytes_each:
+        raise ValueError(f'a.bytes_each != b.bytes_each: {a.bytes_each} != {b.bytes_each}')
     lhs = f'{b.free_count - a.free_count:+d} free {a.object_type} * {a.bytes_each} bytes each'
     return f'{lhs:>48s} = {b.bytes_total - a.bytes_total:>+20,d}'
 
@@ -515,6 +504,11 @@ class SysDebugMallocStats:
         expected_attrs = ('small_block_threshold', 'size_classes')
         if not all(hasattr(self, name) for name in expected_attrs):
             raise ValueError(f'Can not find required attributes {expected_attrs}')
+        # Set the global POOL_OVERHEAD by combining malloc_stats and pools_blocks
+        num_pools = sum(v.num_pools for v in self.malloc_stats)
+        pool_overhead = self.pools_blocks.pool_overhead(num_pools)
+        global POOL_OVERHEAD
+        POOL_OVERHEAD = pool_overhead
 
     def object_types(self) -> typing.KeysView[bytes]:
         """Return all the known object types."""
@@ -564,9 +558,10 @@ class SysDebugMallocStats:
 def diff_debugmallocstats(a_stats: SysDebugMallocStats, b_stats: SysDebugMallocStats):
     """
     This takes two SysDebugMallocStats objects and identifies what is different between them.
+    The diff is a list of lines of identical form to :py:meth:`sys._debugmallocstats` with '+' or '-' where appropriate.
+    Lines that are the same are omitted.
     """
     ret: typing.List[str] = []
-    # TODO: Header
     has_header = False
 
     # Firstly the DebugMallocStat list
@@ -577,12 +572,85 @@ def diff_debugmallocstats(a_stats: SysDebugMallocStats, b_stats: SysDebugMallocS
     for a, b in zip(a_stats.malloc_stats, b_stats.malloc_stats):
         if a != b:
             if not has_header:
-                # TODO:
+                ret.append('class   size   num pools   blocks in use  avail blocks')
+                ret.append('-----   ----   ---------   -------------  ------------')
                 has_header = True
             ret.append(diff_debug_malloc_stat(a, b))
-    # TODO: Header
     has_header = False
-    # Then the DebugTypeStat objects, the lists might not be the same.
+    # Central two blocks
+    # Arenas
+    block = []
+    if b_stats.arenas.ntimes_arena_allocated != a_stats.arenas.ntimes_arena_allocated:
+        block.append(
+            f'# arenas allocated total           ='
+            f' {b_stats.arenas.ntimes_arena_allocated - a_stats.arenas.ntimes_arena_allocated:>+20,d}'
+        )
+    if b_stats.arenas.arenas_reclaimed != a_stats.arenas.arenas_reclaimed:
+        block.append(
+            f'# arenas reclaimed                 ='
+            f' {b_stats.arenas.arenas_reclaimed - a_stats.arenas.arenas_reclaimed:>+20,d}'
+        )
+    if b_stats.arenas.narenas_highwater != a_stats.arenas.narenas_highwater:
+        block.append(
+            f'# arenas highwater mark            ='
+            f' {b_stats.arenas.narenas_highwater - a_stats.arenas.narenas_highwater:>+20,d}'
+        )
+    assert a_stats.arenas.arena_size == b_stats.arenas.arena_size
+    if b_stats.arenas.narenas != a_stats.arenas.narenas:
+        block.append(
+            f'# arenas allocated current         ='
+            f' {b_stats.arenas.narenas - a_stats.arenas.narenas:>+20,d}'
+        )
+        lhs = f'{b_stats.arenas.narenas - a_stats.arenas.narenas:+d} arenas * {a_stats.arenas.arena_size} bytes/arena'
+        block.append(f'{lhs:<34s} = {b_stats.arenas.arenas_total - a_stats.arenas.arenas_total:>+20,d}')
+    if block:
+        ret.append('')
+        ret.extend(block)
+    # Pools and blocks
+    block = []
+    assert a_stats.pools_blocks.pool_size == b_stats.pools_blocks.pool_size
+    if b_stats.pools_blocks.allocated_bytes != a_stats.pools_blocks.allocated_bytes:
+        block.append(
+            f'# bytes in allocated blocks        ='
+            f' {b_stats.pools_blocks.allocated_bytes - a_stats.pools_blocks.allocated_bytes:>+20,d}'
+        )
+    if b_stats.pools_blocks.available_bytes != a_stats.pools_blocks.available_bytes:
+        block.append(
+            f'# bytes in available blocks        ='
+            f' {b_stats.pools_blocks.available_bytes - a_stats.pools_blocks.available_bytes:>+20,d}'
+        )
+    if b_stats.pools_blocks.numfreepools != a_stats.pools_blocks.numfreepools:
+        lhs = (
+            f'{b_stats.pools_blocks.numfreepools - a_stats.pools_blocks.numfreepools}'
+            f' unused pools * {a_stats.pools_blocks.pool_size} bytes'
+        )
+        block.append(
+            f'{lhs:<34s} = {b_stats.pools_blocks.unused_pool_total - a_stats.pools_blocks.unused_pool_total:>+20,d}'
+        )
+    if b_stats.pools_blocks.pool_header_bytes != a_stats.pools_blocks.pool_header_bytes:
+        block.append(
+            f'# bytes lost to pool headers       ='
+            f' {b_stats.pools_blocks.pool_header_bytes - a_stats.pools_blocks.pool_header_bytes:>+20,d}'
+        )
+    if b_stats.pools_blocks.quantization != a_stats.pools_blocks.quantization:
+        block.append(
+            f'# bytes lost to quantization       ='
+            f' {b_stats.pools_blocks.quantization - a_stats.pools_blocks.quantization:>+20,d}'
+        )
+    if b_stats.pools_blocks.arena_alignment != a_stats.pools_blocks.arena_alignment:
+        block.append(
+            f'# bytes lost to arena alignment    ='
+            f' {b_stats.pools_blocks.arena_alignment - a_stats.pools_blocks.arena_alignment:>+20,d}'
+        )
+    if b_stats.pools_blocks.total != a_stats.pools_blocks.total:
+        block.append(
+            f'Total                              = {b_stats.pools_blocks.total - a_stats.pools_blocks.total:>+20,d}'
+        )
+    if block:
+        ret.append('')
+        ret.extend(block)
+    has_header = False
+    # The DebugTypeStat objects, the lists might not be the same.
     union_object_types = set(a_stats.object_types()) | set(b_stats.object_types())
     for object_type in sorted(union_object_types):
         diff_str = ''
@@ -598,10 +666,38 @@ def diff_debugmallocstats(a_stats: SysDebugMallocStats, b_stats: SysDebugMallocS
             diff_str = f'+{a_stats.type_stat(object_type)!r}'
         if diff_str:
             if not has_header:
-                # TODO:
+                ret.append('')
                 has_header = True
             ret.append(diff_str)
     return ret
+
+
+class DiffSysDebugMallocStats:
+    """Context manager that compares two snapshots of ``sys._getdebugmallocstats()`` and can provide a diff between
+    them."""
+    def __init__(self):
+        self.before: typing.Optional[SysDebugMallocStats] = None
+        self.after: typing.Optional[SysDebugMallocStats] = None
+        self._diff: typing.Optional[str] = None
+
+    def __enter__(self):
+        """Enters the context manager taking a snapshot of ``sys._getdebugmallocstats()``."""
+        self.before = SysDebugMallocStats()
+        self.after = None
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exits the context manager taking a snapshot of ``sys._getdebugmallocstats()``."""
+        self.after = SysDebugMallocStats()
+        return False
+
+    def diff(self) -> str:
+        """Returns the difference between two snapshots."""
+        if self.before is None:
+            raise RuntimeError('Context manager not entered.')
+        if self.after is None:
+            raise RuntimeError('Context manager not exited.')
+        return '\n'.join(diff_debugmallocstats(self.before, self.after))
 
 
 def main():
@@ -609,17 +705,30 @@ def main():
     print(get_debugmallocstats().decode('ascii'))
 
     print()
-    dms_a = SysDebugMallocStats()
-    # print(repr(dms_a))
-    l = []
-    l.append({})
-    l.append(set())
-    l.append((1, 2, 3))
-    for i in range(80):
-        l.append(tuple(list(range(4))))
-    dms_b = SysDebugMallocStats()
+    # dms_a = SysDebugMallocStats()
+    # # print(repr(dms_a))
+    # l = []
+    # l.append({})
+    # l.append(set())
+    # l.append((1, 2, 3))
+    # for i in range(80):
+    #     l.append(tuple(list(range(4))))
+    # dms_b = SysDebugMallocStats()
+    #
+    # # pprint.pprint(diff_debugmallocstats(dms_a, dms_b))
+    # print('\n'.join(diff_debugmallocstats(dms_a, dms_b)))
 
-    pprint.pprint(diff_debugmallocstats(dms_a, dms_b))
+    print(f'POOL_OVERHEAD {POOL_OVERHEAD}')
+
+    with DiffSysDebugMallocStats() as diff_dms:
+        l = []
+        l.append({})
+        l.append(set())
+        l.append((1, 2, 3))
+        for i in range(80):
+            l.append(tuple(list(range(4))))
+    print(f'POOL_OVERHEAD {POOL_OVERHEAD}')
+    print(diff_dms.diff())
 
     return 0
 
