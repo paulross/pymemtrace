@@ -107,5 +107,17 @@ setup(
             library_dirs=[os.getcwd(), ],  # path to .a or .so file(s)
             extra_compile_args=extra_compile_args,
         ),
+        Extension(
+            "cMemLeak",
+            sources=[
+              'pymemtrace/src/cpy/cMemLeak.c',
+            ],
+            include_dirs=[
+                '/usr/local/include',
+                # os.path.join('pymemtrace', 'src', 'include'),
+            ],
+            library_dirs=[os.getcwd(), ],  # path to .a or .so file(s)
+            extra_compile_args=extra_compile_args,
+        ),
     ]
 )
