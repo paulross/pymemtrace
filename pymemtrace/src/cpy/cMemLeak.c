@@ -17,6 +17,7 @@ typedef struct {
 
 static void
 CMallocObject_dealloc(CMallocObject *self) {
+    /* fprintf(stdout, "YYYY CMallocObject size: %zu free(%p)\n", self->size, self->buffer); */
     free(self->buffer);
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
@@ -43,18 +44,31 @@ CMallocObject_init(CMallocObject *self, PyObject *args, PyObject *kwds) {
         self->size = 1;
     }
     self->buffer = malloc(self->size);
+    /* fprintf(stdout, "XXXX CMallocObject malloc(%zu) -> %p\n", self->size, self->buffer); */
     if (self->buffer == NULL) {
         return -1;
     }
     return 0;
 }
 
+static PyObject *
+CMallocObject_getsize(CMallocObject *self, void *Py_UNUSED(closure)) {
+    return PyLong_FromSsize_t(self->size);
+}
+
+static PyObject *
+CMallocObject_getbuffer(CMallocObject *self, void *Py_UNUSED(closure)) {
+    return PyLong_FromSsize_t((size_t)(self->buffer));
+}
+
 static PyMemberDef CMallocObject_members[] = {
-    {"size", T_ULONG, offsetof(CMallocObject, size), 0, "Buffer size."},
+//    {"size", T_ULONG, offsetof(CMallocObject, size), 0, "Buffer size."},
     {NULL, 0, 0, 0, NULL}  /* Sentinel */
 };
 
 static PyGetSetDef CMallocObject_getsetters[] = {
+    {"size", (getter) CMallocObject_getsize, (setter) NULL, "Buffer size.", NULL},
+    {"buffer", (getter) CMallocObject_getbuffer, (setter) NULL, "Buffer address.", NULL},
     {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 
@@ -125,12 +139,24 @@ PyRawMallocObject_init(PyRawMallocObject *self, PyObject *args, PyObject *kwds) 
     return 0;
 }
 
+static PyObject *
+PyRawMallocObject_getsize(PyRawMallocObject *self, void *Py_UNUSED(closure)) {
+    return PyLong_FromSsize_t(self->size);
+}
+
+static PyObject *
+PyRawMallocObject_getbuffer(PyRawMallocObject *self, void *Py_UNUSED(closure)) {
+    return PyLong_FromSsize_t((size_t)(self->buffer));
+}
+
 static PyMemberDef PyRawMallocObject_members[] = {
-    {"size", T_ULONG, offsetof(PyRawMallocObject, size), 0, "Buffer size."},
+//    {"size", T_ULONG, offsetof(PyRawMallocObject, size), 0, "Buffer size."},
     {NULL, 0, 0, 0, NULL}  /* Sentinel */
 };
 
 static PyGetSetDef PyRawMallocObject_getsetters[] = {
+    {"size", (getter) PyRawMallocObject_getsize, (setter) NULL, "Buffer size.", NULL},
+    {"buffer", (getter) PyRawMallocObject_getbuffer, (setter) NULL, "Buffer address.", NULL},
     {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 
@@ -201,12 +227,24 @@ PyMallocObject_init(PyMallocObject *self, PyObject *args, PyObject *kwds) {
     return 0;
 }
 
+static PyObject *
+PyMallocObject_getsize(PyMallocObject *self, void *Py_UNUSED(closure)) {
+    return PyLong_FromSsize_t(self->size);
+}
+
+static PyObject *
+PyMallocObject_getbuffer(PyMallocObject *self, void *Py_UNUSED(closure)) {
+    return PyLong_FromSsize_t((size_t)(self->buffer));
+}
+
 static PyMemberDef PyMallocObject_members[] = {
-    {"size", T_ULONG, offsetof(PyMallocObject, size), 0, "Buffer size."},
+//    {"size", T_ULONG, offsetof(PyMallocObject, size), 0, "Buffer size."},
     {NULL, 0, 0, 0, NULL}  /* Sentinel */
 };
 
 static PyGetSetDef PyMallocObject_getsetters[] = {
+    {"size", (getter) PyMallocObject_getsize, (setter) NULL, "Buffer size.", NULL},
+    {"buffer", (getter) PyMallocObject_getbuffer, (setter) NULL, "Buffer address.", NULL},
     {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 

@@ -76,13 +76,14 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
     ],
     test_suite='tests',
     tests_require=test_requirements,
     setup_requires=setup_requirements,
     ext_modules=[
         Extension(
-            "custom",
+            "pymemtrace.custom",
             sources=[
               'pymemtrace/src/cpy/cCustom.c',
             ],
@@ -94,7 +95,7 @@ setup(
             extra_compile_args=extra_compile_args,
         ),
         Extension(
-            "cPyMemTrace",
+            "pymemtrace.cPyMemTrace",
             sources=[
               'pymemtrace/src/c/get_rss.c',
               'pymemtrace/src/c/pymemtrace_util.c',
@@ -108,7 +109,7 @@ setup(
             extra_compile_args=extra_compile_args,
         ),
         Extension(
-            "cMemLeak",
+            "pymemtrace.cMemLeak",
             sources=[
               'pymemtrace/src/cpy/cMemLeak.c',
             ],
