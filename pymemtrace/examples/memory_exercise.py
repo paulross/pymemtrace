@@ -4,10 +4,7 @@ import os
 import sys
 import time
 
-# import pymemtrace
 from pymemtrace import cMemLeak
-
-print(dir(cMemLeak))
 
 
 logger = logging.getLogger(__file__)
@@ -97,8 +94,8 @@ def main():
     try:
         while True:
             # exercise_memory()
-            # exercise_c_memory()
-            create_c_buffer_and_del(1653)
+            exercise_c_memory()
+            # create_c_buffer_and_del(1653)
     except KeyboardInterrupt:
         print('Interrupted!')
     print(f'Runtime: {time.perf_counter() - clock_start:.3f} (s)')

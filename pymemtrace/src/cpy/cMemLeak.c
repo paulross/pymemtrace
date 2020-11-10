@@ -17,7 +17,7 @@ typedef struct {
 
 static void
 CMallocObject_dealloc(CMallocObject *self) {
-    /* fprintf(stdout, "YYYY CMallocObject size: %zu free(%p)\n", self->size, self->buffer); */
+    fprintf(stdout, "YYYY CMallocObject size: %zu free(%p)\n", self->size, self->buffer);
     free(self->buffer);
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
@@ -44,7 +44,7 @@ CMallocObject_init(CMallocObject *self, PyObject *args, PyObject *kwds) {
         self->size = 1;
     }
     self->buffer = malloc(self->size);
-    /* fprintf(stdout, "XXXX CMallocObject malloc(%zu) -> %p\n", self->size, self->buffer); */
+    fprintf(stdout, "XXXX CMallocObject malloc(%zu) -> %p\n", self->size, self->buffer);
     if (self->buffer == NULL) {
         return -1;
     }
