@@ -53,14 +53,14 @@ python$target:::function-return
 	self->name = 0;
 }
 
-pid$target:libc:malloc:entry
+pid$target::malloc:entry
 /self->file != NULL/
 {
 	@malloc_func_size[self->file, self->name] = sum(arg0);
 	@malloc_func_dist[self->file, self->name] = quantize(arg0);
 }
 
-pid$target:libc:malloc:entry
+pid$target::malloc:entry
 /self->name == NULL/
 {
 	@malloc_lib_size[usym(ucaller)] = sum(arg0);
