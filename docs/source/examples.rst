@@ -8,6 +8,8 @@ Contents:
     :maxdepth: 2
 
     examples/debug_malloc_stats
+    examples/process
+    examples/tracemalloc
 
 
 The OS's View of Memory

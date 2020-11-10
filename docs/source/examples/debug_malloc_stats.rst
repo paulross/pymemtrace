@@ -5,7 +5,7 @@
 
 .. code-block:: python
 
-    print(f'example_trace_malloc_for_documentation()')
+    print(f'example_debug_malloc_stats_for_documentation()')
     with debug_malloc_stats.DiffSysDebugMallocStats() as malloc_diff:
         for i in range(1, 9):
             list_of_strings.append(' ' * (i * 8))
@@ -16,7 +16,7 @@
 
 .. code-block:: text
 
-    example_trace_malloc_for_documentation()
+    example_debug_malloc_stats_for_documentation()
     DiffSysDebugMallocStats.diff():
     class   size   num pools   blocks in use  avail blocks
     -----   ----   ---------   -------------  ------------
