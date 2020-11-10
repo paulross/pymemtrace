@@ -9,8 +9,6 @@ There are several DoF here:
 - Logging level, DEBUG, INFO etc.
 - Logging verbosity, for example just memory? Or everything about the process (self._process.as_dict())
 
-Also need to add a log parser to, well what?
-
 """
 import argparse
 import contextlib
@@ -19,7 +17,6 @@ import json
 import logging
 import os
 import queue
-import random
 import re
 import sys
 import threading
@@ -248,7 +245,9 @@ def add_message_to_queue(msg: str) -> None:
 
 class ProcessLoggingThread(threading.Thread):
     """Thread that regularly logs out process parameters."""
-    def __init__(self, group=None, target=None, name=None, args=(), kwargs=None, *, daemon=None):
+    def __init__(self, group=None, target=None, name=None, daemon=None,
+                 interval=1.0, log_level=logging.INFO, pid=-1,
+                 ):
         """Constructor.
         args[0], or interval=... must be the reporting interval in seconds, default 1.0.
         args[1], or log_level=... must be the log level to report with, default logging.INFO.
@@ -256,11 +255,14 @@ class ProcessLoggingThread(threading.Thread):
         if name is None:
             name = 'ProcMon'
         super().__init__(group=group, target=target, name=name, daemon=daemon)
-        self.args = args
-        self.kwargs = kwargs
-        self._interval = args[0] if len(args) else kwargs.get('interval', 1.0)
-        self._log_level = args[1] if len(args) > 1 else kwargs.get('log_level', logging.INFO)
-        self._process = psutil.Process()
+        self._interval = interval
+        self._log_level = log_level
+        self._pid = pid
+        print(f'Monitoring {self._pid}')
+        if self._pid != -1:
+            self._process = psutil.Process(self._pid)
+        else:
+            self._process = psutil.Process()
         self._run = True
 
     def _get_process_data(self, **kwargs):
@@ -307,7 +309,7 @@ class ProcessLoggingThread(threading.Thread):
 @contextlib.contextmanager
 def log_process(*args, **kwargs):
     """Context manager to log process data at regular intervals."""
-    process_thread = ProcessLoggingThread(args=args, kwargs=kwargs)
+    process_thread = ProcessLoggingThread(*args, **kwargs)
     process_thread.start()
     try:
         yield
@@ -330,6 +332,14 @@ def main() -> int:
         prog='process.py',
         description="""Reads an annotated log of a process and writes a Gnuplot graph.""",
     )
+    parser.add_argument('-i', '--interval', type=float, help='Logging interval in seconds [default: %(default)s]',
+                        default=1.0)
+    parser.add_argument('-p', '--pid', type=int, help='PID to monitor, -1 it this [default: %(default)s]',
+                        default=-1)
+    parser.add_argument("-l", "--log_level", type=int, dest="log_level", default=20,
+                        help="Log Level (debug=10, info=20, warning=30, error=40, critical=50)"
+                             " [default: %(default)s]"
+                        )
     parser.add_argument('path_in', type=str, help='Input path.', nargs='?')
     parser.add_argument('path_out', type=str, help='Output path.', nargs='?')
     logging.basicConfig(
@@ -338,20 +348,19 @@ def main() -> int:
     )
     args = parser.parse_args()
     if args.path_in and args.path_out:
-        logger.info(f'Extracting data from a log at {args.path_in} to {args.path_out}')
         invoke_gnuplot(args.path_in, args.path_out)
     else:
+        # Log another process or self
         logger.info('Demonstration of logging a process')
-        with log_process(0.1):
-            for i in range(8):
-                size = random.randint(128, 128 + 256) * 1024 ** 2
-                add_message_to_queue(f'String of {size:,d} bytes')
-                s = ' ' * size
-                # time.sleep(.8)
-                time.sleep(0.5 + random.random())
-                del s
-                # time.sleep(.4)
-                time.sleep(0.25 + random.random() / 2)
+        with log_process(interval=args.interval, log_level=args.log_level, pid=args.pid):
+            try:
+                while True:
+                    time.sleep(1000)
+                    add_message_to_queue(f'Parent process wakes...')
+            except KeyboardInterrupt:
+                print('KeyboardInterrupt!')
+                pass
+    print('Bye, bye!')
     return 0
 
 

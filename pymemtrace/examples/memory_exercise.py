@@ -69,9 +69,9 @@ def main():
     #                     default=False,
     #                     help="Verbose, lists duplicate files and sizes. [default: %(default)s]")
     parser.add_argument(
-        "-l", "--loglevel",
+        "-l", "--log_level",
         type=int,
-        dest="loglevel",
+        dest="log_level",
         default=20,
         help="Log Level (debug=10, info=20, warning=30, error=40, critical=50)"
              " [default: %(default)s]"
