@@ -87,7 +87,7 @@ def main():
 
     clock_start = time.perf_counter()
     # Initialise logging etc.
-    logging.basicConfig(level=args.loglevel,
+    logging.basicConfig(level=args.log_level,
                         format='%(asctime)s - %(filename)-16s - %(lineno)4d - %(process)5d - (%(threadName)-10s) - %(levelname)-8s - %(message)s',
                         # datefmt='%y-%m-%d % %H:%M:%S',
                         stream=sys.stdout)
