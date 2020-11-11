@@ -47,8 +47,8 @@
  * 09-Sep-2007	Brendan Gregg	Created this.
  */
 
-
 #pragma D option quiet
+#pragma D option destructive
 #pragma D option switchrate=10
 
 self int depth;
@@ -74,6 +74,9 @@ python*:::function-entry
 	    copyinstr(arg1));
 	self->depth++;
 	self->last = timestamp;
+	printf("PS: ");
+	system("ps -p %d -o rss=", pid);
+	printf("\n");
 }
 
 python*:::function-return

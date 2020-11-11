@@ -12,6 +12,7 @@ Contents:
     examples
     memory_leaks
 
+    technical_notes
     reference
 
     contributing

@@ -19,6 +19,8 @@
  * Or for full path names:
  * sudo dtrace -C -s toolkit/py_flow_malloc_free.d -D FULL_FILE_PATH -p <PID>
  *
+ * Use -D PYTHON_CALL_STACK if you want the Python call stack (verbose).
+ *
  * Acknowledgments to py_malloc.d which is Copyright (c) 2007 Brendan Gregg.
  *
  */
@@ -30,16 +32,16 @@ self int depth;
 
 dtrace:::BEGIN
 {
-	/*
-	printf("Tracing... Hit Ctrl-C to end.\n");
+	printf("dtrace:::BEGIN\n");
+#ifdef PYTHON_CALL_STACK
 	printf("%s %6s %10s  %16s:%-4s %-8s -- %s\n", "C", "PID", "DELTA(us)",
 	    "FILE", "LINE", "TYPE", "FUNC");
-	*/
-	printf("dtrace:::BEGIN\n");
+#endif
 }
 
 python$target:::function-entry
 {
+#ifdef PYTHON_CALL_STACK
     printf("%6d %16s:%-4d CALL %*s-> %s\n", pid,
 #ifdef FULL_FILE_PATH
             copyinstr(arg0),
@@ -50,6 +52,8 @@ python$target:::function-entry
             self->depth * 2, "",
             copyinstr(arg1));
     self->depth++;
+#endif
+
 #ifdef FULL_FILE_PATH
     self->file = copyinstr(arg0);
 #else
@@ -61,6 +65,7 @@ python$target:::function-entry
 
 python$target:::function-return
 {
+#ifdef PYTHON_CALL_STACK
     self->depth -= self->depth > 0 ? 1 : 0;
     printf("%6d %16s:%-4d RTN  %*s<- %s\n", pid,
 #ifdef FULL_FILE_PATH
@@ -70,6 +75,7 @@ python$target:::function-return
 #endif
             arg2,
             self->depth * 2, "", copyinstr(arg1));
+#endif
 	self->file = 0;
 	self->name = 0;
 	self->line = 0;
