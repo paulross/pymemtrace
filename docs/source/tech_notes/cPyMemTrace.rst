@@ -1,10 +1,24 @@
-Technical Note on cPyMemTrace
+
+.. _tech_notes-cpymemtrace:
+
+Technical Note on ``cPyMemTrace``
 ======================================
 
-Memory Usage Monitored by ``process.py``
-``process.py`` is a RSS monitor from TotalDepth that runs in a seperate thread and reports the RSS at regular intervals.
+.. _tech_notes-cpymemtrace_test_data:
+
+Test Program and Data
+------------------------------
+
+This tests the performance of ``cPyMenTrace`` with a real world program.
+The program reads remote sensing structured text files containing static data and dynamic arrays of floating point data and summarised them as HTML pages [#]_.
+The input was 82 files totalling 108Mb.
+The largest file was 27,330,513 bytes, smallest 4,609 bytes.
+The output was 111 HTML files and indexes totaling 7.2Mb
+Platform was a Mac mini (late 2014) 2.8 GHz Intel Core i5 running macOS Mojave 10.14.6.
+
+The memory usage was monitored by ``pymemtrace.process.py`` which is a RSS monitor that runs in a seperate thread and reports the RSS at regular intervals.
 The cost in runtime and memory is minimal.
-The tick time was set to 0.25s for no use of cPyMemTrace and 1.0s when using cPyMenTrace.
+The tick time was set to 0.25s for no use of ``cPyMemTrace`` and 1.0s when using ``cPyMenTrace``.
 
 No use of ``cPyMemTrace``
 --------------------------------------------
@@ -23,7 +37,7 @@ Output in ``tmp/LAS/cPyMemTrace/LASToHtml_no_trace/LASToHTML.log`` which took 25
 This was to establish the overhead of calling ``trace_or_profile_function()`` but merely incrementing the event counter.
 Nothing is calculated.
 Nothing is logged.
-Output in `tmp/LAS/cPyMemTrace/LASToHtml_trace_C/LASToHTML.log`.
+Output in ``tmp/LAS/cPyMemTrace/LASToHtml_trace_C/LASToHTML.log``.
 Time was 29.346 s, x1.137
 
 .. image:: images/LASToHTML.log_9434.svg
@@ -36,9 +50,9 @@ Time was 29.346 s, x1.137
 ``cPyMemTrace`` RSS Only Computed, No Events Logged
 -------------------------------------------------------
 
-This was to establish the overhead of calling `trace_or_profile_function()` as before but also computing just the RSS.
+This was to establish the overhead of calling ``trace_or_profile_function()`` as before but also computing just the RSS.
 Nothing is logged.
-Output in `tmp/LAS/cPyMemTrace/LASToHtml_trace_D/LASToHTML.log`. Time was 241.212 s, x9.349
+Output in ``tmp/LAS/cPyMemTrace/LASToHtml_trace_D/LASToHTML.log``. Time was 241.212 s, x9.349
 It is notable that the CPU is averaging around 35%:
 
 .. image:: images/LASToHTML.log_9552.svg
@@ -112,133 +126,58 @@ Bytes: 30,413,538,865
     :align: center
 
 Summary
-==================
+------------------
 
 Here are the overall times and the event rate for different configurations:
 
+
++--------+------------+---------------------------------+----------+---------+----------------+-----------------+
 | Trace? | Calculate? | Log?                            | Time (s) | Ratio   | Events Loged   | Actual Events/s |
-| ------ | ---------- | ------------------------------- | -------- | ------- | -------------- | --------------- |
++========+============+=================================+==========+=========+================+=================+
 | No     | No         | No                              | 25.8     | x1.0    | 0              | 5.4m            |
++--------+------------+---------------------------------+----------+---------+----------------+-----------------+
 | Yes    | No         | No                              | 29.4     | x1.14   | 0              | 4.7m            |
++--------+------------+---------------------------------+----------+---------+----------------+-----------------+
 | Yes    | RSS        | No                              | 241.2    | x9.35   | 0              | 0.57m           |
++--------+------------+---------------------------------+----------+---------+----------------+-----------------+
 | Yes    | All        | No                              | 252.6    | x9.79   | 0              | 0.55m           |
++--------+------------+---------------------------------+----------+---------+----------------+-----------------+
 | Yes    | All        | dRSS >= 4096                    | 246.3    | x9.55   | 74,518         | 0.56m           |
++--------+------------+---------------------------------+----------+---------+----------------+-----------------+
 | Yes    | All        | dRSS >= 4096 and previous event | 574.5    | x22.3   | 146,037        | 0.24m           |
++--------+------------+---------------------------------+----------+---------+----------------+-----------------+
 | Yes    | All        | All                             | 576.6    | x22.3   | 138,243,335    | 0.24m           |
++--------+------------+---------------------------------+----------+---------+----------------+-----------------+
 
 
-### Cost of Tracing
+Cost of Tracing
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For the 138,243,335 events (or 74,517 that are >= 4096) the run time can be used to calculate the the cost per event:
 
++------------------------------------+---------------------------+-----------------------------------------+
 | Part of Tracing                    | Runtime cost in µs/event. | Notes.                                  |
-| ---------------------------------- | ------------------------- | --------------------------------------- |
++====================================+===========================+=========================================+
 | Typical Python code                | 0.1 to 0.2                |                                         |
++------------------------------------+---------------------------+-----------------------------------------+
 | Attach and call C a trace function | 0.2                       | This is gratifingly quick.              |
++------------------------------------+---------------------------+-----------------------------------------+
 | Calculate RSS                      | 1.5                       | This is quite slow.                     |
+|                                    |                           | See: :ref:`tech_notes-rss_cost`         |
++------------------------------------+---------------------------+-----------------------------------------+
 | Log an event                       | 2.5                       | Also slow. Formatting (?).              |
++------------------------------------+---------------------------+-----------------------------------------+
 
 
 It is fairly understandable that the formatting and logging takes a while but it is interesting that computing the RSS is so expensive.
+This is investigated in a bit more detail in :ref:`tech_notes-rss_cost`.
 
+Conclusion
+-----------------
 
-### RSS Cost
-
-For comparison here is the cost of calsulating the RSS with `psutil`:
-
-
-```import timeit
-timeit.repeat('p.memory_info().rss', setup='import psutil; p = psutil.Process()', number=1_000_000, repeat=5)
-[9.89, 14.32, 12.00, 14.67, 13.77]
-```
-
-So that takes typically 13 µs (range 9.8 to 14.3).
-
-Here is the cost of calculating the RSSwith `cPyMemTrace`:
-
-```
->>> import timeit
->>> timeit.repeat('cPyMemTrace.rss()', setup='import cPyMemTrace', number=1_000_000, repeat=5)
-[1.656, 1.649, 1.636, 1.626, 1.646]
-```
-
-So 1.64 µs ± 0.015 µs which agrees very closely with our estimate of 1.5 µs above.
-
-And peak RSS:
-
-```
->>> timeit.repeat('cPyMemTrace.rss_peak()', setup='import cPyMemTrace', number=1_000_000, repeat=5)
-[0.650, 0.628, 0.638, 0.629, 0.633]
-```
-
-So 	0.636 µs ± 0.011 µs.
-
-It looks like this is the best we can do and x8 faster than psutil.
-
-## Conclusion
-
-* The C code is much faster than the previous pymemtrace code.
-* A x10 to x22 runtime cost is the best we can do.
+* The C code is much faster than the legacy Python ``pymemtrace`` code, probably by a factor of x20 or so.
+* A x10 to x22 runtime overhead is probably the best we can do.
 * Zero memory cost is great.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Lorem ipsum [#f1]_
-
-
-To test the performance of `cPyMenTrace` TotalDepth was used to summarise LAS files in HTML.
-Source data was the W005862 directory but with MDT directory removed.
-There were 82 LAS files totalling 108,145,150 bytes.
-The largest file was 27,330,513 bytes, smallest 4,609 bytes.
-Platform was a Mac mini (late 2014) 2.8 GHz Intel Core i5 running macOS Mojave 10.14.6.
-
-
-Baseline Python 3.9 (standard release build):
-
- .. image:: images/LASToHTML.log_77077.svg
-    :alt: Basic Python 3.9 performance.
-
-Execution time is 34.4 seconds and average CPU% is 85.8 so effective time is 29.5 (s).
-
-
-Python 3.9 (release) with DTrace support
-
- .. image:: images/LASToHTML.log_76753.svg
-    :alt: Python 3.9 (release) with DTrace capability.
-
-Execution time is 48.6 seconds and average CPU% is 72.4 so effective time is 35.2 (s) which is 19.3% above the baseline.
-
-
-
-
-
 .. rubric:: Footnotes
-.. [#f1] Text of the first footnote.
+.. [#] TotalDepth was used to summarise LAS files in HTML. Source data was the W005862 directory but with the MDT directory removed.
