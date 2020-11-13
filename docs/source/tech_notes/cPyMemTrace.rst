@@ -27,7 +27,7 @@ Output in ``tmp/LAS/cPyMemTrace/LASToHtml_no_trace/LASToHTML.log`` which took 25
 
 .. image:: images/LASToHTML.log_8631.svg
     :alt: Benchmark.
-    :width: 700
+    :width: 800
     :align: center
 
 
@@ -42,7 +42,7 @@ Time was 29.346 s, x1.137
 
 .. image:: images/LASToHTML.log_9434.svg
     :alt: Benchmark.
-    :width: 700
+    :width: 800
     :align: center
 
 
@@ -57,7 +57,7 @@ It is notable that the CPU is averaging around 35%:
 
 .. image:: images/LASToHTML.log_9552.svg
     :alt: Benchmark.
-    :width: 700
+    :width: 800
     :align: center
 
 
@@ -70,7 +70,7 @@ Time was 252.640 s, x9.791
 
 .. image:: images/LASToHTML.log_9236.svg
     :alt: Benchmark.
-    :width: 700
+    :width: 800
     :align: center
 
 ``cPyMemTrace`` All Events Computed, RSS changes >=4096 bytes Logged
@@ -87,7 +87,7 @@ Bytes: 16,393,947
 
 .. image:: images/LASToHTML.log_9685.svg
     :alt: Benchmark.
-    :width: 700
+    :width: 800
     :align: center
 
 
@@ -104,7 +104,7 @@ Bytes: 28,341,012
 
 .. image:: images/LASToHTML.log_20328.svg
     :alt: Benchmark.
-    :width: 700
+    :width: 800
     :align: center
 
 It is notable that the CPU is around 50%.
@@ -122,7 +122,7 @@ Bytes: 30,413,538,865
 
 .. image:: images/LASToHTML.log_8692.svg
     :alt: Benchmark.
-    :width: 700
+    :width: 800
     :align: center
 
 Summary
