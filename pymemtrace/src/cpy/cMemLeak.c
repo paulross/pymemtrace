@@ -8,6 +8,13 @@
 #include <Python.h>
 #include "structmember.h"
 
+
+/* If defined this reports any malloc and free for CMallocObject, PyRawMallocObject and PyMallocObject. */
+/*
+#define DEBUG_REPORT_MALLOC_FREE
+*/
+#undef DEBUG_REPORT_MALLOC_FREE
+
 /******** Allocate a buffer with C's malloc() ********/
 typedef struct {
     PyObject_HEAD
@@ -17,7 +24,9 @@ typedef struct {
 
 static void
 CMallocObject_dealloc(CMallocObject *self) {
-    fprintf(stdout, "YYYY CMallocObject size: %zu free(%p)\n", self->size, self->buffer);
+#ifdef DEBUG_REPORT_MALLOC_FREE
+    fprintf(stdout, "CMallocObject size: %zu free(%p)\n", self->size, self->buffer);
+#endif
     free(self->buffer);
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
@@ -44,7 +53,9 @@ CMallocObject_init(CMallocObject *self, PyObject *args, PyObject *kwds) {
         self->size = 1;
     }
     self->buffer = malloc(self->size);
-    fprintf(stdout, "XXXX CMallocObject malloc(%zu) -> %p\n", self->size, self->buffer);
+#ifdef DEBUG_REPORT_MALLOC_FREE
+    fprintf(stdout, "CMallocObject malloc(%zu) -> %p\n", self->size, self->buffer);
+#endif
     if (self->buffer == NULL) {
         return -1;
     }
@@ -107,6 +118,9 @@ typedef struct {
 
 static void
 PyRawMallocObject_dealloc(PyRawMallocObject *self) {
+#ifdef DEBUG_REPORT_MALLOC_FREE
+    fprintf(stdout, "PyRawMallocObject size: %zu free(%p)\n", self->size, self->buffer);
+#endif
     PyMem_RawFree(self->buffer);
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
@@ -132,7 +146,10 @@ PyRawMallocObject_init(PyRawMallocObject *self, PyObject *args, PyObject *kwds) 
     if (self->size == 0) {
         self->size = 1;
     }
-    self->buffer = PyMem_Malloc(self->size);
+    self->buffer = PyMem_RawMalloc(self->size);
+#ifdef DEBUG_REPORT_MALLOC_FREE
+    fprintf(stdout, "PyRawMallocObject malloc(%zu) -> %p\n", self->size, self->buffer);
+#endif
     if (self->buffer == NULL) {
         return -1;
     }
@@ -195,6 +212,9 @@ typedef struct {
 
 static void
 PyMallocObject_dealloc(PyMallocObject *self) {
+#ifdef DEBUG_REPORT_MALLOC_FREE
+    fprintf(stdout, "PyMallocObject size: %zu free(%p)\n", self->size, self->buffer);
+#endif
     PyMem_Free(self->buffer);
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
@@ -221,6 +241,9 @@ PyMallocObject_init(PyMallocObject *self, PyObject *args, PyObject *kwds) {
         self->size = 1;
     }
     self->buffer = PyMem_Malloc(self->size);
+#ifdef DEBUG_REPORT_MALLOC_FREE
+    fprintf(stdout, "PyMallocObject malloc(%zu) -> %p\n", self->size, self->buffer);
+#endif
     if (self->buffer == NULL) {
         return -1;
     }

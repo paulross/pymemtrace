@@ -1,4 +1,5 @@
 import sys
+import timeit
 
 import typing
 from pymemtrace import debug_malloc_stats
@@ -71,22 +72,109 @@ def example_debug_malloc_stats_for_documentation(list_of_strings):
     print(f'{malloc_diff.diff()}')
 
 
+COUNT = 8
+
 def example():
     for function in (test_under_512, test_over_512, test_well_over_512):
         print(f'Function: {function}'.center(75, '='))
         list_of_strings = []
         with debug_malloc_stats.DiffSysDebugMallocStats() as malloc_diff:
-            function(8, list_of_strings)
+            function(COUNT, list_of_strings)
         print(f'DiffSysDebugMallocStats.diff():')
         print(f'{malloc_diff.diff()}')
         print(f'DONE: Function: {function}'.center(75, '='))
         print()
 
 
+def example_timeit():
+    for function in (test_under_512, test_over_512, test_well_over_512):
+        list_of_strings = []
+        function(COUNT, list_of_strings)
+
+
+def example_timeit_with_debug_malloc_stats():
+    for function in (test_under_512, test_over_512, test_well_over_512):
+        list_of_strings = []
+        with debug_malloc_stats.DiffSysDebugMallocStats() as malloc_diff:
+            function(COUNT, list_of_strings)
+
+
+def example_timeit_under_512():
+    list_of_strings = []
+    test_under_512(COUNT, list_of_strings)
+
+
+def example_timeit_under_512_with_debug_malloc_stats():
+    list_of_strings = []
+    with debug_malloc_stats.DiffSysDebugMallocStats() as malloc_diff:
+        test_under_512(COUNT, list_of_strings)
+
+
+def example_timeit_over_512():
+    list_of_strings = []
+    test_over_512(COUNT, list_of_strings)
+
+
+def example_timeit_over_512_with_debug_malloc_stats():
+    list_of_strings = []
+    with debug_malloc_stats.DiffSysDebugMallocStats() as malloc_diff:
+        test_over_512(COUNT, list_of_strings)
+
+
+def example_timeit_well_over_512():
+    list_of_strings = []
+    test_well_over_512(COUNT, list_of_strings)
+
+
+def example_timeit_well_over_512_with_debug_malloc_stats():
+    list_of_strings = []
+    with debug_malloc_stats.DiffSysDebugMallocStats() as malloc_diff:
+        test_well_over_512(COUNT, list_of_strings)
+
+
 def main():
-    example_debug_malloc_stats_for_documentation([])
+    # example_debug_malloc_stats_for_documentation([])
     print()
-    example()
+    # example()
+    # print(timeit.repeat('p.memory_info().rss', setup='import psutil; p = psutil.Process()', number=1_000_000, repeat=5))
+
+    NUMBER = 10_000
+    REPEAT = 5
+    CONVERT = 1_000_000
+    print(f'number={NUMBER:,d} repeat={REPEAT:,d} convert={CONVERT:,d}')
+    for function in (
+            'example_timeit_under_512',
+            'example_timeit_over_512',
+            'example_timeit_well_over_512',
+    ):
+        # t = timeit.timeit(f"{function}()", setup=f"from __main__ import {function}", number=NUMBER) / NUMBER
+        # print(f'{function:60}: {t:9.9f}')
+        times = timeit.repeat(f"{function}()", setup=f"from __main__ import {function}", number=NUMBER, repeat=REPEAT)
+        times = [CONVERT * t / NUMBER for t in times]
+        result = [f'{v:9.3f}' for v in times]
+        times_mean = sum(times) / REPEAT
+        print(
+            f'{function:60}:'
+            f' {", ".join(result)}'
+            f' mean={times_mean:9.3f}'
+            f' min={min(times):9.3f}'
+            f' max={max(times):9.3f}'
+            f' span={max(times) - min(times):9.3f}'
+        )
+        # With _with_debug_malloc_stats
+        times_with_debug_malloc_stats = timeit.repeat(f"{function}_with_debug_malloc_stats()", setup=f"from __main__ import {function}_with_debug_malloc_stats", number=NUMBER, repeat=REPEAT)
+        times_with_debug_malloc_stats = [CONVERT * t / NUMBER for t in times_with_debug_malloc_stats]
+        result = [f'{v:9.3f}' for v in times_with_debug_malloc_stats]
+        times_mean_with_debug_malloc_stats = sum(times_with_debug_malloc_stats) / REPEAT
+        print(
+            f'{function + "_with_debug_malloc_stats":60}:'
+            f' {", ".join(result)}'
+            f' mean={times_mean_with_debug_malloc_stats:9.3f}'
+            f' min={min(times_with_debug_malloc_stats):9.3f}'
+            f' max={max(times_with_debug_malloc_stats):9.3f}'
+            f' span={max(times_with_debug_malloc_stats) - min(times_with_debug_malloc_stats):9.3f}'
+            f' x{times_mean_with_debug_malloc_stats / times_mean:>8.3f}'
+        )
     return 0
 
 

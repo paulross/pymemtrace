@@ -18,32 +18,60 @@ TODO: Links for these.
   It can then report the Python memory pool usage and Python memory usage by type.
 * ``cPyMemTrace`` is a memory tracer written in C that can report total memory usage for every function call/return for both C and Python sections.
 * DTrace: There are a number of D scripts that can trace the fundamental ``malloc()`` and ``free()`` system calls.
+  See :ref:`examples-dtrace`
 
 
 Tool Characteristics
 ======================
 
-+---------------------------+-----------------------+-------------------------------+-----------------------+---------------+
-| Tool                      | Memory Granularity    | Code Granularity              | Memory Cost           | Runtime Cost  |
-+===========================+=======================+===============================+=======================+===============+
-| ``process``               | RSS (total Python     | Regular time intervals.       | Near zero             | Near zero     |
-|                           | and C Memory)         |                               |                       |               |
-+---------------------------+-----------------------+-------------------------------+-----------------------+---------------+
-| ``trace_malloc``          | Every Python object   | Per line or function call     | Significant but       | x5 (?)        |
-|                           |                       |                               | compensated.          |               |
-+---------------------------+-----------------------+-------------------------------+-----------------------+---------------+
-| ``debug_malloc_stats``    | Python memory pool    | Snapshots CPython memory      | Minimal except for    | Near zero     |
-|                           |                       | either side of a block of     | Python debug builds.  |               |
-|                           |                       | code.                         |                       |               |
-+---------------------------+-----------------------+-------------------------------+-----------------------+---------------+
-| ``cPyMemTrace``           | RSS (total Python     | Per line or function call     | Near zero.            | x10 to x20    |
-|                           | and C Memory)         |                               |                       |               |
-+---------------------------+-----------------------+-------------------------------+-----------------------+---------------+
-| ``DTrace``                | Every ``malloc()``    | Per function call and return. | Minimal except for    | x90 to x100   |
-|                           | and ``free()``        |                               | Python debug builds.  |               |
-|                           |                       |                               |                       |               |
-+---------------------------+-----------------------+-------------------------------+-----------------------+---------------+
+Each tool can be characterised by:
 
+- *Memory Granularity*: In how much detail is a memory change is observed.
+  An example of *coarse* memory granularity is measuring the
+  `Resident Set Size <https://en.wikipedia.org/wiki/Resident_set_size>`_ which is normally in chunks of 4096 bytes.
+  An example of *fine* memory granularity is recording every ``malloc()`` and ``free()``.
+- *Execution Granularity*: In how much code detail is the memory change observed.
+  An example of *coarse* execution granularity is measuring the memory usage every second.
+  An example of *fine* execution granularity is recording the memory usage every Python line.
+- *Memory Cost*: How much extra memory does the tool need.
+- *Execution Cost*: How much is the execution time affected.
+
+
+
+.. list-table:: **Tool Characteristics**
+   :widths: 15 30 30 30 30
+   :header-rows: 1
+
+   * - Tool
+     - Memory Granularity
+     - Execution Granularity
+     - Memory Cost
+     - Execution Cost
+   * - ``process``
+     - RSS (total Python and C memory).
+     - Regular time intervals.
+     - Near zero.
+     - Near zero.
+   * - ``trace_malloc``
+     - Every Python object.
+     - Per Python line, per function call.
+     - Significant but compensated.
+     - x900 for small objects, x6 for large objects.
+   * - ``debug_malloc_stats``
+     - Pythom memory pool.
+     - Snapshots the CPython memory pool either side of a block of code.
+     - Minimal except with Python debug builds.
+     - x2000+ for small objects, x12 for large objects.
+   * - ``cPyMemTrace``
+     - RSS (total Python and C memory).
+     - Per Python line, function and per C function call.
+     - Near zero.
+     - x10 to x20.
+   * - DTrace
+     - Every ``malloc()`` and ``free()``.
+     - Per function call and return.
+     - Minimal except with Python debug builds.
+     - x90 to x100.
 
 .. Commented out for now:
 

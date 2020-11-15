@@ -9,7 +9,8 @@ Contents:
 
     examples/debug_malloc_stats
     examples/process
-    examples/tracemalloc
+    examples/trace_malloc
+    examples/dtrace
 
 
 The OS's View of Memory

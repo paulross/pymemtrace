@@ -1,5 +1,6 @@
 import logging
 import sys
+import timeit
 
 from pymemtrace import trace_malloc
 
@@ -11,7 +12,7 @@ COUNT = 16
 
 
 def test_under_512(list_of_strings):
-    print(f'test_under_512 count={COUNT}')
+    # print(f'test_under_512 count={COUNT}')
     for i in range(COUNT):
         list_of_strings.append(create_string(256))
     # while len(list_of_strings):
@@ -19,7 +20,7 @@ def test_under_512(list_of_strings):
 
 
 def test_over_512(list_of_strings):
-    print(f'test_over_512 count={COUNT}')
+    # print(f'test_over_512 count={COUNT}')
     for i in range(COUNT):
         list_of_strings.append(create_string(1024))
     # while len(list_of_strings):
@@ -27,7 +28,7 @@ def test_over_512(list_of_strings):
 
 
 def test_well_over_512(list_of_strings):
-    print(f'test_well_over_512 count={COUNT}')
+    # print(f'test_well_over_512 count={COUNT}')
     for i in range(COUNT):
         list_of_strings.append(create_string(1024**2))
     # while len(list_of_strings):
@@ -52,18 +53,23 @@ def example_trace_malloc_for_documentation(list_of_strings):
     with trace_malloc.TraceMalloc('filename') as tm:
         for i in range(8):
             list_of_strings.append(create_string(1024**2))
-    print(f'tm.memory_start={tm.memory_start}')
+            # list_of_strings.append(create_string(128))
+    print(f' tm.memory_start={tm.memory_start}')
     print(f'tm.memory_finish={tm.memory_finish}')
+    print(f'         tm.diff={tm.diff}')
     for stat in tm.statistics:
+        print(stat)
+    print()
+    for stat in tm.net_statistics():
         print(stat)
 
 
-@trace_malloc.trace_malloc_report(logging.ERROR)
+@trace_malloc.trace_malloc_log(logging.INFO)
 def example_decorator_for_documentation(list_of_strings):
     """An example of using the trace_malloc.trace_malloc_report decorator for logging memory usage.
     Typical output::
 
-        ERROR:root:TraceMalloc memory usage: 8390030
+        2020-11-15 18:13:06,000 -          trace_malloc.py#82   -  9689 - (MainThread) - INFO     - TraceMalloc memory delta: 8,389,548
     """
     print(f'example_decorator_for_documentation()')
     for i in range(8):
@@ -84,12 +90,94 @@ def example():
         print()
 
 
-def main():
+def example_timeit_under_512():
+    list_of_strings = []
+    test_under_512(list_of_strings)
+
+
+def example_timeit_under_512_with_trace_malloc(key_type):
+    list_of_strings = []
+    with trace_malloc.TraceMalloc(key_type) as tm:
+        test_under_512(list_of_strings)
+
+
+def example_timeit_over_512():
+    list_of_strings = []
+    test_over_512(list_of_strings)
+
+
+def example_timeit_over_512_with_trace_malloc(key_type):
+    list_of_strings = []
+    with trace_malloc.TraceMalloc(key_type) as tm:
+        test_over_512(list_of_strings)
+
+
+def example_timeit_well_over_512():
+    list_of_strings = []
+    test_well_over_512(list_of_strings)
+
+
+def example_timeit_well_over_512_with_trace_malloc(key_type):
+    list_of_strings = []
+    with trace_malloc.TraceMalloc(key_type) as tm:
+        test_well_over_512(list_of_strings)
+
+
+def run_timeit():
+    NUMBER = 10_000
+    REPEAT = 5
+    CONVERT = 1_000_000
+    print(f'number={NUMBER:,d} repeat={REPEAT:,d} convert={CONVERT:,d}')
+    for function in (
+            'example_timeit_under_512',
+            'example_timeit_over_512',
+            'example_timeit_well_over_512',
+    ):
+        # t = timeit.timeit(f"{function}()", setup=f"from __main__ import {function}", number=NUMBER) / NUMBER
+        # print(f'{function:60}: {t:9.9f}')
+        times = timeit.repeat(f"{function}()", setup=f"from __main__ import {function}", number=NUMBER, repeat=REPEAT)
+        times = [CONVERT * t / NUMBER for t in times]
+        result = [f'{v:9.3f}' for v in times]
+        times_mean = sum(times) / REPEAT
+        print(
+            f'{function:60}:'
+            f' {", ".join(result)}'
+            f' mean={times_mean:9.3f}'
+            f' min={min(times):9.3f}'
+            f' max={max(times):9.3f}'
+            f' span={max(times) - min(times):9.3f}'
+        )
+        for key_type in ('filename', 'lineno', 'traceback'):
+            # With _with_trace_malloc
+            times_with_trace_malloc = timeit.repeat(f"{function}_with_trace_malloc('{key_type}')", setup=f"from __main__ import {function}_with_trace_malloc", number=NUMBER, repeat=REPEAT)
+            times_with_trace_malloc = [CONVERT * t / NUMBER for t in times_with_trace_malloc]
+            result = [f'{v:9.3f}' for v in times_with_trace_malloc]
+            times_mean_with_trace_malloc = sum(times_with_trace_malloc) / REPEAT
+            function_str = function + f"_with_trace_malloc('{key_type}')"
+            print(
+                f'{function_str:60}:'
+                f' {", ".join(result)}'
+                f' mean={times_mean_with_trace_malloc:9.3f}'
+                f' min={min(times_with_trace_malloc):9.3f}'
+                f' max={max(times_with_trace_malloc):9.3f}'
+                f' span={max(times_with_trace_malloc) - min(times_with_trace_malloc):9.3f}'
+                f' x{times_mean_with_trace_malloc / times_mean:>8.3f}'
+            )
+
+
+def main() -> int:
+    logging.basicConfig(
+        level=logging.INFO,
+        # format='%(asctime)s - %(filename)24s#%(lineno)-4d - %(funcName)24s - %(process)5d - (%(threadName)-10s) - %(levelname)-8s - %(message)s',
+        format='%(asctime)s - %(filename)24s#%(lineno)-4d - %(process)5d - (%(threadName)-10s) - %(levelname)-8s - %(message)s',
+        stream=sys.stdout
+    )
+    print()
     example_decorator_for_documentation([])
     print()
     example_trace_malloc_for_documentation([])
-    print()
-    example()
+    # print()
+    # example()
     return 0
 
 

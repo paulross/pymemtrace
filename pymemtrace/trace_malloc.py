@@ -52,11 +52,17 @@ class TraceMalloc:
         return False
 
     @property
+    def tracemalloc_memory_usage(self) -> typing.Optional[int]:
+        """Returns the tracemalloc memory usage between snapshots of None of no tracing."""
+        if self.TRACE_ON:
+            return self.memory_finish - self.memory_start
+
+    @property
     def diff(self) -> int:
-        """The total memory usage difference recorded by tracemalloc allowing for the memory usage of tracemalloc."""
+        """The net memory usage difference recorded by tracemalloc allowing for the memory usage of tracemalloc."""
         if self.TRACE_ON:
             if self._diff is None:
-                self._diff = sum(s.size_diff for s in self.statistics) - (self.memory_finish - self.memory_start)
+                self._diff = sum(s.size_diff for s in self.statistics) - self.tracemalloc_memory_usage
             return self._diff
         return -sys.maxsize - 1
 
@@ -70,7 +76,7 @@ class TraceMalloc:
         return ret
 
 
-def trace_malloc_report(log_level: int):
+def trace_malloc_log(log_level: int):
     """Decorator that logs the decorated function the use of Python memory in bytes at the desired log level.
     This can be switched to a NOP by setting TraceMalloc.TRACE_ON to False."""
     def memory_inner(fn):
@@ -78,7 +84,7 @@ def trace_malloc_report(log_level: int):
         def wrapper(*args, **kwargs):
             with TraceMalloc() as tm:
                 result = fn(*args, ** kwargs)
-            logging.log(log_level, 'TraceMalloc memory usage: %d', tm.diff)
+            logging.log(log_level, f'TraceMalloc memory delta: {tm.diff:,d} for "{fn.__name__}()"')
             return result
         return wrapper
     return memory_inner

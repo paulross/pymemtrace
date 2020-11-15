@@ -21,6 +21,22 @@
  *
  * Use -D PYTHON_CALL_STACK if you want the Python call stack (verbose).
  *
+ * From Objects/obmalloc.c:
+ *
+ * #define MALLOC_ALLOC {NULL, _PyMem_RawMalloc, _PyMem_RawCalloc, _PyMem_RawRealloc, _PyMem_RawFree}
+ * #ifdef WITH_PYMALLOC
+ * #  define PYMALLOC_ALLOC {NULL, _PyObject_Malloc, _PyObject_Calloc, _PyObject_Realloc, _PyObject_Free}
+ * #endif
+ *
+ * #define PYRAW_ALLOC MALLOC_ALLOC
+ * #ifdef WITH_PYMALLOC
+ * #  define PYOBJ_ALLOC PYMALLOC_ALLOC
+ * #else
+ * #  define PYOBJ_ALLOC MALLOC_ALLOC
+ * #endif
+ * #define PYMEM_ALLOC PYOBJ_ALLOC
+
+ *
  * Copyright (c) 2020 Paul Ross.
  * Acknowledgments to py_malloc.d which is Copyright (c) 2007 Brendan Gregg.
  *
@@ -93,59 +109,65 @@ python$target:::line
     self->line = arg2;
 }
 
-pid$target::malloc:entry
+/*
+/self->file != NULL/
+*/
+
+/* For pymalloc calls of: _PyObject_Malloc, _PyObject_Calloc, _PyObject_Realloc, _PyObject_Free */
+
+pid$target::_PyObject_Malloc:entry
 /self->file != NULL/
 {
-    /* So this is slightly not well understood. It seems that self-file and self-> name do not persist to
-     * pid$target::malloc:return
-     * They are often null or truncated in some way.
-     *
-     * Instead we report them here but without the terminating '\n' then pid$target::malloc:return can add the pointer
-     * value onto the end of the line and terminate it.
-     *
-     * It seems to work in practice.
-     */
-
-    /*
-     * arg0 is the buffer size to allocate.
-     */
-    printf("%6d %16s:%-4d -> %s malloc(%d)", pid, self->file, self->line, self->name, arg0);
-
-    @malloc_func_size[self->file, self->name] = sum(arg0);
-    @malloc_func_dist[self->file, self->name] = quantize(arg0);
+    /* arg1 is the buffer size to allocate. */
+    printf("%6d %16s:%-4d -> %s _PyObject_Malloc(%d)", pid, self->file, self->line, self->name, arg1);
 }
 
-pid$target::malloc:return
+pid$target::_PyObject_Malloc:return
 /self->file != NULL/
 {
-    /*
-     * arg0 is the program counter.
-     * arg1 is the buffer pointer that has been allocated.
-     */
-    printf(" pntr 0x%x\n", arg1);
+    /* arg0 is the PC, arg1 is the buffer location */
+    printf(" _PyObject_Malloc returns 0x%x\n", arg1);
 }
 
-pid$target::malloc:entry
-/self->name == NULL/
-{
-    @malloc_lib_size[usym(ucaller)] = sum(arg0);
-    @malloc_lib_dist[usym(ucaller)] = quantize(arg0);
-}
-
-pid$target::free:entry
+pid$target::_PyObject_Calloc:entry
 /self->file != NULL/
 {
-    /*
-     * arg0 is the address to free.
-     */
-    printf("%6d %16s:%-4d -> %s free(0x%x)\n", pid, self->file, self->line, self->name, arg0);
+    /* arg1 is the number of elements, arg2 is the element size to allocate. */
+    printf("%6d %16s:%-4d -> %s _PyObject_Calloc(%d, %d)", pid, self->file, self->line, self->name, arg1, arg2);
 }
+
+pid$target::_PyObject_Calloc:return
+/self->file != NULL/
+{
+    /* arg0 is the PC, arg1 is the buffer location */
+    printf(" _PyObject_Calloc returns 0x%x\n", arg1);
+}
+
+pid$target::_PyObject_Realloc:entry
+/self->file != NULL/
+{
+    /* arg1 is the existing buffer, arg2 is the buffer size. */
+    printf("%6d %16s:%-4d -> %s _PyObject_Realloc(0x%x, %d)\n", pid, self->file, self->line, self->name, arg1, arg2);
+}
+
+#if 0
+/* Probe not available. */
+pid$target::_PyObject_Realloc:return
+{
+    /* arg0 is the PC, arg1 is the buffer location */
+    printf(" _PyObject_Realloc returns 0x%x\n", arg1);
+}
+#endif
+
+pid$target::_PyObject_Free:entry
+/self->file != NULL/
+{
+    /* arg1 is the existing buffer. */
+    printf("%6d %16s:%-4d -> %s _PyObject_Free(0x%x)\n", pid, self->file, self->line, self->name, arg1);
+}
+
 
 dtrace:::END
 {
 	printf("\ndtrace:::END\n");
-	printf("Python malloc byte distributions by engine caller:\n");
-	printa("   %A, total bytes = %@d %@d\n", @malloc_lib_size, @malloc_lib_dist);
-	printf("\nPython malloc byte distributions by Python file and function:\n\n");
-	printa("   %s, %s, bytes total = %@d %@d\n", @malloc_func_size, @malloc_func_dist);
 }

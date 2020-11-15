@@ -54,6 +54,9 @@ coverage.xml
 *.log
 local_settings.py
 
+# Compressed logs
+*.log.tgz
+
 # Flask stuff:
 instance/
 .webassets-cache
@@ -115,3 +118,5 @@ tmp/
 # cmake files
 cmake-build-debug/
 cmake-build-release/
+
+attic/
