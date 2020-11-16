@@ -1,14 +1,17 @@
-
 .. _tech_notes-rss_cost:
 
 Cost of Calculating RSS
 =============================
 
-Obtaining the Resident Set Size is not something that is done very frequently, typically monitoring software runs at a frequency of one second or so so the cost of obtaining the RSS value is not significant.
-With memory profiling the RSS is required per function call or per line and the cost of calculating RSS becomes a bottleneck. See :ref:`tech_notes-cpymemtrace`.
-This is a comparative look at what that cost is.
-The platform is a Mac mini (late 2014) 2.8 GHz Intel Core i5 running macOS Mojave 10.14.6.
+Obtaining the Resident Set Size is not something that is done very frequently.
+Typically, monitoring software runs at a frequency of one second or so more so the cost of obtaining the RSS value is
+not significant.
+However with memory profiling the RSS is required per function call or per line and the cost of calculating RSS becomes
+a bottleneck.
+For example see the :ref:`tech_notes-cpymemtrace`.
 
+Here is a comparative look at what that cost is.
+The platform is a Mac mini (late 2014) 2.8 GHz Intel Core i5 running macOS Mojave 10.14.6.
 
 Using ``psutil``
 -----------------------

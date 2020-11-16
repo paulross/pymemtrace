@@ -3,6 +3,9 @@
 ``trace_malloc`` Examples
 ==============================
 
+``trace_malloc`` contains some utility wrappers around the :py:mod:`tracemalloc` module.
+It can compensate for the memory used by :py:mod:`tracemalloc` module.
+
 These Python examples are in :py:mod:`pymemtrace.examples.ex_trace_malloc`
 
 

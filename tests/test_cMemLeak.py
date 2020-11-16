@@ -2,22 +2,9 @@ import sys
 
 import pytest
 
-print(sys.path)
+from pymemtrace import cMemLeak
 
-import pymemtrace
-
-print(dir(pymemtrace))
-
-import cMemLeak
-
-# from pymemtrace import cMemLeak
 
 def test_cmalloc_object():
-    cobj = cMemLeak.mem_leak.CMalloc(1024)
+    cobj = cMemLeak.CMalloc(1024)
     assert cobj.size == 1024
-
-
-
-
-
-

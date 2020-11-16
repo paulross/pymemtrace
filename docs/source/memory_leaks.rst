@@ -10,9 +10,3 @@ Contents:
     memory_leaks/introduction
     memory_leaks/tools
     memory_leaks/techniques
-
-
-Related Links
-------------------
-
-

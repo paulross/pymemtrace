@@ -2,7 +2,7 @@
 History
 =======
 
-0.2.0 (2020-11-20)
+0.1.1 (2020-11-18)
 ------------------
 
 * Add cPyMemTrace the C level profiler.

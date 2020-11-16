@@ -12,8 +12,7 @@ into twice the original memory and this can look, superficially like a memory le
 
 Python data structures are not particularly efficient, an ``int`` is typically 24 bytes, a ``datetime`` 48 bytes and so on.
 
-TODO:
-
+A further source of 'leaks' are caches.
 
 Sources of Leaks
 ------------------
@@ -228,7 +227,8 @@ In summary:
               between 8 and 512 bytes and divided by that into Blocks.
               So there are between 512 x 8 byte blocks and 8 x 512 byte blocks in a Pool.
 
-
+See :ref:`examples-debug_malloc_stats` for examples of ``pymemtrace.debug_malloc_stats`` that can make this information
+much more useful.
 
 Memory De-allocation
 """""""""""""""""""""

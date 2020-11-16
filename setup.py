@@ -52,7 +52,7 @@ else:
 
 setup(
     name='pymemtrace',
-    version='0.1.0',
+    version='0.1.1',
     description="Python memory tracing.",
     long_description=readme + '\n\n' + history,
     author="Paul Ross",
