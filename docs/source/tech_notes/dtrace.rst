@@ -17,20 +17,29 @@ Python Builds
 ----------------------------
 
 Python 3.9 was configured and built with DTrace support.
-Debug build:
+
+Debug Build
+^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
 
     configure --with-pydebug --without-pymalloc --with-valgrind --with-dtrace
 
+.. note::
 
-Release build:
+    Since this bypasses Python's small object allocator (``pymalloc``) then every ``malloc()`` and ``free()`` can be
+    seen by DTrace.
+    This makes the DTrace logs very large.
+
+Release Build
+^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
 
     configure --with-dtrace
 
-Baseline Python 3.9
+
+Baseline: Python 3.9
 ---------------------------
 
 
@@ -69,7 +78,7 @@ Using ``time`` gives:
     user        35.56
     sys          2.45
 
-So a DTrace capable build has roughly a 40% premium even when not tracing.
+So a DTrace capable build has roughly a 40% premium in ``real`` time even when not tracing.
 
 Python 3.9 Release with DTrace support, DTrace Tracing
 ---------------------------------------------------------
@@ -89,14 +98,16 @@ Using ``time`` gives:
     user       902.51
     sys       1949.83
 
-This is a x65 increase in runtime over a release build not tracing or a x91 increase in a non-DTrace build.
+Note the increase in ``sys`` time caused by DTrace.
+This is a x65 increase in runtime over a release build (not tracing) and a x91 increase over the non-DTrace baseline.
 
 DTrace Log File
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Removing garbage from the DTrace log can be done with ``grep -o "[[:print:][:space:]]*" dtrace.log | grep malloc``
-The log file has 243,285 lines of which ``malloc()`` are 94,882 and ``free()`` are 144,684.
-Of the ``free()`` calls 74,254 are ``free(0x0)``.
+The log file [#]_ has 243,285 lines of which:
+
+* 94,882 calls to ``malloc()``
+* 144,684 calls to ``free()``. 74,254 of these are to ``free(0x0)``.
 
 
 Python 3.9 Debug with DTrace support, no Tracing
@@ -154,8 +165,11 @@ This is a x24 increase in runtime over a debug build not tracing or a x99 increa
 DTrace Log File
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-This has 16m lines of which ``malloc()`` are 8m and ``free()`` are 8m.
-Of the ``free()`` calls 39,000 are ``free(0x0)``.
+This has 16m lines of which there are:
+
+* 8m calls to ``malloc()``
+* 8m calls to ``free()``. 39,000 of these are to ``free(0x0)``.
+
 
 .. Commented out:
 
@@ -183,30 +197,31 @@ Here is a summary of the performance cost of using different builds and tracing 
 | DTrace, trace ``malloc()``, ``free()``.                           | 3220      | 903       | 1950      | x91               |
 | Python release build using ``pymalloc``.                          |           |           |           |                   |
 +-------------------------------------------------------------------+-----------+-----------+-----------+-------------------+
-| DTrace, no tracing. Debug without using ``pymalloc``              | 148       | 134       | 1.93      | x4.2              |
+| DTrace, no tracing. Debug, not using ``pymalloc``                 | 148       | 134       | 1.93      | x4.2              |
 +-------------------------------------------------------------------+-----------+-----------+-----------+-------------------+
 | DTrace, trace ``malloc()``, ``free()``.                           | 3520      | 1180      | 2130      | x99               |
-| Python debug build without using ``pymalloc``.                    |           |           |           |                   |
+| Python debug build, not using ``pymalloc``.                       |           |           |           |                   |
 +-------------------------------------------------------------------+-----------+-----------+-----------+-------------------+
 
 DTrace Log File
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Piping the DTrace output to a log file gives the following log file for this task.
+Piping the DTrace output to a log file gives the following log files for this job.
 
-+-------------------------------------------------------------------+---------------+---------------+-------------------+
-| Build                                                             | Release       | Debug         | Debug/Release     |
-+===================================================================+===============+===============+===================+
-| Size                                                              | 16 Mb         | 11,000 Mb     | x68               |
-+-------------------------------------------------------------------+---------------+---------------+-------------------+
-| Lines                                                             | 243k          | 16m           | x68               |
-+-------------------------------------------------------------------+---------------+---------------+-------------------+
-| ``malloc()`` entries                                              | 94,880        | 8,096,729     | x85               |
-+-------------------------------------------------------------------+---------------+---------------+-------------------+
-| ``free()`` entries                                                | 144,684       | 8,054,421     | x56               |
-+-------------------------------------------------------------------+---------------+---------------+-------------------+
-| ``free(0x0)`` entries                                             | 74,254        | 38,849        | x0.52             |
-+-------------------------------------------------------------------+---------------+---------------+-------------------+
++-----------------------------------+---------------+---------------+-----------------------+
+| Build                             | Release       | Debug         | Ratio Debug/Release   |
++===================================+===============+===============+=======================+
+| Size                              | 16 Mb         | 11,000 Mb     | x68                   |
++-----------------------------------+---------------+---------------+-----------------------+
+| Lines                             | 243k          | 16m           | x68                   |
++-----------------------------------+---------------+---------------+-----------------------+
+| ``malloc()`` entries              | 94,880        | 8,096,729     | x85                   |
++-----------------------------------+---------------+---------------+-----------------------+
+| ``free()`` entries                | 144,684       | 8,054,421     | x56                   |
++-----------------------------------+---------------+---------------+-----------------------+
+| ``free(0x0)`` entries             | 74,254        | 38,849        | x0.52                 |
++-----------------------------------+---------------+---------------+-----------------------+
 
 .. rubric:: Footnotes
 .. [#] This uses the LASToHTML from the TotalDepth project.
+.. [#] Removing garbage from the DTrace log can be done with ``grep -o "[[:print:][:space:]]*" <LOG>``

@@ -28,6 +28,13 @@ For a debug build that does not use ``pymalloc`` replace the ``configure`` line 
 
     ../configure --with-dtrace --with-pydebug --without-pymalloc --with-valgrind
 
+.. note::
+
+    Since this bypasses Python's small object allocator (``pymalloc``) then every ``malloc()`` and ``free()`` can be
+    seen by DTrace.
+    This makes the DTrace logs very large.
+
+
 Checking if Python is DTrace Capable
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

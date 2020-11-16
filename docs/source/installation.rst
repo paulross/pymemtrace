@@ -37,13 +37,19 @@ Or download the `tarball`_:
 
 .. code-block:: console
 
-    $ curl  -OL https://github.com/paulross/pymemtrace/tarball/master
+    $ curl -OL https://github.com/paulross/pymemtrace/tarball/master
 
 Once you have a copy of the source, you can install it with:
 
 .. code-block:: console
 
     $ python setup.py install
+
+Or for development:
+
+.. code-block:: console
+
+    $ python setup.py develop
 
 
 .. _Github repo: https://github.com/paulross/pymemtrace

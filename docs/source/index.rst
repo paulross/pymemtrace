@@ -10,9 +10,9 @@ Contents:
     readme
     installation
     examples
-    memory_leaks
-
     technical_notes
+
+    memory_leaks
     reference
 
     contributing

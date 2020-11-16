@@ -14,14 +14,6 @@ The tools provided by ``pymemtrace``:
 * ``process`` is a very lightweight way of logging the total memory usage at regular time intervals.
   It can plot memory over time with plotting programs such as ``gnuplot``.
   :ref:`Some process examples <examples-process>`
-* ``trace_malloc`` is a convenience wrapper around the :py:mod:`tracemalloc` module that can report Python memory usage
-  by module and line compenstaing for the cost of :py:mod:`tracemalloc`.
-  This can take memory snapshots before and after code blocks and show the change on memory caused by that code.
-  :ref:`Some trace_malloc examples <examples-trace_malloc>`.
-* ``debug_malloc_stats`` is a wrapper around the :py:func:`sys._debugmallocstats` module that can
-  take snapshots of
-  memory before and after code execution and report the significant differences of the Python small object allocator.
-  :ref:`Some debug_malloc_stats examples <examples-debug_malloc_stats>`.
 * ``cPyMemTrace`` is a memory tracer written in C that can report total memory usage for every function call/return for
   both C and Python sections.
   :ref:`Some cPyMemTrace examples <examples-cpymemtrace>`.
@@ -30,6 +22,14 @@ The tools provided by ``pymemtrace``:
   report how much memory was allocated and by whom.
   Examples :ref:`examples-dtrace`.
   Technical note: :ref:`tech_notes-dtrace`
+* ``trace_malloc`` is a convenience wrapper around the :py:mod:`tracemalloc` module that can report Python memory usage
+  by module and line compenstaing for the cost of :py:mod:`tracemalloc`.
+  This can take memory snapshots before and after code blocks and show the change on memory caused by that code.
+  :ref:`Some trace_malloc examples <examples-trace_malloc>`.
+* ``debug_malloc_stats`` is a wrapper around the :py:func:`sys._debugmallocstats` module that can
+  take snapshots of
+  memory before and after code execution and report the significant differences of the Python small object allocator.
+  :ref:`Some debug_malloc_stats examples <examples-debug_malloc_stats>`.
 
 
 Tool Characteristics
@@ -63,16 +63,6 @@ Each tool can be characterised by:
      - Regular time intervals.
      - Near zero.
      - Near zero.
-   * - ``trace_malloc``
-     - Every Python object.
-     - Per Python line, per function call.
-     - Significant but compensated.
-     - x900 for small objects, x6 for large objects.
-   * - ``debug_malloc_stats``
-     - Python memory pool.
-     - Snapshots the CPython memory pool either side of a block of code.
-     - Minimal except with Python debug builds.
-     - x2000+ for small objects, x12 for large objects.
    * - ``cPyMemTrace``
      - RSS (total Python and C memory).
      - Per Python line, function and per C function call.
@@ -83,6 +73,16 @@ Each tool can be characterised by:
      - Per function call and return.
      - Minimal except with Python debug builds.
      - x90 to x100.
+   * - ``trace_malloc``
+     - Every Python object.
+     - Per Python line, per function call.
+     - Significant but compensated.
+     - x900 for small objects, x6 for large objects.
+   * - ``debug_malloc_stats``
+     - Python memory pool.
+     - Snapshots the CPython memory pool either side of a block of code.
+     - Minimal except with Python debug builds.
+     - x2000+ for small objects, x12 for large objects.
 
 Package Metadata
 =========================
