@@ -1,6 +1,6 @@
-.. _examples-tracemalloc:
+.. _examples-trace_malloc:
 
-``tracemalloc`` Examples
+``trace_malloc`` Examples
 ==============================
 
 These Python examples are in :py:mod:`pymemtrace.examples.ex_trace_malloc`

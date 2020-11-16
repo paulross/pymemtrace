@@ -1,5 +1,5 @@
 
-.. _tech-note-dtrace:
+.. _tech_notes-dtrace:
 
 Technical Note on DTrace
 ==========================

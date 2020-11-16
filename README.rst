@@ -8,17 +8,25 @@ Introduction
 Tools
 ======================
 
-TODO: Links for these.
+Here are teh tolls provided by ``pymemtrace``:
 
-* ``process`` logs the total memory usage at regular time intervals.
-  It can plot this with plotting programs such as gnuplot.
-* ``trace_malloc`` is a convenience wrapper around the ``tracemalloc`` module that can report Python memory usage by module and line.
-  This can take memory snapshots before and after code blocks.
-* ``debug_malloc_stats`` is a wrapper around the ``sys._debugmallocstats`` module that can take snapshots of memory before and after code execution.
-  It can then report the Python memory pool usage and Python memory usage by type.
-* ``cPyMemTrace`` is a memory tracer written in C that can report total memory usage for every function call/return for both C and Python sections.
-* DTrace: There are a number of D scripts that can trace the fundamental ``malloc()`` and ``free()`` system calls.
-  See :ref:`examples-dtrace`
+* ``process`` is a very lightweight way of logging the total memory usage at regular time intervals.
+  It can plot memory over time with plotting programs such as ``gnuplot``.
+  :ref:`Some process examples <examples-process>`
+* ``trace_malloc`` is a convenience wrapper around the :py:mod:`tracemalloc` module that can report Python memory usage
+  by module and line compenstaing for the cost of :py:mod:`tracemalloc`.
+  This can take memory snapshots before and after code blocks and show the change on memory caused by that code.
+  :ref:`Some trace_malloc examples <examples-trace_malloc>`.
+* ``debug_malloc_stats`` is a wrapper around the :py:mod:`sys._debugmallocstats` module that can take snapshots of
+  memory before and after code execution and report the significant differences of the Python small object allocator.
+  :ref:`Some debug_malloc_stats examples <examples-debug_malloc_stats>`.
+* ``cPyMemTrace`` is a memory tracer written in C that can report total memory usage for every function call/return for
+  both C and Python sections.
+  :ref:`Some cPyMemTrace examples <examples-cpymemtrace>`.
+  Technical note: :ref:`tech_notes-cpymemtrace`
+* DTrace: There are a number of D scripts that can trace the fundamental ``malloc()`` and ``free()`` system calls and report how much memory was allocated and by whom.
+  Examples :ref:`examples-dtrace`.
+  Technical note: :ref:`tech_notes-dtrace`
 
 
 Tool Characteristics

@@ -2,8 +2,8 @@ import sys
 
 import psutil
 
-import custom
-import cPyMemTrace
+from pymemtrace import custom
+from pymemtrace import cPyMemTrace
 
 
 def create_string(l: int) -> str:

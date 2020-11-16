@@ -638,4 +638,4 @@ Here is the output, edited and truncated.
 Further Analysis
 ---------------------
 
-There is a in-depth analysis of using DTrace on a real world application in a :ref:`tech-note-dtrace`.
+There is a in-depth analysis of using DTrace on a real world application in a :ref:`tech_notes-dtrace`.

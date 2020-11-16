@@ -7,8 +7,9 @@ Contents:
 .. toctree::
     :maxdepth: 2
 
-    examples/debug_malloc_stats
     examples/process
+    examples/c_py_mem_trace
+    examples/debug_malloc_stats
     examples/trace_malloc
     examples/dtrace
 
@@ -17,7 +18,7 @@ The OS's View of Memory
 ----------------------------------
 
 ``pymemtrace`` asks the OS for its opinion of memory usage at each function entry and exit point.
-For this to be acurate Python's memory pool system (the Python Object Allocator) must be disabled and this needs a special build of Python with ``--without-pymalloc`` set::
+For this to be accurate Python's memory pool system (the Python Object Allocator) must be disabled and this needs a special build of Python with ``--without-pymalloc`` set::
 
     ../configure --with-pydebug --without-pymalloc
     make

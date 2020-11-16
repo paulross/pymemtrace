@@ -258,11 +258,11 @@ class ProcessLoggingThread(threading.Thread):
         self._interval = interval
         self._log_level = log_level
         self._pid = pid
-        print(f'Monitoring {self._pid}')
         if self._pid != -1:
             self._process = psutil.Process(self._pid)
         else:
             self._process = psutil.Process()
+            self._pid = self._process.pid
         self._run = True
 
     def _get_process_data(self, **kwargs):

@@ -334,12 +334,14 @@ static PyTypeObject ProfileObjectType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.Profile",
         .tp_doc = "A context manager to attach a C profile function to the interpreter.\n"
-                  "This takes one optional argument, d_rss_trigger, that decides when a trace event gets recorded."
-                  " Suitable values: -1 : whenever an RSS change >= page size (usually 4096 bytes) is noticed."
-                  " 0 : every event. n: whenever an RSS change >= n is noticed. Default is -1\n."
-                  "This is slightly less invasive profiling as the profile function is called for all monitored events"
-                  "  except the Python PyTrace_LINE PyTrace_OPCODE and PyTrace_EXCEPTION events."
-                  "Writes to a file in the current working directory named \"YYYYmmdd_HHMMSS_<PID>.log\""
+                  "This takes one optional argument, ``d_rss_trigger``, that decides when a trace event gets recorded."
+                  " Suitable values:\n\n-1 : whenever an RSS change >= page size (usually 4096 bytes) is noticed."
+                  "\n\n0 : every event.\n\nn: whenever an RSS change >= n is noticed."
+                  "\n\nDefault is -1."
+                  "\n\nThis is slightly less invasive profiling than ``cPyMemTrace.Trace`` as the profile function is"
+                  " called for all monitored events except the Python ``PyTrace_LINE PyTrace_OPCODE`` and"
+                  " ``PyTrace_EXCEPTION`` events."
+                  "\n\nThis writes to a file in the current working directory named \"YYYYmmdd_HHMMSS_<PID>.log\""
                   ,
         .tp_basicsize = sizeof(ProfileObject),
         .tp_itemsize = 0,
@@ -406,12 +408,14 @@ static PyTypeObject TraceObjectType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.Trace",
         .tp_doc = "A context manager to attach a C profile function to the interpreter.\n"
-                  "This takes one optional argument, d_rss_trigger, that decides when a trace event gets recorded."
-                  " Suitable values: -1 : whenever an RSS change >= page size (usually 4096 bytes) is noticed."
-                  " 0 : every event. n: whenever an RSS change >= n is noticed. Default is -1\n."
-                  "The tracing function does receive Python line-number events and per-opcode events"
-                  " but does not receive any event related to C function objects being called.\n"
-                  "Writes to a file in the current working directory named \"YYYYmmdd_HHMMSS_<PID>.log\""
+                  "This takes one optional argument, ``d_rss_trigger``, that decides when a trace event gets recorded."
+                  " Suitable values:\n\n-1 : whenever an RSS change >= page size (usually 4096 bytes) is noticed."
+                  "\n\n0 : every event.\n\nn: whenever an RSS change >= n is noticed."
+                  "\n\nDefault is -1."
+                  "\n\nThe tracing function does receive Python line-number events and per-opcode events"
+                  " but does not receive any event related to C functionss being called."
+                  " For that use ``cPyMemTrace.Profile``"
+                  "\n\nThis writes to a file in the current working directory named \"YYYYmmdd_HHMMSS_<PID>.log\""
                   ,
         .tp_basicsize = sizeof(TraceObject),
         .tp_itemsize = 0,
