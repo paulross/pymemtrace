@@ -1,23 +1,20 @@
 #!/usr/sbin/dtrace -Zs
 /*
- * py_flow_malloc.d - Python libc malloc analysis. Written for the Python DTrace provider.
+ * toolkit/py_object_U_WITH_PYMALLOC.d - Python libc malloc analysis.
+ * Written for the Python DTrace provider.
+ * This is for debug builds of Python that have WITH_PYMALLOC not defined.
  *
  * This reports the Python call stack and along the way any calls to system malloc() or free().
  * It also reports aggregate memory allocation by Python function.
  *
- * It requires a Python build with at least (Mac OSX):
- * ../configure --with-dtrace --with-openssl=$(brew --prefix openssl)
- *
- * This will build a 'release' version of Python with pymalloc, the small memory allocator for memory <=512 bytes.
- *
- * For a 'debug' version that tracks all memory allocations build with something like:
+ * It requires a Python build with at least (Mac OSX) that tracks all memory allocations build with something like:
  * ../configure --with-pydebug --without-pymalloc --with-valgrind --with-dtrace --with-openssl=$(brew --prefix openssl)
  *
  * USAGE (-C is to invoke the C preprocessor on this script):
- * sudo dtrace -C -s toolkit/py_flow_malloc_free.d -p <PID>
+ * sudo dtrace -C -s toolkit/py_object_U_WITH_PYMALLOC.d -p <PID>
  *
  * Or for full path names:
- * sudo dtrace -C -s toolkit/py_flow_malloc_free.d -D FULL_FILE_PATH -p <PID>
+ * sudo dtrace -C -s toolkit/py_object_U_WITH_PYMALLOC.d -D FULL_FILE_PATH -p <PID>
  *
  * Use -D PYTHON_CALL_STACK if you want the Python call stack (verbose).
  *
@@ -35,7 +32,7 @@
  * #  define PYOBJ_ALLOC MALLOC_ALLOC
  * #endif
  * #define PYMEM_ALLOC PYOBJ_ALLOC
-
+ *
  *
  * Copyright (c) 2020 Paul Ross.
  * Acknowledgments to py_malloc.d which is Copyright (c) 2007 Brendan Gregg.
@@ -113,57 +110,54 @@ python$target:::line
 /self->file != NULL/
 */
 
-/* For pymalloc calls of: _PyObject_Malloc, _PyObject_Calloc, _PyObject_Realloc, _PyObject_Free */
+/* For pymalloc calls of: _PyMem_RawMalloc, _PyMem_RawCalloc, _PyMem_RawRealloc, _PyMem_RawFree */
 
-pid$target::_PyObject_Malloc:entry
+pid$target::_PyMem_RawMalloc:entry
 /self->file != NULL/
 {
     /* arg1 is the buffer size to allocate. */
-    printf("%6d %16s:%-4d -> %s _PyObject_Malloc(%d)", pid, self->file, self->line, self->name, arg1);
+    printf("%6d %16s:%-4d -> %s _PyMem_RawMalloc(%d)", pid, self->file, self->line, self->name, arg1);
 }
 
-pid$target::_PyObject_Malloc:return
+pid$target::_PyMem_RawMalloc:return
 /self->file != NULL/
 {
     /* arg0 is the PC, arg1 is the buffer location */
-    printf(" _PyObject_Malloc returns 0x%x\n", arg1);
+    printf(" _PyMem_RawMalloc returns 0x%x\n", arg1);
 }
 
-pid$target::_PyObject_Calloc:entry
+pid$target::_PyMem_RawCalloc:entry
 /self->file != NULL/
 {
     /* arg1 is the number of elements, arg2 is the element size to allocate. */
-    printf("%6d %16s:%-4d -> %s _PyObject_Calloc(%d, %d)", pid, self->file, self->line, self->name, arg1, arg2);
+    printf("%6d %16s:%-4d -> %s _PyMem_RawCalloc(%d, %d)", pid, self->file, self->line, self->name, arg1, arg2);
 }
 
-pid$target::_PyObject_Calloc:return
+pid$target::_PyMem_RawCalloc:return
 /self->file != NULL/
 {
     /* arg0 is the PC, arg1 is the buffer location */
-    printf(" _PyObject_Calloc returns 0x%x\n", arg1);
+    printf(" _PyMem_RawCalloc returns 0x%x\n", arg1);
 }
 
-pid$target::_PyObject_Realloc:entry
+pid$target::_PyMem_RawRealloc:entry
 /self->file != NULL/
 {
     /* arg1 is the existing buffer, arg2 is the buffer size. */
-    printf("%6d %16s:%-4d -> %s _PyObject_Realloc(0x%x, %d)\n", pid, self->file, self->line, self->name, arg1, arg2);
+    printf("%6d %16s:%-4d -> %s _PyMem_RawRealloc(0x%x, %d)", pid, self->file, self->line, self->name, arg1, arg2);
 }
 
-#if 0
-/* Probe not available. */
-pid$target::_PyObject_Realloc:return
+pid$target::_PyMem_RawRealloc:return
 {
     /* arg0 is the PC, arg1 is the buffer location */
-    printf(" _PyObject_Realloc returns 0x%x\n", arg1);
+    printf(" _PyMem_RawRealloc returns 0x%x\n", arg1);
 }
-#endif
 
-pid$target::_PyObject_Free:entry
+pid$target::_PyMem_RawFree:entry
 /self->file != NULL/
 {
     /* arg1 is the existing buffer. */
-    printf("%6d %16s:%-4d -> %s _PyObject_Free(0x%x)\n", pid, self->file, self->line, self->name, arg1);
+    printf("%6d %16s:%-4d -> %s _PyMem_RawFree(0x%x)\n", pid, self->file, self->line, self->name, arg1);
 }
 
 

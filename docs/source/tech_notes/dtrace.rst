@@ -133,7 +133,6 @@ This is a x3 increase of runtime over a release DTrace capable build. This is ty
 .. Commented out:
 
     (TotalDepth3.9_develop)
-    paulross@Pauls-Mac-mini  ~/PycharmProjects/TotalDepth (develop)
     $ tdprocess tmp/LAS/cPyMemTrace/LASToHtml_trace_DTraceD_B/LASToHTML.log tmp/LAS/cPyMemTrace/LASToHtml_trace_DTraceD_B/gnuplot/
     2020-11-12 11:32:27,943 - process.py -  5108 - (MainThread) - INFO     - Extracting data from a log at tmp/LAS/cPyMemTrace/LASToHtml_trace_DTraceD_B/LASToHTML.log to tmp/LAS/cPyMemTrace/LASToHtml_trace_DTraceD_B/gnuplot/
     2020-11-12 11:32:27,981 - gnuplot.py -  5108 - (MainThread) - INFO     - gnuplot stdout: None
@@ -174,7 +173,6 @@ This has 16m lines of which there are:
 .. Commented out:
 
     (TotalDepth3.9_develop)
-    paulross@Pauls-Mac-mini  ~/PycharmProjects/TotalDepth (develop)
     $ tdprocess tmp/LAS/cPyMemTrace/LASToHtml_trace_DTraceD_C/LASToHTML.log tmp/LAS/cPyMemTrace/LASToHtml_trace_DTraceD_C/gnuplot/
     2020-11-12 11:32:42,854 - process.py -  5119 - (MainThread) - INFO     - Extracting data from a log at tmp/LAS/cPyMemTrace/LASToHtml_trace_DTraceD_C/LASToHTML.log to tmp/LAS/cPyMemTrace/LASToHtml_trace_DTraceD_C/gnuplot/
     2020-11-12 11:32:42,892 - gnuplot.py -  5119 - (MainThread) - INFO     - gnuplot stdout: None

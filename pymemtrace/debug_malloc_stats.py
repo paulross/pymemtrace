@@ -83,8 +83,7 @@ class DebugMallocStat(typing.NamedTuple):
         -----   ----   ---------   -------------  ------------
             0     16           2             297           209
 
-    Nomenclature is from ``_PyObject_DebugMallocStats(stderr))`` in ``Objects/obmalloc.c``
-
+    Nomenclature is from ``_PyObject_DebugMallocStats(stderr))`` in ``Objects/obmalloc.c``.
     Typical implementation:
 
     .. code-block:: c

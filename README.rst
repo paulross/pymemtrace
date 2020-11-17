@@ -16,20 +16,19 @@ The tools provided by ``pymemtrace``:
   :ref:`Some process examples <examples-process>`
 * ``cPyMemTrace`` is a memory tracer written in C that can report total memory usage for every function call/return for
   both C and Python sections.
-  :ref:`Some cPyMemTrace examples <examples-cpymemtrace>`.
-  Technical note: :ref:`tech_notes-cpymemtrace`
+  See some :ref:`cPyMemTrace examples <examples-cpymemtrace>`
+  and a :ref:`tech_notes-cpymemtrace`.
 * DTrace: Here are a number of D scripts that can trace the low level ``malloc()`` and ``free()`` system calls and
   report how much memory was allocated and by whom.
-  Examples :ref:`examples-dtrace`.
-  Technical note: :ref:`tech_notes-dtrace`
+  See :ref:`some DTrace examples <examples-dtrace>` and a :ref:`tech_notes-dtrace`.
 * ``trace_malloc`` is a convenience wrapper around the :py:mod:`tracemalloc` module that can report Python memory usage
   by module and line compenstaing for the cost of :py:mod:`tracemalloc`.
   This can take memory snapshots before and after code blocks and show the change on memory caused by that code.
-  :ref:`Some trace_malloc examples <examples-trace_malloc>`.
+  See :ref:`some trace_malloc examples <examples-trace_malloc>`.
 * ``debug_malloc_stats`` is a wrapper around the :py:func:`sys._debugmallocstats` module that can
   take snapshots of
   memory before and after code execution and report the significant differences of the Python small object allocator.
-  :ref:`Some debug_malloc_stats examples <examples-debug_malloc_stats>`.
+  See :ref:`some debug_malloc_stats examples <examples-debug_malloc_stats>`.
 
 
 Tool Characteristics
@@ -44,10 +43,10 @@ Each tool can be characterised by:
 - *Execution Granularity*: In how much code detail is the memory change observed.
   An example of *coarse* execution granularity is measuring the memory usage every second.
   An example of *fine* execution granularity is recording the memory usage every Python line.
-- *Memory Cost*: How much extra memory does the tool need.
-- *Execution Cost*: How much is the execution time affected.
+- *Memory Cost*: How much extra memory the tool needs.
+- *Execution Cost*: How much is the execution time is increased.
 
-
+Clearly there are trade-offs between these depending on the problem you are trying to solve.
 
 .. list-table:: **Tool Characteristics**
    :widths: 15 30 30 30 30
@@ -109,6 +108,12 @@ Python memory tracing.
 
 * Free software: MIT license
 * Documentation: https://pymemtrace.readthedocs.io.
+
+Credits
+-----------------
+
+Phil Smith (AHL) with whom a casual lunch time chat lead to the creation of an earlier, but quite different
+implementation, of ``cPyMemTrace`` in pure Python.
 
 This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
 

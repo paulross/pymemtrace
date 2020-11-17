@@ -55,13 +55,30 @@ In code:
 
 These Python examples are in :py:mod:`pymemtrace.examples.ex_dtrace`
 
-DTrace and C ``malloc``
-----------------------------------
+DTrace and C ``malloc()`` and ``free()``
+--------------------------------------------
+
+There is a D script ``toolkit/py_flow_malloc_free.d`` that traces all calls to ``malloc()`` and ``free()``.
+It takes the following optional arguments:
+
+.. list-table:: **Options for toolkit/py_flow_malloc_free.d D Script**
+   :widths: 30 70
+   :header-rows: 1
+
+   * - Option
+     - Description
+   * - ``-D FULL_FILE_PATH``
+     - Include the full path in Python filenames.
+   * - ``-D PYTHON_CALL_STACK``
+     - Include Python callstack when entering and exiting Python functions.
+
 
 :py:class:`cMemLeak.CMalloc` is a Python wrapper around a buffer directly allocated in C with ``malloc()``.
 Here we create four of them and append them to a list then pop them of lowest index first:
 
 .. code-block:: python
+
+    from pymemtrace import cMemLeak
 
     def create_cmalloc_list():
         input(f'Waiting to start tracing PID: {os.getpid()} (<cr> to continue):')
@@ -76,11 +93,18 @@ Here we create four of them and append them to a list then pop them of lowest in
             print(f'Pop\'d CMalloc size={block.size:d} buffer=0x{block.buffer:x}')
         l.clear()
 
-Run this in one shell (assuming PID 11296) and in the other run DTrace.
+Run this in one shell run this code:
 
 .. code-block:: bash
 
-    sudo dtrace -s toolkit/py_flow_malloc_free.d -p 11296 -C
+    $ python pymemtrace/examples/ex_dtrace.py
+
+
+And in the other shell run DTrace (here assuming Python is running as PID 11672 from the first shell).
+
+.. code-block:: bash
+
+    $ sudo dtrace -s toolkit/py_flow_malloc_free.d -p 11672 -C
 
 The output of the first shell is:
 
@@ -154,7 +178,7 @@ Using ``PyMem_RawAlloc``
 
 :py:class:`cMemLeak.PyRawMalloc` is a Python wrapper around a buffer directly allocated by Python in C with ``PyMem_RawAlloc``.
 This bypasses the ``pymalloc`` small object buffer and allocates directly even for small objects.
-So this code that creates 128 bytes buffers:
+So this code creates four 128 bytes buffers:
 
 .. code-block:: python
 
@@ -257,7 +281,7 @@ These allocations will be not be seen by DTrace in release builds of Python:
                    1 |@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 1
                    2 |                                         0
 
-If we change the allocation size to >512 then ``pymalloc`` is avoided by changing the allocation line to:
+If we change the allocation size to >512 then ``pymalloc`` is skipped:
 
 .. code-block:: python
 
@@ -318,8 +342,8 @@ Using ``PyMem_Alloc`` on Small Objects with a Debug Build of Python
 -------------------------------------------------------------------------
 
 If you have a debug version of Python that avoids using ``pymalloc`` the DTrace output will record every malloc, however small.
-If we use a very noticeable block size ``block = cMemLeak.PyMalloc(177)``.
-In this case although we are requesting a block of 177 bytes because of the Python build configuration the memory
+Here we use a very noticeable block size ``block = cMemLeak.PyMalloc(177)``.
+Although we are requesting a block of 177 bytes because of the Python build configuration the memory
 request is padded with 24 bytes of metadata so we are looking for allocations of 201 bytes.
 Here is the output, edited and truncated.
 
@@ -487,6 +511,246 @@ Here is the output, edited and truncated.
                   64 |@@@@@@@@@@@@@@@@@@@@@@@@@                66
                  128 |@@@@@@@                                  20
                  256 |                                         0
+
+
+
+DTrace and Python's Object Allocator
+-----------------------------------------
+
+There are two scripts provided for tracing Python's Object Allocator depending on whether you are using a debug build of
+Python (``--without-pymalloc``) or a release version of Python.
+
+.. list-table:: **DTrace and Python's Object Allocator**
+   :widths: 10 10 30 30 30
+   :header-rows: 1
+
+   * - Python
+     - With ``pymalloc``?
+     - Compiled With
+     - Memory Functions in ``Objects/obmalloc.c``
+     - D Script for Tracing
+   * - Debug
+     - No
+     - ``#undef WITH_PYMALLOC``
+     - ``_PyMem_RawMalloc``, ``_PyMem_RawCalloc``, ``_PyMem_RawRealloc``, ``_PyMem_RawFree``
+     - ``toolkit/py_object_U_WITH_PYMALLOC.d``
+   * - Release
+     - Yes
+     - ``#define WITH_PYMALLOC``
+     - ``_PyObject_Malloc``, ``_PyObject_Calloc``, ``_PyObject_Realloc``, ``_PyObject_Free``
+     - ``toolkit/py_object_D_WITH_PYMALLOC.d``
+
+Both of these D scripts have these options:
+
+.. list-table:: **Options for toolkit/py_object_?_WITH_PYMALLOC.d D Scripts**
+   :widths: 30 70
+   :header-rows: 1
+
+   * - Option
+     - Description
+   * - ``-D FULL_FILE_PATH``
+     - Include the full path in Python filenames.
+   * - ``-D PYTHON_CALL_STACK``
+     - Include Python callstack when entering and exiting Python functions.
+
+Given this Python code that appends four bytes objects to a list:
+
+.. code-block:: python
+
+    def create_py_array_list(size: int):
+        l = []
+        for i in range(4):
+            block = b' ' * size
+            print(f'Created {type(block)} size={len(block):d} buffer=0x{id(block):x}')
+            l.append(block)
+        while len(l):
+            # Remove in reverse order
+            block = l.pop(0)
+            print(f'Pop\'d {type(block)} size={len(block):d} buffer=0x{id(block):x}')
+        l.clear()
+
+    def main():
+        with_dtrace = sysconfig.get_config_var('WITH_DTRACE')
+        if with_dtrace is None or with_dtrace != 1:
+            raise RuntimeError(f'Python at {sys.executable} must be build with DTrace support.')
+        print('Python at %s is configured with CONFIG_ARGS: %s', sys.executable, sysconfig.get_config_var('CONFIG_ARGS'))
+        input(f'Waiting to start tracing PID: {os.getpid()} (<cr> to continue):')
+        create_py_array_list(27)
+        return 0
+
+
+    if __name__ == '__main__':
+        sys.exit(main())
+
+Debug Example
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+With a debug, DTrace aware version of Python this typically produces this output:
+
+.. code-block:: bash
+
+    $ python pymemtrace/examples/ex_dtrace.py
+    Python at pyenvs/pymemtrace_Dtrace_3.9D_A/bin/python is configured with CONFIG_ARGS: '--with-pydebug' '--without-pymalloc' '--with-valgrind' '--with-dtrace' '--with-openssl=/usr/local/opt/openssl@1.1'
+    Waiting to start tracing PID: 30273 (<cr> to continue):
+    Created <class 'bytes'> size=27 buffer=0x7f859ee67cf0
+    Created <class 'bytes'> size=27 buffer=0x7f859ee68300
+    Created <class 'bytes'> size=27 buffer=0x7f859ee67d50
+    Created <class 'bytes'> size=27 buffer=0x7f859ee681c0
+    Pop'd <class 'bytes'> size=27 buffer=0x7f859ee67cf0
+    Pop'd <class 'bytes'> size=27 buffer=0x7f859ee68300
+    Pop'd <class 'bytes'> size=27 buffer=0x7f859ee67d50
+    Pop'd <class 'bytes'> size=27 buffer=0x7f859ee681c0
+
+Monitoring that with DTrace typically gives:
+
+.. code-block:: bash
+
+    $ sudo dtrace -C -s toolkit/py_object_U_WITH_PYMALLOC.d -p 30273
+    dtrace: system integrity protection is on, some features will not be available
+
+    dtrace:::BEGIN
+     30273     ex_dtrace.py:115  -> main _PyMem_RawMalloc(512) _PyMem_RawMalloc returns 0x7f859ee684b0
+     30273     ex_dtrace.py:87   -> create_py_array_list _PyMem_RawMalloc(72) _PyMem_RawMalloc returns 0x7f859ee676e0
+     30273     ex_dtrace.py:87   -> create_py_array_list _PyMem_RawMalloc(72) _PyMem_RawMalloc returns 0x7f859ee67730
+     30273     ex_dtrace.py:87   -> create_py_array_list _PyMem_RawFree(0x7f859ee676e0)
+     30273     ex_dtrace.py:88   -> create_py_array_list _PyMem_RawMalloc(84) _PyMem_RawMalloc returns 0x7f859ee67ce0
+     30273     ex_dtrace.py:89   -> create_py_array_list _PyMem_RawMalloc(96) _PyMem_RawMalloc returns 0x7f859ee67d40
+     30273     ex_dtrace.py:89   -> create_py_array_list _PyMem_RawMalloc(78) _PyMem_RawMalloc returns 0x7f859ee676e0
+     30273     ex_dtrace.py:89   -> create_py_array_list _PyMem_RawMalloc(185) _PyMem_RawMalloc returns 0x7f859ee681b0
+     30273     ex_dtrace.py:89   -> create_py_array_list _PyMem_RawMalloc(78) _PyMem_RawMalloc returns 0x7f859ee68270
+     30273     ex_dtrace.py:89   -> create_py_array_list _PyMem_RawFree(0x7f859ee68270)
+     30273     ex_dtrace.py:89   -> create_py_array_list _PyMem_RawRealloc(0x7f859ee681b0, 88) _PyMem_RawRealloc returns 0x7f859ee681b0
+     30273     ex_dtrace.py:89   -> create_py_array_list _PyMem_RawFree(0x7f859ee676e0)
+     30273     ex_dtrace.py:89   -> create_py_array_list _PyMem_RawFree(0x7f859ee67d40)
+    ...
+     30273     ex_dtrace.py:95   -> create_py_array_list _PyMem_RawFree(0x7f859ee16750)
+     30273     threading.py:1406 -> _shutdown _PyMem_RawMalloc(488) _PyMem_RawMalloc returns 0x7f85a111d5c0
+     30273     threading.py:985  -> _stop _PyMem_RawMalloc(96) _PyMem_RawMalloc returns 0x7f859ed9ada0
+     30273     threading.py:985  -> _stop _PyMem_RawMalloc(96) _PyMem_RawMalloc returns 0x7f859ed7d8b0
+     30273     threading.py:985  -> _stop _PyMem_RawFree(0x7f859ed9ada0)
+     30273     threading.py:986  -> _stop _PyMem_RawFree(0x7f859ed7d8b0)
+     30273     threading.py:1410 -> _shutdown _PyMem_RawMalloc(96) _PyMem_RawMalloc returns 0x7f859ed7d8b0
+     30273     threading.py:1410 -> _shutdown _PyMem_RawMalloc(72) _PyMem_RawMalloc returns 0x7f85a11872d0
+     30273     threading.py:1410 -> _shutdown _PyMem_RawFree(0x7f859ed7d8b0)
+     30273     threading.py:1410 -> _shutdown _PyMem_RawFree(0x7f85a11872d0)
+     30273     threading.py:1415 -> _shutdown _PyMem_RawMalloc(96) _PyMem_RawMalloc returns 0x7f859ed7d8b0
+     30273     threading.py:1415 -> _shutdown _PyMem_RawMalloc(96) _PyMem_RawMalloc returns 0x7f859ed9ada0
+     30273     threading.py:1415 -> _shutdown _PyMem_RawFree(0x7f859ed7d8b0)
+     30273     threading.py:1416 -> _shutdown _PyMem_RawMalloc(80) _PyMem_RawMalloc returns 0x7f85a11872d0
+     30273     threading.py:1416 -> _shutdown _PyMem_RawMalloc(88) _PyMem_RawMalloc returns 0x7f859ed7d8b0
+     30273     threading.py:1416 -> _shutdown _PyMem_RawFree(0x7f859ed7d8b0)
+     30273     threading.py:1417 -> _shutdown _PyMem_RawFree(0x7f859ed9ada0)
+     30273      __init__.py:2121 -> shutdown _PyMem_RawMalloc(40) _PyMem_RawMalloc returns 0x7f85a112b5f0
+     30273      __init__.py:2121 -> shutdown _PyMem_RawMalloc(96) _PyMem_RawMalloc returns 0x7f859ed9ada0
+     30273      __init__.py:2121 -> shutdown _PyMem_RawMalloc(72) _PyMem_RawMalloc returns 0x7f859ed8cf50
+     30273      __init__.py:2121 -> shutdown _PyMem_RawFree(0x7f859ed9ada0)
+     30273      __init__.py:1062 -> flush _PyMem_RawMalloc(96) _PyMem_RawMalloc returns 0x7f859ed9ada0
+     30273      __init__.py:1062 -> flush _PyMem_RawFree(0x7f859ed9ada0)
+     30273      __init__.py:2130 -> shutdown _PyMem_RawMalloc(472) _PyMem_RawMalloc returns 0x7f85a111d840
+     30273      __init__.py:1062 -> flush _PyMem_RawMalloc(424) _PyMem_RawMalloc returns 0x7f859ef24e50
+     30273      __init__.py:2121 -> shutdown _PyMem_RawFree(0x7f85a112b5f0)
+     30273      __init__.py:2121 -> shutdown _PyMem_RawFree(0x7f859ed8cf50)
+
+    dtrace:::END
+
+Release Example
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+With a release, DTrace aware version of Python using ``pymalloc`` this typically produces this output:
+
+.. code-block:: bash
+
+    $ python pymemtrace/examples/ex_dtrace.py
+    Python at pyenvs/pymemtrace_Dtrace_3.9R_A/bin/python is configured with CONFIG_ARGS: '--with-dtrace' '--with-openssl=/usr/local/opt/openssl@1.1'
+    Waiting to start tracing PID: 30620 (<cr> to continue):
+    Created <class 'bytes'> size=27 buffer=0x103196c70
+    Created <class 'bytes'> size=27 buffer=0x103459270
+    Created <class 'bytes'> size=27 buffer=0x1034592b0
+    Created <class 'bytes'> size=27 buffer=0x103459fb0
+    Pop'd <class 'bytes'> size=27 buffer=0x103196c70
+    Pop'd <class 'bytes'> size=27 buffer=0x103459270
+    Pop'd <class 'bytes'> size=27 buffer=0x1034592b0
+    Pop'd <class 'bytes'> size=27 buffer=0x103459fb0
+
+And DTrace gives:
+
+.. code-block:: bash
+
+    $ sudo dtrace -C -s toolkit/py_object_D_WITH_PYMALLOC.d -p 30620
+    dtrace: system integrity protection is on, some features will not be available
+
+    dtrace:::BEGIN
+     30620     ex_dtrace.py:115  -> main _PyObject_Malloc(488) _PyObject_Malloc returns 0x1033cebd0
+     30620     ex_dtrace.py:87   -> create_py_array_list _PyObject_Malloc(48) _PyObject_Malloc returns 0x103429810
+     30620     ex_dtrace.py:87   -> create_py_array_list _PyObject_Malloc(48) _PyObject_Malloc returns 0x103429870
+     30620     ex_dtrace.py:87   -> create_py_array_list _PyObject_Free(0x103429810)
+     30620     ex_dtrace.py:88   -> create_py_array_list _PyObject_Malloc(60) _PyObject_Malloc returns 0x103196c70
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(72) _PyObject_Malloc returns 0x103453df0
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(54) _PyObject_Malloc returns 0x103459f70
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(161) _PyObject_Malloc returns 0x1034583a0
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(54) _PyObject_Malloc returns 0x103459270
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Free(0x103459270)
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Realloc(0x1034583a0, 64)
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Free(0x1034583a0)
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Free(0x103459f70)
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Free(0x103453df0)
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(72) _PyObject_Malloc returns 0x103453df0
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(32) _PyObject_Malloc returns 0x1033d8b90
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(51) _PyObject_Malloc returns 0x103459f70
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Free(0x1033d8b90)
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Free(0x103453df0)
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(32) _PyObject_Malloc returns 0x1033d8b90
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(72) _PyObject_Malloc returns 0x103453df0
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(58) _PyObject_Malloc returns 0x1034592b0
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Free(0x103453df0)
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Free(0x1033d8b90)
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(99) _PyObject_Malloc returns 0x103421dc0
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Free(0x1034592b0)
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Free(0x103459f70)
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Free(0x103459270)
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(54) _PyObject_Malloc returns 0x103459270
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Free(0x103459270)
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(72) _PyObject_Malloc returns 0x103453df0
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Free(0x103453df0)
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(72) _PyObject_Malloc returns 0x103453df0
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Calloc(2, 8) _PyObject_Calloc returns 0x1030be590
+     30620     ex_dtrace.py:89   -> create_py_array_list _PyObject_Malloc(84) _PyObject_Malloc returns 0x103432bd0
+    ...
+     30620     ex_dtrace.py:94   -> create_py_array_list _PyObject_Malloc(128) _PyObject_Malloc returns 0x103407930
+     30620     ex_dtrace.py:94   -> create_py_array_list _PyObject_Malloc(184) _PyObject_Malloc returns 0x10331f330
+     30620     ex_dtrace.py:94   -> create_py_array_list _PyObject_Free(0x103407930)
+     30620     ex_dtrace.py:94   -> create_py_array_list _PyObject_Free(0x10331f330)
+     30620     ex_dtrace.py:94   -> create_py_array_list _PyObject_Free(0x103453df0)
+     30620     ex_dtrace.py:94   -> create_py_array_list _PyObject_Free(0x103421dc0)
+     30620     ex_dtrace.py:95   -> create_py_array_list _PyObject_Free(0x7fcd8af1be10)
+     30620     threading.py:1406 -> _shutdown _PyObject_Malloc(464) _PyObject_Malloc returns 0x10345ab10
+     30620     threading.py:985  -> _stop _PyObject_Malloc(72) _PyObject_Malloc returns 0x10326e210
+     30620     threading.py:985  -> _stop _PyObject_Malloc(72) _PyObject_Malloc returns 0x1033908f0
+     30620     threading.py:985  -> _stop _PyObject_Free(0x10326e210)
+     30620     threading.py:986  -> _stop _PyObject_Free(0x1033908f0)
+     30620     threading.py:1410 -> _shutdown _PyObject_Malloc(72) _PyObject_Malloc returns 0x10326e210
+     30620     threading.py:1410 -> _shutdown _PyObject_Malloc(48) _PyObject_Malloc returns 0x10337bae0
+     30620     threading.py:1410 -> _shutdown _PyObject_Free(0x10326e210)
+     30620     threading.py:1410 -> _shutdown _PyObject_Free(0x10337bae0)
+     30620     threading.py:1415 -> _shutdown _PyObject_Malloc(72) _PyObject_Malloc returns 0x10326e210
+     30620     threading.py:1415 -> _shutdown _PyObject_Malloc(72) _PyObject_Malloc returns 0x1033908f0
+     30620     threading.py:1415 -> _shutdown _PyObject_Free(0x10326e210)
+     30620     threading.py:1416 -> _shutdown _PyObject_Malloc(56) _PyObject_Malloc returns 0x10320a2b0
+     30620     threading.py:1416 -> _shutdown _PyObject_Malloc(64) _PyObject_Malloc returns 0x1033920b0
+     30620     threading.py:1416 -> _shutdown _PyObject_Free(0x1033920b0)
+     30620     threading.py:1417 -> _shutdown _PyObject_Free(0x1033908f0)
+     30620      __init__.py:2121 -> shutdown _PyObject_Malloc(16) _PyObject_Malloc returns 0x1030be590
+     30620      __init__.py:2121 -> shutdown _PyObject_Malloc(72) _PyObject_Malloc returns 0x10326e210
+     30620      __init__.py:2121 -> shutdown _PyObject_Malloc(48) _PyObject_Malloc returns 0x10340f120
+     30620      __init__.py:2121 -> shutdown _PyObject_Free(0x10326e210)
+     30620      __init__.py:1062 -> flush _PyObject_Malloc(72) _PyObject_Malloc returns 0x10326e210
+     30620      __init__.py:1062 -> flush _PyObject_Free(0x10326e210)
+     30620      __init__.py:2130 -> shutdown _PyObject_Malloc(448) _PyObject_Malloc returns 0x10345c1f0
+     30620      __init__.py:1062 -> flush _PyObject_Malloc(400) _PyObject_Malloc returns 0x1033f9990
+     30620      __init__.py:2121 -> shutdown _PyObject_Free(0x1030be590)
+     30620      __init__.py:2121 -> shutdown _PyObject_Free(0x10340f120)
+
+    dtrace:::END
 
 
 Further Analysis

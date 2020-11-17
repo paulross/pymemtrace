@@ -89,7 +89,7 @@ static PyMethodDef CMallocObject_methods[] = {
 
 PyDoc_STRVAR(
     CMallocObjectType_tp_doc,
-    "A simple Python object that reserves a block of C memory with malloc()."
+    "A simple Python object that reserves a block of C memory with ``malloc()`` and frees it with ``free()``."
     " Actual reserved memory is always >=1 byte."
 );
 
@@ -184,6 +184,7 @@ static PyMethodDef PyRawMallocObject_methods[] = {
 PyDoc_STRVAR(
     PyRawMallocObjectType_tp_doc,
     "A simple Python object that reserves a block of memory with Pythons raw memory allocator."
+    " This reserves memory with a call to ``PyMem_RawMalloc()`` and frees it with ``PyMem_RawFree()``."
     " Actual reserved memory is always >=1 byte."
 );
 
@@ -278,6 +279,7 @@ static PyMethodDef PyMallocObject_methods[] = {
 PyDoc_STRVAR(
     PyMallocObjectType_tp_doc,
     "A simple Python object that reserves a block of memory with Pythons pymalloc allocator."
+    " This reserves memory with a call to ``PyMem_Malloc()`` and frees it with ``PyMem_Free()``."
     " Actual reserved memory is always >=1 byte."
 );
 

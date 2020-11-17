@@ -72,7 +72,7 @@ def create_pymalloc_list():
     print(f'Python at {sys.executable} is configured with CONFIG_ARGS: {sysconfig.get_config_var("CONFIG_ARGS")}')
     l = []
     for i in range(4):
-        block = cMemLeak.PyMalloc(177)
+        block = cMemLeak.PyMalloc(371)
         print(f'Created PyMalloc size={block.size:d} buffer=0x{block.buffer:x}')
         l.append(block)
     while len(l):
@@ -82,10 +82,10 @@ def create_pymalloc_list():
     l.clear()
 
 
-def create_py_str_list():
+def create_py_array_list(size: int):
     l = []
     for i in range(4):
-        block = b' ' * 1591
+        block = b' ' * size
         print(f'Created {type(block)} size={len(block):d} buffer=0x{id(block):x}')
         l.append(block)
     while len(l):
@@ -111,8 +111,8 @@ def main():
 
     # create_cmalloc_list()
     # create_pyrawmalloc_list()
-    create_pymalloc_list()
-    # create_py_str_list()
+    # create_pymalloc_list()
+    create_py_array_list(27)
     return 0
 
 

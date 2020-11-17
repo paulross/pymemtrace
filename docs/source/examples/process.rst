@@ -112,10 +112,10 @@ Using ``gnuplot`` on the Log File
     Bye, bye!
     $ ll tmp/gnuplot/
     total 160
-    -rw-r--r--  1 paulross  staff   4829 16 Nov 10:39 process.log_14129.dat
-    -rw-r--r--  1 paulross  staff   2766 16 Nov 10:39 process.log_14129.plt
-    -rw-r--r--  1 paulross  staff  32943 16 Nov 10:39 process.log_14129.svg
-    -rw-r--r--  1 paulross  staff  32100 16 Nov 10:39 test.svg
+    -rw-r--r--  1 user  staff   4829 16 Nov 10:39 process.log_14129.dat
+    -rw-r--r--  1 user  staff   2766 16 Nov 10:39 process.log_14129.plt
+    -rw-r--r--  1 user  staff  32943 16 Nov 10:39 process.log_14129.svg
+    -rw-r--r--  1 user  staff  32100 16 Nov 10:39 test.svg
 
 The file ``process.log_14129.svg`` will look like this:
 
