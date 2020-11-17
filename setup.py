@@ -13,6 +13,7 @@ with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
 requirements = [
+    'psutil',
 ]
 
 setup_requirements = [
@@ -23,7 +24,6 @@ setup_requirements = [
 test_requirements = [
     'pytest',
 ]
-
 
 extra_compile_args = [
     '-Wall',
@@ -65,19 +65,39 @@ setup(
     zip_safe=False,
     keywords='pymemtrace',
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
-        'Programming Language :: Python :: 3',
+        'Programming Language :: C',
+        'Programming Language :: Python :: 3 :: Only',
+        'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Topic :: Software Development',
     ],
     test_suite='tests',
     tests_require=test_requirements,
     setup_requires=setup_requirements,
+    # Copy SVG files in the docs/directory
+    data_files=[
+        'docs/source/tech_notes/images/LASToHTML.log_20328.svg',
+        'docs/source/tech_notes/images/LASToHTML.log_77077.svg',
+        'docs/source/tech_notes/images/LASToHTML.log_9685.svg',
+        'docs/source/tech_notes/images/LASToHTML.log_76753.svg',
+        'docs/source/tech_notes/images/LASToHTML.log_3938.svg',
+        'docs/source/tech_notes/images/LASToHTML.log_9434.svg',
+        'docs/source/tech_notes/images/LASToHTML.log_9552.svg',
+        'docs/source/tech_notes/images/LASToHTML.log_9236.svg',
+        'docs/source/tech_notes/images/LASToHTML.log_77633.svg',
+        'docs/source/tech_notes/images/LASToHTML.log_8692.svg',
+        'docs/source/tech_notes/images/LASToHTML.log_4147.svg',
+        'docs/source/tech_notes/images/LASToHTML.log_8631.svg',
+        'docs/source/examples/images/process.log_14129.svg',
+    ],
+    # Extensions
     ext_modules=[
         Extension(
             "pymemtrace.custom",

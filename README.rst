@@ -4,20 +4,21 @@ Introduction
 
 
 ``pymemtrace`` provides tools for tracking and understanding Python memory usage at different levels, at different
-granularity and at different runtime costs.
+granularities and with different runtime costs.
 
-Tools
+Full documentation: https://pymemtrace.readthedocs.io
+
+pymemtrace Tools
 ======================
 
 The tools provided by ``pymemtrace``:
 
 * ``process`` is a very lightweight way of logging the total memory usage at regular time intervals.
   It can plot memory over time with plotting programs such as ``gnuplot``.
-  :ref:`Some process examples <examples-process>`
+  See :ref:`some process examples <examples-process>`.
 * ``cPyMemTrace`` is a memory tracer written in C that can report total memory usage for every function call/return for
   both C and Python sections.
-  See some :ref:`cPyMemTrace examples <examples-cpymemtrace>`
-  and a :ref:`tech_notes-cpymemtrace`.
+  See some :ref:`cPyMemTrace examples <examples-cpymemtrace>` and a :ref:`tech_notes-cpymemtrace`.
 * DTrace: Here are a number of D scripts that can trace the low level ``malloc()`` and ``free()`` system calls and
   report how much memory was allocated and by whom.
   See :ref:`some DTrace examples <examples-dtrace>` and a :ref:`tech_notes-dtrace`.
@@ -25,8 +26,7 @@ The tools provided by ``pymemtrace``:
   by module and line compenstaing for the cost of :py:mod:`tracemalloc`.
   This can take memory snapshots before and after code blocks and show the change on memory caused by that code.
   See :ref:`some trace_malloc examples <examples-trace_malloc>`.
-* ``debug_malloc_stats`` is a wrapper around the :py:func:`sys._debugmallocstats` module that can
-  take snapshots of
+* ``debug_malloc_stats`` is a wrapper around the :py:func:`sys._debugmallocstats` module that can take snapshots of
   memory before and after code execution and report the significant differences of the Python small object allocator.
   See :ref:`some debug_malloc_stats examples <examples-debug_malloc_stats>`.
 
@@ -44,7 +44,7 @@ Each tool can be characterised by:
   An example of *coarse* execution granularity is measuring the memory usage every second.
   An example of *fine* execution granularity is recording the memory usage every Python line.
 - *Memory Cost*: How much extra memory the tool needs.
-- *Execution Cost*: How much is the execution time is increased.
+- *Execution Cost*: How much the execution time is increased.
 
 Clearly there are trade-offs between these depending on the problem you are trying to solve.
 
@@ -64,13 +64,13 @@ Clearly there are trade-offs between these depending on the problem you are tryi
      - Near zero.
    * - ``cPyMemTrace``
      - RSS (total Python and C memory).
-     - Per Python line, function and per C function call.
+     - Per Python line, Python function and C function call.
      - Near zero.
      - x10 to x20.
    * - DTrace
      - Every ``malloc()`` and ``free()``.
      - Per function call and return.
-     - Minimal except with Python debug builds.
+     - Minimal.
      - x90 to x100.
    * - ``trace_malloc``
      - Every Python object.
@@ -80,7 +80,7 @@ Clearly there are trade-offs between these depending on the problem you are tryi
    * - ``debug_malloc_stats``
      - Python memory pool.
      - Snapshots the CPython memory pool either side of a block of code.
-     - Minimal except with Python debug builds.
+     - Minimal.
      - x2000+ for small objects, x12 for large objects.
 
 Package Metadata
@@ -108,6 +108,7 @@ Python memory tracing.
 
 * Free software: MIT license
 * Documentation: https://pymemtrace.readthedocs.io.
+* Project: https://github.com/paulross/pymemtrace.
 
 Credits
 -----------------

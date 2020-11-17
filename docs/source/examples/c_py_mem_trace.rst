@@ -1,6 +1,6 @@
 .. _examples-cpymemtrace:
 
-``pymemtrace.cPyMemTrace`` Examples
+``cPyMemTrace`` Examples
 ===============================================
 
 ``cPyMemTrace`` is a Python profiler written in 'C' that records the `Resident Set Size <https://en.wikipedia.org/wiki/Resident_set_size>`_
