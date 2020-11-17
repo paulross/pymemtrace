@@ -55,6 +55,7 @@ setup(
     version='0.1.1',
     description="Python memory tracing.",
     long_description=readme + '\n\n' + history,
+    long_description_content_type='text/x-rst',
     author="Paul Ross",
     author_email='apaulross@gmail.com',
     url='https://github.com/paulross/pymemtrace',
@@ -81,22 +82,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     setup_requires=setup_requirements,
-    # Copy SVG files in the docs/directory
-    data_files=[
-        'docs/source/tech_notes/images/LASToHTML.log_20328.svg',
-        'docs/source/tech_notes/images/LASToHTML.log_77077.svg',
-        'docs/source/tech_notes/images/LASToHTML.log_9685.svg',
-        'docs/source/tech_notes/images/LASToHTML.log_76753.svg',
-        'docs/source/tech_notes/images/LASToHTML.log_3938.svg',
-        'docs/source/tech_notes/images/LASToHTML.log_9434.svg',
-        'docs/source/tech_notes/images/LASToHTML.log_9552.svg',
-        'docs/source/tech_notes/images/LASToHTML.log_9236.svg',
-        'docs/source/tech_notes/images/LASToHTML.log_77633.svg',
-        'docs/source/tech_notes/images/LASToHTML.log_8692.svg',
-        'docs/source/tech_notes/images/LASToHTML.log_4147.svg',
-        'docs/source/tech_notes/images/LASToHTML.log_8631.svg',
-        'docs/source/examples/images/process.log_14129.svg',
-    ],
     # Extensions
     ext_modules=[
         Extension(

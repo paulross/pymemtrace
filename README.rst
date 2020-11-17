@@ -15,20 +15,22 @@ The tools provided by ``pymemtrace``:
 
 * ``process`` is a very lightweight way of logging the total memory usage at regular time intervals.
   It can plot memory over time with plotting programs such as ``gnuplot``.
-  See :ref:`some process examples <examples-process>`.
+  See `some process examples <https://pymemtrace.readthedocs.io/en/latest/examples/process.html>`_
 * ``cPyMemTrace`` is a memory tracer written in C that can report total memory usage for every function call/return for
   both C and Python sections.
-  See some :ref:`cPyMemTrace examples <examples-cpymemtrace>` and a :ref:`tech_notes-cpymemtrace`.
+  See some `cPyMemTrace examples <https://pymemtrace.readthedocs.io/en/latest/examples/c_py_mem_trace.html>`_
+  and a `technical note on cPyMemTrace <https://pymemtrace.readthedocs.io/en/latest/tech_notes/cPyMemTrace.html>`_.
 * DTrace: Here are a number of D scripts that can trace the low level ``malloc()`` and ``free()`` system calls and
   report how much memory was allocated and by whom.
-  See :ref:`some DTrace examples <examples-dtrace>` and a :ref:`tech_notes-dtrace`.
-* ``trace_malloc`` is a convenience wrapper around the :py:mod:`tracemalloc` module that can report Python memory usage
-  by module and line compenstaing for the cost of :py:mod:`tracemalloc`.
+  See some `DTrace examples <https://pymemtrace.readthedocs.io/en/latest/examples/dtrace.html>`_
+  and a `technical note on DTrace <https://pymemtrace.readthedocs.io/en/latest/tech_notes/dtrace.html>`_.
+* ``trace_malloc`` is a convenience wrapper around the Python standard library `tracemalloc` module.
+  This can report Python memory usage by module and line compensating for the cost of ``tracemalloc``.
   This can take memory snapshots before and after code blocks and show the change on memory caused by that code.
-  See :ref:`some trace_malloc examples <examples-trace_malloc>`.
-* ``debug_malloc_stats`` is a wrapper around the :py:func:`sys._debugmallocstats` module that can take snapshots of
+  See some `trace_malloc examples <https://pymemtrace.readthedocs.io/en/latest/examples/trace_malloc.html>`_
+* ``debug_malloc_stats`` is a wrapper around the ``sys._debugmallocstats`` function that can take snapshots of
   memory before and after code execution and report the significant differences of the Python small object allocator.
-  See :ref:`some debug_malloc_stats examples <examples-debug_malloc_stats>`.
+  See some `debug_malloc_stats examples <https://pymemtrace.readthedocs.io/en/latest/examples/debug_malloc_stats.html>`_
 
 
 Tool Characteristics
