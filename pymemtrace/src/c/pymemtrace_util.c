@@ -9,7 +9,7 @@
 
 #define PATH_MAX 4096
 
-char *create_filename() {
+char *create_filename(void) {
     /* Not thread safe. */
     static char filename[256];
     static struct tm now;
@@ -28,7 +28,7 @@ char *create_filename() {
     return filename;
 }
 
-char *current_working_directory() {
+char *current_working_directory(void) {
     static char cwd[PATH_MAX];
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
         fprintf(stderr, "Can not get current working directory.\n");
