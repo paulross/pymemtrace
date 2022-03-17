@@ -2,6 +2,11 @@
 History
 =======
 
+0.1.2 (2022-03-17)
+------------------
+
+* Fix source distribution that had missing headers.
+
 0.1.1 (2020-11-17)
 ------------------
 
