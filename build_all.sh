@@ -12,6 +12,7 @@ set -o nounset  # abort on unbound variable
 set -o pipefail # don't hide errors within pipes
 
 PYTHON_VERSIONS=('3.7' '3.8' '3.9')
+#PYTHON_VERSIONS=('3.8' '3.9')
 PYTHON_VENV_ROOT="${HOME}/pyenvs"
 # Used for venvs
 PROJECT_NAME="pymentrace"
@@ -80,9 +81,8 @@ create_bdist_wheel() {
     MACOSX_DEPLOYMENT_TARGET=10.9 CC=clang CXX=clang++ python setup.py develop
     echo "---> Running tests:"
     # Fail fast with -x
-    pytest tests -x
-    # Run all tests (slow).
-    pytest tests --runslow
+    # For some reason we need -s as our redirection of stdout is interfering with/being interfered by pytest.
+    pytest -s -x tests
     echo "---> Running setup for bdist_wheel:"
     python setup.py bdist_wheel
   done
