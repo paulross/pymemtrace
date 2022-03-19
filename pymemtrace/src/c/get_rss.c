@@ -19,9 +19,9 @@
 #elif defined(__unix__) || defined(__unix) || defined(unix) || (defined(__APPLE__) && defined(__MACH__))
     #include <unistd.h>
     #include <sys/resource.h>
-    /* Added for faster (?) Mac OS X RSS value in getCurrentRSS_alternate. */
-    #include <libproc.h>
     #if defined(__APPLE__) && defined(__MACH__)
+        /* Added for faster (?) Mac OS X RSS value in getCurrentRSS_alternate. */
+        #include <libproc.h>
         #include <mach/mach.h>
     #elif (defined(_AIX) || defined(__TOS__AIX__)) || (defined(__sun__) || defined(__sun) || defined(sun) && (defined(__SVR4) || defined(__svr4__)))
         #include <fcntl.h>

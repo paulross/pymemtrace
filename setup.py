@@ -3,6 +3,7 @@
 
 """The setup script."""
 import os
+import sys
 from setuptools import setup, find_packages
 from distutils.core import Extension
 
@@ -43,6 +44,14 @@ extra_compile_args = [
     # '-Wno-unused-parameter',
 ]
 
+if sys.platform.startswith('linux'):
+    extra_compile_args.extend(
+        [
+            # Linux, GCC complains about casting PyCFunction.
+            '-Wno-cast-function-type',
+        ]
+    )
+
 DEBUG = False
 
 if DEBUG:
@@ -52,7 +61,7 @@ else:
 
 setup(
     name='pymemtrace',
-    version='0.1.3',
+    version='0.1.4',
     description="Python memory tracing.",
     long_description=readme + '\n\n' + history,
     long_description_content_type='text/x-rst',

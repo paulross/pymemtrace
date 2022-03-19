@@ -66,7 +66,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'pymemtrace'
-copyright = u"2017, Paul Ross"
+copyright = u"2017-2022, Paul Ross"
 
 # The version info for the project you're documenting, acts as replacement
 # for |version| and |release|, also used in various other places throughout

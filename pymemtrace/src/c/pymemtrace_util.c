@@ -2,6 +2,7 @@
 // Created by Paul Ross on 03/11/2020.
 //
 #include <stdio.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
