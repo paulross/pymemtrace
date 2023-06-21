@@ -61,7 +61,7 @@ else:
 
 setup(
     name='pymemtrace',
-    version='0.1.4',
+    version='0.1.5',
     description="Python memory tracing.",
     long_description=readme + '\n\n' + history,
     long_description_content_type='text/x-rst',
@@ -82,10 +82,11 @@ setup(
         'Programming Language :: C',
         'Programming Language :: Python :: 3 :: Only',
         'Programming Language :: Python :: Implementation :: CPython',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
         'Topic :: Software Development',
     ],
     test_suite='tests',

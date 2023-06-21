@@ -305,7 +305,11 @@ def test_generator_parent_child():
 #         pprint.pprint(rte.records)
         print(rte)
         print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
-    assert len(rte.records) == 17
+    assert sys.version_info.major == 3
+    if sys.version_info.minor < 10:
+        assert len(rte.records) == 17
+    else:
+        assert len(rte.records) == 16
 
 def test_generator_grandparent_parent_child():
     def child_generator(n):
@@ -331,7 +335,11 @@ def test_generator_grandparent_parent_child():
 #         pprint.pprint(rte.records)
         print(rte)
         print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
-    assert len(rte.records) == 26
+    assert sys.version_info.major == 3
+    if sys.version_info.minor < 10:
+        assert len(rte.records) == 26
+    else:
+        assert len(rte.records) == 24
 
 def test_generator_class_different_named_methods():
     class ChildGenerator:
@@ -358,7 +366,11 @@ def test_generator_class_different_named_methods():
 #         pprint.pprint(rte.records)
         print(rte)
         print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
-    assert len(rte.records) == 17
+    assert sys.version_info.major == 3
+    if sys.version_info.minor < 10:
+        assert len(rte.records) == 17
+    else:
+        assert len(rte.records) == 16
 
 def test_generator_class_same_named_methods():
     class ChildGenerator:
@@ -385,4 +397,8 @@ def test_generator_class_same_named_methods():
 #         pprint.pprint(rte.records)
         print(rte)
         print('Code line numbers:', sorted(set([r.lineno_code for r in rte.records])))
-    assert len(rte.records) == 17
+    assert sys.version_info.major == 3
+    if sys.version_info.minor < 10:
+        assert len(rte.records) == 17
+    else:
+        assert len(rte.records) == 16

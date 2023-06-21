@@ -114,13 +114,23 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
     TraceFileWrapper *trace_wrapper = (TraceFileWrapper *)pobj;
     size_t rss = getCurrentRSS_alternate();
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+    /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
+    const unsigned char *file_name = PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_filename);
+#else
     const unsigned char *file_name = PyUnicode_1BYTE_DATA(frame->f_code->co_filename);
+#endif
     int line_number = PyFrame_GetLineNumber(frame);
     const char *func_name = NULL;
     if (what == PyTrace_C_CALL || what == PyTrace_C_EXCEPTION || what == PyTrace_C_RETURN) {
         func_name = PyEval_GetFuncName(arg);
     } else {
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+        /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
+        func_name = (const char *)PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_name);
+#else
         func_name = (const char *)PyUnicode_1BYTE_DATA(frame->f_code->co_name);
+#endif
     }
     long d_rss = rss - trace_wrapper->rss;
     if (labs(d_rss) >= trace_wrapper->d_rss_trigger
@@ -235,7 +245,7 @@ py_attach_profile_function(int d_rss_trigger) {
 }
 
 static PyObject *
-py_detach_profile_function() {
+py_detach_profile_function(void) {
     if (profile_wrapper) {
         TraceFileWrapper_dealloc(profile_wrapper);
         profile_wrapper = NULL;
@@ -256,7 +266,7 @@ py_attach_trace_function(int d_rss_trigger) {
 }
 
 static PyObject *
-py_detach_trace_function() {
+py_detach_trace_function(void) {
     if (trace_wrapper) {
         TraceFileWrapper_dealloc(trace_wrapper);
         trace_wrapper = NULL;
@@ -266,12 +276,12 @@ py_detach_trace_function() {
 }
 
 static PyObject *
-py_rss() {
+py_rss(void) {
     return PyLong_FromSize_t(getCurrentRSS_alternate());
 }
 
 static PyObject *
-py_rss_peak() {
+py_rss_peak(void) {
     return PyLong_FromSize_t(getPeakRSS());
 }
 

@@ -2,6 +2,11 @@
 History
 =======
 
+0.1.5 (2023-06-21)
+------------------
+
+* Add support for Python versions 3.10, 3.11. Now supports Python versions 3.7, 3.8, 3.9, 3.10, 3.11.
+
 0.1.4 (2022-03-19)
 ------------------
 
