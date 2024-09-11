@@ -11,7 +11,7 @@
 
 #include "get_rss.h"
 
-void macosx_get_pid_info() {
+void macosx_get_pid_info(void) {
     printf("macosx_get_pid_info()\n");
     pid_t pid = getpid();
     struct proc_bsdinfo proc;
@@ -21,7 +21,7 @@ void macosx_get_pid_info() {
 }
 
 /* PROC_PIDTASKINFO in /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/sys/proc_info.h:647 */
-void macosx_get_task_info() {
+void macosx_get_task_info(void) {
     printf("macosx_get_task_info()\n");
     pid_t pid = getpid();
     struct proc_taskinfo proc;
@@ -30,7 +30,7 @@ void macosx_get_task_info() {
     printf("RSS: %llu\n", proc.pti_resident_size);
 }
 
-void macosx_get_taskall_info() {
+void macosx_get_taskall_info(void) {
     printf("macosx_get_taskall_info()\n");
     pid_t pid = getpid();
     struct proc_taskallinfo proc;
@@ -39,7 +39,7 @@ void macosx_get_taskall_info() {
     printf("name: %s\n", proc.pbsd.pbi_name);
 }
 
-void macosx_get_just_rss_info() {
+void macosx_get_just_rss_info(void) {
     printf("macosx_get_just_rss_info()\n");
     pid_t pid = getpid();
     struct proc_taskallinfo proc;
@@ -48,7 +48,7 @@ void macosx_get_just_rss_info() {
     printf("name: %s\n", proc.pbsd.pbi_name);
 }
 
-void macosx_get_short_pid_info() {
+void macosx_get_short_pid_info(void) {
     pid_t pid = getpid();
     struct proc_bsdshortinfo proc;
 

@@ -118,5 +118,6 @@ tmp/
 # cmake files
 cmake-build-debug/
 cmake-build-release/
+cmake-build-debug-event-trace/
 
 attic/

@@ -61,7 +61,7 @@ else:
 
 setup(
     name='pymemtrace',
-    version='0.1.5',
+    version='0.1.6',
     description="Python memory tracing.",
     long_description=readme + '\n\n' + history,
     long_description_content_type='text/x-rst',
@@ -74,6 +74,7 @@ setup(
     license="MIT license",
     zip_safe=False,
     keywords='pymemtrace',
+    # https://pypi.org/classifiers/
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
@@ -82,11 +83,14 @@ setup(
         'Programming Language :: C',
         'Programming Language :: Python :: 3 :: Only',
         'Programming Language :: Python :: Implementation :: CPython',
+        # https://devguide.python.org/versions/
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
         'Topic :: Software Development',
     ],
     test_suite='tests',
@@ -101,7 +105,7 @@ setup(
             ],
             include_dirs=[
                 '/usr/local/include',
-                # os.path.join('pymemtrace', 'src', 'include'),
+                os.path.join('pymemtrace', 'src', 'include'),
             ],
             library_dirs=[os.getcwd(), ],  # path to .a or .so file(s)
             extra_compile_args=extra_compile_args,
@@ -127,7 +131,7 @@ setup(
             ],
             include_dirs=[
                 '/usr/local/include',
-                # os.path.join('pymemtrace', 'src', 'include'),
+                os.path.join('pymemtrace', 'src', 'include'),
             ],
             library_dirs=[os.getcwd(), ],  # path to .a or .so file(s)
             extra_compile_args=extra_compile_args,
