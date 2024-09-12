@@ -1,4 +1,5 @@
 psutil
 pytest
 pytest-runner
+setuptools
 Sphinx

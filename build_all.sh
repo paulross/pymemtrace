@@ -14,7 +14,7 @@ set -o pipefail # don't hide errors within pipes
 PYTHON_VERSIONS=('3.7' '3.8' '3.9' '3.10' '3.11' '3.12' '3.13')
 PYTHON_VENV_ROOT="${HOME}/pyenvs"
 # Used for venvs
-PROJECT_NAME="pymentrace"
+PROJECT_NAME="pymemtrace"
 
 #printf "%-8s %8s %10s %10s %12s\n" "Ext" "Files" "Lines" "Words" "Bytes"
 
