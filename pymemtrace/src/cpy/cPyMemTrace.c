@@ -145,12 +145,12 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
     double clock_time = (double) clock() / CLOCKS_PER_SEC;
     snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             "%-12zu +%-6ld %-12.6f %-8s %-80s#%4d %-32s %12zu %12ld\n",
+             "%-12zu +%-6ld %-12.6f %-8s %-80s %4d %-32s %12zu %12ld\n",
              trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
              clock_time, WHAT_STRINGS[what], file_name, line_number, func_name, rss, d_rss);
 #else
     snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             "%-12zu +%-6ld %-8s %-80s#%4d %-32s %12zu %12ld\n",
+             "%-12zu +%-6ld %-8s %-80s %4d %-32s %12zu %12ld\n",
              trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
              WHAT_STRINGS[what], file_name, line_number, func_name, rss, d_rss);
 #endif // PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
@@ -192,21 +192,21 @@ new_trace_wrapper(int d_rss_trigger) {
 //                fprintf(trace_wrapper->file, "%s\n", filename);
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
-                fprintf(trace_wrapper->file, "      %-12s %-6s  %-12s %-8s %-80s#%4s %-32s %12s %12s\n",
+                fprintf(trace_wrapper->file, "      %-12s %-6s  %-12s %-8s %-80s %4s %-32s %12s %12s\n",
                         "Event", "dEvent", "Clock", "What", "File", "line", "Function", "RSS", "dRSS"
                 );
 #else
-                fprintf(trace_wrapper->file, "%-12s %-6s  %-12s %-8s %-80s#%4s %-32s %12s %12s\n",
+                fprintf(trace_wrapper->file, "%-12s %-6s  %-12s %-8s %-80s %4s %-32s %12s %12s\n",
                         "Event", "dEvent", "Clock", "What", "File", "line", "Function", "RSS", "dRSS"
                 );
 #endif
 #else
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
-                fprintf(trace_wrapper->file, "      %-12s %-6s  %-8s %-80s#%4s %-32s %12s %12s\n",
+                fprintf(trace_wrapper->file, "      %-12s %-6s  %-8s %-80s %4s %-32s %12s %12s\n",
                         "Event", "dEvent", "What", "File", "line", "Function", "RSS", "dRSS"
                 );
 #else
-                fprintf(trace_wrapper->file, "%-12s %-6s  %-8s %-80s#%4s %-32s %12s %12s\n",
+                fprintf(trace_wrapper->file, "%-12s %-6s  %-8s %-80s %4s %-32s %12s %12s\n",
                         "Event", "dEvent", "What", "File", "line", "Function", "RSS", "dRSS"
                 );
 #endif
@@ -321,7 +321,9 @@ ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
 
 static PyObject *
 ProfileObject_enter(ProfileObject *self) {
-    py_attach_profile_function(self->d_rss_trigger);
+    if (py_attach_profile_function(self->d_rss_trigger) == NULL) {
+        return NULL;
+    }
     Py_INCREF(self);
     return (PyObject *) self;
 }
@@ -394,7 +396,9 @@ TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
 static PyObject *
 TraceObject_enter(TraceObject *self) {
     /* Could use cPyMemTracemodule. */
-    py_attach_trace_function(self->d_rss_trigger);
+    if (py_attach_trace_function(self->d_rss_trigger) == NULL) {
+        return NULL;
+    }
     Py_INCREF(self);
     return (PyObject *) self;
 }
