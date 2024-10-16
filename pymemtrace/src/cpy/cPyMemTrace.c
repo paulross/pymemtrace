@@ -25,7 +25,7 @@
 #include "get_rss.h"
 #include "pymemtrace_util.h"
 
-#define PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH 256
+#define PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH 1024 * 4
 
 #define PY_MEM_TRACE_WRITE_OUTPUT
 //#undef PY_MEM_TRACE_WRITE_OUTPUT
