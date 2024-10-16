@@ -5,6 +5,9 @@
 #ifndef CPYMEMTRACE_PYMEMTRACE_UTIL_H
 #define CPYMEMTRACE_PYMEMTRACE_UTIL_H
 
+#define PYMEMTRACE_PATH_NAME_MAX_LENGTH 4096
+#define PYMEMTRACE_FILE_NAME_MAX_LENGTH 1024
+
 char *create_filename(void);
 char *current_working_directory(void);
 

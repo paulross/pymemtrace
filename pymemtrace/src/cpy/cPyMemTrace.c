@@ -25,7 +25,8 @@
 #include "get_rss.h"
 #include "pymemtrace_util.h"
 
-#define PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH 1024 * 4
+// PYMEMTRACE_PATH_NAME_MAX_LENGTH is usually 4kB and that should be sufficient.
+#define PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH PYMEMTRACE_PATH_NAME_MAX_LENGTH
 
 #define PY_MEM_TRACE_WRITE_OUTPUT
 //#undef PY_MEM_TRACE_WRITE_OUTPUT

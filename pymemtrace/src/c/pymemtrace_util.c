@@ -11,21 +11,19 @@
 
 #include "pymemtrace_util.h"
 
-#define PATH_MAX 4096
-
 char *create_filename(void) {
     /* Not thread safe. */
-    static char filename[256];
+    static char filename[PYMEMTRACE_FILE_NAME_MAX_LENGTH];
     static struct tm now;
     time_t t = time(NULL);
     gmtime_r(&t, &now);
-    size_t len = strftime(filename, 256, "%Y%m%d_%H%M%S", &now);
+    size_t len = strftime(filename, PYMEMTRACE_FILE_NAME_MAX_LENGTH, "%Y%m%d_%H%M%S", &now);
     if (len == 0) {
         fprintf(stderr, "create_filename(): strftime failed.");
         return NULL;
     }
     pid_t pid = getpid();
-    if (snprintf(filename + len, 256 - len - 1, "_%d.log", pid) == 0) {
+    if (snprintf(filename + len, PYMEMTRACE_FILE_NAME_MAX_LENGTH - len - 1, "_%d.log", pid) == 0) {
         fprintf(stderr, "create_filename(): failed to add PID.");
         return NULL;
     }
@@ -33,7 +31,7 @@ char *create_filename(void) {
 }
 
 char *current_working_directory(void) {
-    static char cwd[PATH_MAX];
+    static char cwd[PYMEMTRACE_PATH_NAME_MAX_LENGTH];
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
         fprintf(stderr, "Can not get current working directory.\n");
         return NULL;
