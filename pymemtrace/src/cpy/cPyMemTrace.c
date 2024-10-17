@@ -44,6 +44,7 @@
 typedef struct {
     PyObject_HEAD
     FILE *file;
+    // TODO: Store the file path and provide an API that can return it (or None) from profile_wrapper or trace_wrapper.
     size_t event_number;
     size_t rss;
     int d_rss_trigger;
@@ -169,6 +170,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
     return 0;
 }
 
+// TODO: Rename these as static_profile_wrapper and static_trace_wrapper for easier understanding.
 static TraceFileWrapper *profile_wrapper = NULL;
 static TraceFileWrapper *trace_wrapper = NULL;
 
@@ -296,27 +298,40 @@ static PyMethodDef cPyMemTraceMethods[] = {
 typedef struct {
     PyObject_HEAD
     int d_rss_trigger;
+    // Message. Add const char *message here that is a malloc copy of the string given in ProfileObject_init
+    char *message;
 } ProfileObject;
 
 static void
 ProfileObject_dealloc(ProfileObject *self) {
+    free(self->message);
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
 static PyObject *
 ProfileObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
     ProfileObject *self = (ProfileObject *) type->tp_alloc(type, 0);
+    self->message = NULL;
     return (PyObject *) self;
 }
 
 static int
 ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
-    static char *kwlist[] = {"d_rss_trigger", NULL};
+    static char *kwlist[] = {"d_rss_trigger", "message", NULL};
     int d_rss_trigger = -1;
-    if (! PyArg_ParseTupleAndKeywords(args, kwds, "|i", kwlist, &d_rss_trigger)) {
+    char *message = NULL;
+    if (! PyArg_ParseTupleAndKeywords(args, kwds, "|is", kwlist, &d_rss_trigger, &message)) {
         return -1;
     }
     self->d_rss_trigger = d_rss_trigger;
+    if (message) {
+        self->message = malloc(strlen(message) + 1);
+        if (self->message) {
+            strcpy(self->message, message);
+        } else {
+            return -2;
+        }
+    }
     return 0;
 }
 
@@ -324,6 +339,9 @@ static PyObject *
 ProfileObject_enter(ProfileObject *self) {
     if (py_attach_profile_function(self->d_rss_trigger) == NULL) {
         return NULL;
+    }
+    if (self->message) {
+        fprintf(profile_wrapper->file, "%s\n", self->message);
     }
     Py_INCREF(self);
     return (PyObject *) self;
@@ -370,27 +388,39 @@ static PyTypeObject ProfileObjectType = {
 typedef struct {
     PyObject_HEAD
     int d_rss_trigger;
+    char *message;
 } TraceObject;
 
 static void
 TraceObject_dealloc(TraceObject *self) {
+    free(self->message);
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
 static PyObject *
 TraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
     TraceObject *self = (TraceObject *) type->tp_alloc(type, 0);
+    self->message = NULL;
     return (PyObject *) self;
 }
 
 static int
 TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
-    static char *kwlist[] = {"d_rss_trigger", NULL};
+    static char *kwlist[] = {"d_rss_trigger", "message", NULL};
     int d_rss_trigger = -1;
-    if (! PyArg_ParseTupleAndKeywords(args, kwds, "|i", kwlist, &d_rss_trigger)) {
+    char *message =NULL;
+    if (! PyArg_ParseTupleAndKeywords(args, kwds, "|is", kwlist, &d_rss_trigger, &message)) {
         return -1;
     }
     self->d_rss_trigger = d_rss_trigger;
+    if (message) {
+        self->message = malloc(strlen(message) + 1);
+        if (self->message) {
+            strcpy(self->message, message);
+        } else {
+            return -2;
+        }
+    }
     return 0;
 }
 
@@ -399,6 +429,9 @@ TraceObject_enter(TraceObject *self) {
     /* Could use cPyMemTracemodule. */
     if (py_attach_trace_function(self->d_rss_trigger) == NULL) {
         return NULL;
+    }
+    if (self->message) {
+        fprintf(profile_wrapper->file, "%s\n", self->message);
     }
     Py_INCREF(self);
     return (PyObject *) self;
