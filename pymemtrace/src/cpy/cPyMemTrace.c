@@ -170,14 +170,11 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
     return 0;
 }
 
-static TraceFileWrapper *static_profile_wrapper = NULL;
-static TraceFileWrapper *static_trace_wrapper = NULL;
-
 static TraceFileWrapper *
-new_trace_wrapper(int d_rss_trigger) {
-    if (static_trace_wrapper) {
-        TraceFileWrapper_dealloc(static_trace_wrapper);
-        static_trace_wrapper = NULL;
+new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger) {
+    if (trace_wrapper) {
+        TraceFileWrapper_dealloc(trace_wrapper);
+        trace_wrapper = NULL;
     }
     char *filename = create_filename();
     if (filename) {
@@ -187,14 +184,14 @@ new_trace_wrapper(int d_rss_trigger) {
         char seperator = '/';
 #endif
         fprintf(stdout, "Opening log file %s%c%s\n", current_working_directory(), seperator, filename);
-        static_trace_wrapper = (TraceFileWrapper *)TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
-        if (static_trace_wrapper) {
-            static_trace_wrapper->file = fopen(filename, "w");
-            if (static_trace_wrapper->file) {
+        trace_wrapper = (TraceFileWrapper *)TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
+        if (trace_wrapper) {
+            trace_wrapper->file = fopen(filename, "w");
+            if (trace_wrapper->file) {
 //                fprintf(trace_wrapper->file, "%s\n", filename);
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
-                fprintf(static_trace_wrapper->file, "      %-12s %-6s  %-12s %-8s %-80s %4s %-32s %12s %12s\n",
+                fprintf(trace_wrapper->file, "      %-12s %-6s  %-12s %-8s %-80s %4s %-32s %12s %12s\n",
                         "Event", "dEvent", "Clock", "What", "File", "line", "Function", "RSS", "dRSS"
                 );
 #else
@@ -213,18 +210,18 @@ new_trace_wrapper(int d_rss_trigger) {
                 );
 #endif
 #endif
-                static_trace_wrapper->event_number = 0;
-                static_trace_wrapper->rss = 0;
+                trace_wrapper->event_number = 0;
+                trace_wrapper->rss = 0;
                 if (d_rss_trigger < 0) {
-                    static_trace_wrapper->d_rss_trigger = getpagesize();
+                    trace_wrapper->d_rss_trigger = getpagesize();
                 } else  {
-                    static_trace_wrapper->d_rss_trigger = d_rss_trigger;
+                    trace_wrapper->d_rss_trigger = d_rss_trigger;
                 }
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
-                static_trace_wrapper->previous_event_number = 0;
+                trace_wrapper->previous_event_number = 0;
 #endif
             } else {
-                TraceFileWrapper_dealloc(static_trace_wrapper);
+                TraceFileWrapper_dealloc(trace_wrapper);
                 fprintf(stderr, "Can not open writable file for TraceFileWrapper at %s\n", filename);
                 return NULL;
             }
@@ -232,14 +229,17 @@ new_trace_wrapper(int d_rss_trigger) {
             fprintf(stderr, "Can not create TraceFileWrapper.\n");
         }
     }
-    return static_trace_wrapper;
+    return trace_wrapper;
 }
+
+static TraceFileWrapper *static_profile_wrapper = NULL;
+static TraceFileWrapper *static_trace_wrapper = NULL;
 
 static PyObject *
 py_attach_profile_function(int d_rss_trigger) {
-    TraceFileWrapper *wrapper = new_trace_wrapper(d_rss_trigger);
-    if (wrapper) {
-        PyEval_SetProfile(&trace_or_profile_function, (PyObject *)wrapper);
+    static_profile_wrapper = new_trace_file_wrapper(static_profile_wrapper, d_rss_trigger);
+    if (static_profile_wrapper) {
+        PyEval_SetProfile(&trace_or_profile_function, (PyObject *)static_profile_wrapper);
         Py_RETURN_NONE;
     }
     PyErr_SetString(PyExc_RuntimeError, "Could not attach profile function.");
@@ -258,9 +258,9 @@ py_detach_profile_function(void) {
 
 static PyObject *
 py_attach_trace_function(int d_rss_trigger) {
-    TraceFileWrapper *wrapper = new_trace_wrapper(d_rss_trigger);
-    if (wrapper) {
-        PyEval_SetTrace(&trace_or_profile_function, (PyObject *)wrapper);
+    static_trace_wrapper = new_trace_file_wrapper(static_trace_wrapper, d_rss_trigger);
+    if (static_trace_wrapper) {
+        PyEval_SetTrace(&trace_or_profile_function, (PyObject *)static_trace_wrapper);
         Py_RETURN_NONE;
     }
     PyErr_SetString(PyExc_RuntimeError, "Could not attach trace function.");
