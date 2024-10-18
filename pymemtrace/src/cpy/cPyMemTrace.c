@@ -44,7 +44,7 @@
 typedef struct {
     PyObject_HEAD
     FILE *file;
-    // TODO: Store the file path and provide an API that can return it (or None) from profile_wrapper or trace_wrapper.
+    // Store the file path and provide an API that can return it (or None) from profile_wrapper or trace_wrapper.
     char *log_file_path;
     size_t event_number;
     size_t rss;
@@ -175,7 +175,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 
 static TraceFileWrapper *
 new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger, const char *message) {
-    static char file_path_buffer[2048];
+    static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH];
     if (trace_wrapper) {
         TraceFileWrapper_dealloc(trace_wrapper);
         trace_wrapper = NULL;
@@ -187,7 +187,7 @@ new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger, const
 #else
         char seperator = '/';
 #endif
-        snprintf(file_path_buffer, 2048, "%s%c%s", current_working_directory(), seperator, filename);
+        snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s%c%s", current_working_directory(), seperator, filename);
         fprintf(stdout, "Opening log file %s\n", file_path_buffer);
         trace_wrapper = (TraceFileWrapper *)TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
         if (trace_wrapper) {
