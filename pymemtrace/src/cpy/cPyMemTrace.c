@@ -174,7 +174,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 }
 
 static TraceFileWrapper *
-new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger) {
+new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger, const char *message) {
     static char file_path_buffer[2048];
     if (trace_wrapper) {
         TraceFileWrapper_dealloc(trace_wrapper);
@@ -196,6 +196,8 @@ new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger) {
                 // Copy the filename
                 trace_wrapper->log_file_path = malloc(strlen(file_path_buffer) + 1);
                 strcpy(trace_wrapper->log_file_path, file_path_buffer);
+                // Write the message to the log file
+                fprintf(trace_wrapper->file, "%s\n", message);
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
                 fprintf(trace_wrapper->file, "      %-12s %-6s  %-12s %-8s %-80s %4s %-32s %12s %12s\n",
@@ -261,8 +263,8 @@ get_log_file_path_trace(void) {
 }
 
 static PyObject *
-py_attach_profile_function(int d_rss_trigger) {
-    static_profile_wrapper = new_trace_file_wrapper(static_profile_wrapper, d_rss_trigger);
+py_attach_profile_function(int d_rss_trigger, const char *message) {
+    static_profile_wrapper = new_trace_file_wrapper(static_profile_wrapper, d_rss_trigger, message);
     if (static_profile_wrapper) {
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *)static_profile_wrapper);
         Py_RETURN_NONE;
@@ -282,8 +284,8 @@ py_detach_profile_function(void) {
 }
 
 static PyObject *
-py_attach_trace_function(int d_rss_trigger) {
-    static_trace_wrapper = new_trace_file_wrapper(static_trace_wrapper, d_rss_trigger);
+py_attach_trace_function(int d_rss_trigger, const char *message) {
+    static_trace_wrapper = new_trace_file_wrapper(static_trace_wrapper, d_rss_trigger, message);
     if (static_trace_wrapper) {
         PyEval_SetTrace(&trace_or_profile_function, (PyObject *)static_trace_wrapper);
         Py_RETURN_NONE;
@@ -373,11 +375,8 @@ ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
 
 static PyObject *
 ProfileObject_enter(ProfileObject *self) {
-    if (py_attach_profile_function(self->d_rss_trigger) == NULL) {
+    if (py_attach_profile_function(self->d_rss_trigger, self->message) == NULL) {
         return NULL;
-    }
-    if (self->message) {
-        fprintf(static_profile_wrapper->file, "%s\n", self->message);
     }
     Py_INCREF(self);
     return (PyObject *) self;
@@ -463,11 +462,8 @@ TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
 static PyObject *
 TraceObject_enter(TraceObject *self) {
     /* Could use cPyMemTracemodule. */
-    if (py_attach_trace_function(self->d_rss_trigger) == NULL) {
+    if (py_attach_trace_function(self->d_rss_trigger, self->message) == NULL) {
         return NULL;
-    }
-    if (self->message) {
-        fprintf(static_trace_wrapper->file, "%s\n", self->message);
     }
     Py_INCREF(self);
     return (PyObject *) self;
