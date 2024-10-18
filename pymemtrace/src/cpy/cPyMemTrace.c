@@ -45,6 +45,7 @@ typedef struct {
     PyObject_HEAD
     FILE *file;
     // TODO: Store the file path and provide an API that can return it (or None) from profile_wrapper or trace_wrapper.
+    char *log_file_path;
     size_t event_number;
     size_t rss;
     int d_rss_trigger;
@@ -59,6 +60,7 @@ TraceFileWrapper_dealloc(TraceFileWrapper *self) {
     if (self->file) {
         fclose(self->file);
     }
+    free(self->log_file_path);
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
@@ -68,6 +70,7 @@ TraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py
     self = (TraceFileWrapper *) type->tp_alloc(type, 0);
     if (self != NULL) {
         self->file = NULL;
+        self->log_file_path = NULL;
     }
     return (PyObject *) self;
 }
@@ -172,6 +175,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 
 static TraceFileWrapper *
 new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger) {
+    static char file_path_buffer[2048];
     if (trace_wrapper) {
         TraceFileWrapper_dealloc(trace_wrapper);
         trace_wrapper = NULL;
@@ -183,12 +187,15 @@ new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger) {
 #else
         char seperator = '/';
 #endif
-        fprintf(stdout, "Opening log file %s%c%s\n", current_working_directory(), seperator, filename);
+        snprintf(file_path_buffer, 2048, "%s%c%s", current_working_directory(), seperator, filename);
+        fprintf(stdout, "Opening log file %s\n", file_path_buffer);
         trace_wrapper = (TraceFileWrapper *)TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
         if (trace_wrapper) {
             trace_wrapper->file = fopen(filename, "w");
             if (trace_wrapper->file) {
-//                fprintf(trace_wrapper->file, "%s\n", filename);
+                // Copy the filename
+                trace_wrapper->log_file_path = malloc(strlen(file_path_buffer) + 1);
+                strcpy(trace_wrapper->log_file_path, file_path_buffer);
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
                 fprintf(trace_wrapper->file, "      %-12s %-6s  %-12s %-8s %-80s %4s %-32s %12s %12s\n",
@@ -234,6 +241,24 @@ new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger) {
 
 static TraceFileWrapper *static_profile_wrapper = NULL;
 static TraceFileWrapper *static_trace_wrapper = NULL;
+
+static PyObject *
+get_log_file_path_profile(void) {
+    if (static_profile_wrapper) {
+        return Py_BuildValue("s", static_profile_wrapper->log_file_path);
+    } else {
+        Py_RETURN_NONE;
+    }
+}
+
+static PyObject *
+get_log_file_path_trace(void) {
+    if (static_trace_wrapper) {
+        return Py_BuildValue("s", static_trace_wrapper->log_file_path);
+    } else {
+        Py_RETURN_NONE;
+    }
+}
 
 static PyObject *
 py_attach_profile_function(int d_rss_trigger) {
@@ -290,6 +315,18 @@ py_rss_peak(void) {
 static PyMethodDef cPyMemTraceMethods[] = {
     {"rss",   (PyCFunction) py_rss, METH_NOARGS, "Return the current RSS in bytes."},
     {"rss_peak",   (PyCFunction) py_rss_peak, METH_NOARGS, "Return the peak RSS in bytes."},
+    {
+        "get_log_file_path_profile",
+        (PyCFunction) get_log_file_path_profile,
+        METH_NOARGS,
+        "Return the current log file path for profiling."
+    },
+    {
+        "get_log_file_path_trace",
+        (PyCFunction) get_log_file_path_trace,
+        METH_NOARGS,
+        "Return the current log file path for tracing."
+    },
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 

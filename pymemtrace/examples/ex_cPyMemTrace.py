@@ -58,7 +58,8 @@ def g():
 
 def example_for_documentation():
     print(f'example_for_documentation()')
-    with cPyMemTrace.Profile(0):
+    with cPyMemTrace.Profile(0, message="MESSAGE"):
+        print(f'Logging to {cPyMemTrace.get_log_file_path_profile()}')
         l = []
         for i in range(8):
             l.append(create_string(1024**2))
