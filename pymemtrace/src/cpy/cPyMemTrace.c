@@ -430,7 +430,7 @@ TraceObject_enter(TraceObject *self) {
         return NULL;
     }
     if (self->message) {
-        fprintf(static_profile_wrapper->file, "%s\n", self->message);
+        fprintf(static_trace_wrapper->file, "%s\n", self->message);
     }
     Py_INCREF(self);
     return (PyObject *) self;
