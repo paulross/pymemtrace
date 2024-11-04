@@ -14,6 +14,7 @@
  *
 */
 #define PY_SSIZE_T_CLEAN
+
 #include <Python.h>
 #include "structmember.h"
 #include "frameobject.h"
@@ -100,15 +101,15 @@ static PyTypeObject TraceFileWrapperType = {
  * Here these are trimmed to be a maximum of 8 long.
  */
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
-static const char* WHAT_STRINGS[] = {
-    "CALL",
-    "EXCEPT",
-    "LINE",
-    "RETURN",
-    "C_CALL",
-    "C_EXCEPT",
-    "C_RETURN",
-    "OPCODE",
+static const char *WHAT_STRINGS[] = {
+        "CALL",
+        "EXCEPT",
+        "LINE",
+        "RETURN",
+        "C_CALL",
+        "C_EXCEPT",
+        "C_RETURN",
+        "OPCODE",
 };
 #endif
 
@@ -116,7 +117,7 @@ static int
 trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObject *arg) {
     assert(Py_TYPE(pobj) == &TraceFileWrapperType && "trace_wrapper is not a TraceFileWrapperType.");
 
-    TraceFileWrapper *trace_wrapper = (TraceFileWrapper *)pobj;
+    TraceFileWrapper *trace_wrapper = (TraceFileWrapper *) pobj;
     size_t rss = getCurrentRSS_alternate();
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
@@ -134,7 +135,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
         /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
         func_name = (const char *)PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_name);
 #else
-        func_name = (const char *)PyUnicode_1BYTE_DATA(frame->f_code->co_name);
+        func_name = (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name);
 #endif
     }
     long d_rss = rss - trace_wrapper->rss;
@@ -187,9 +188,10 @@ new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger, const
 #else
         char seperator = '/';
 #endif
-        snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s%c%s", current_working_directory(), seperator, filename);
+        snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s%c%s", current_working_directory(), seperator,
+                 filename);
         fprintf(stdout, "Opening log file %s\n", file_path_buffer);
-        trace_wrapper = (TraceFileWrapper *)TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
+        trace_wrapper = (TraceFileWrapper *) TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
         if (trace_wrapper) {
             trace_wrapper->file = fopen(filename, "w");
             if (trace_wrapper->file) {
@@ -223,7 +225,7 @@ new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger, const
                 trace_wrapper->rss = 0;
                 if (d_rss_trigger < 0) {
                     trace_wrapper->d_rss_trigger = getpagesize();
-                } else  {
+                } else {
                     trace_wrapper->d_rss_trigger = d_rss_trigger;
                 }
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
@@ -266,7 +268,7 @@ static PyObject *
 py_attach_profile_function(int d_rss_trigger, const char *message) {
     static_profile_wrapper = new_trace_file_wrapper(static_profile_wrapper, d_rss_trigger, message);
     if (static_profile_wrapper) {
-        PyEval_SetProfile(&trace_or_profile_function, (PyObject *)static_profile_wrapper);
+        PyEval_SetProfile(&trace_or_profile_function, (PyObject *) static_profile_wrapper);
         Py_RETURN_NONE;
     }
     PyErr_SetString(PyExc_RuntimeError, "Could not attach profile function.");
@@ -287,7 +289,7 @@ static PyObject *
 py_attach_trace_function(int d_rss_trigger, const char *message) {
     static_trace_wrapper = new_trace_file_wrapper(static_trace_wrapper, d_rss_trigger, message);
     if (static_trace_wrapper) {
-        PyEval_SetTrace(&trace_or_profile_function, (PyObject *)static_trace_wrapper);
+        PyEval_SetTrace(&trace_or_profile_function, (PyObject *) static_trace_wrapper);
         Py_RETURN_NONE;
     }
     PyErr_SetString(PyExc_RuntimeError, "Could not attach trace function.");
@@ -315,21 +317,21 @@ py_rss_peak(void) {
 }
 
 static PyMethodDef cPyMemTraceMethods[] = {
-    {"rss",   (PyCFunction) py_rss, METH_NOARGS, "Return the current RSS in bytes."},
-    {"rss_peak",   (PyCFunction) py_rss_peak, METH_NOARGS, "Return the peak RSS in bytes."},
-    {
-        "get_log_file_path_profile",
-        (PyCFunction) get_log_file_path_profile,
-        METH_NOARGS,
-        "Return the current log file path for profiling."
-    },
-    {
-        "get_log_file_path_trace",
-        (PyCFunction) get_log_file_path_trace,
-        METH_NOARGS,
-        "Return the current log file path for tracing."
-    },
-    {NULL, NULL, 0, NULL}        /* Sentinel */
+        {"rss",      (PyCFunction) py_rss,      METH_NOARGS, "Return the current RSS in bytes."},
+        {"rss_peak", (PyCFunction) py_rss_peak, METH_NOARGS, "Return the peak RSS in bytes."},
+        {
+         "get_log_file_path_profile",
+                     (PyCFunction) get_log_file_path_profile,
+                                                METH_NOARGS,
+                                                             "Return the current log file path for profiling."
+        },
+        {
+         "get_log_file_path_trace",
+                     (PyCFunction) get_log_file_path_trace,
+                                                METH_NOARGS,
+                                                             "Return the current log file path for tracing."
+        },
+        {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
 /**** Context manager for attach_profile_function() and detach_profile_function() ****/
@@ -358,7 +360,7 @@ ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
     static char *kwlist[] = {"d_rss_trigger", "message", NULL};
     int d_rss_trigger = -1;
     char *message = NULL;
-    if (! PyArg_ParseTupleAndKeywords(args, kwds, "|is", kwlist, &d_rss_trigger, &message)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|is", kwlist, &d_rss_trigger, &message)) {
         return -1;
     }
     self->d_rss_trigger = d_rss_trigger;
@@ -390,9 +392,9 @@ ProfileObject_exit(ProfileObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
 
 static PyMethodDef ProfileObject_methods[] = {
         {"__enter__", (PyCFunction) ProfileObject_enter, METH_NOARGS,
-         "Attach a Profile object to the C runtime."},
-        {"__exit__", (PyCFunction) ProfileObject_exit, METH_VARARGS,
-         "Detach a Profile object from the C runtime."},
+                "Attach a Profile object to the C runtime."},
+        {"__exit__",  (PyCFunction) ProfileObject_exit,  METH_VARARGS,
+                "Detach a Profile object from the C runtime."},
         {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
@@ -407,8 +409,7 @@ static PyTypeObject ProfileObjectType = {
                   "\n\nThis is slightly less invasive profiling than ``cPyMemTrace.Trace`` as the profile function is"
                   " called for all monitored events except the Python ``PyTrace_LINE PyTrace_OPCODE`` and"
                   " ``PyTrace_EXCEPTION`` events."
-                  "\n\nThis writes to a file in the current working directory named \"YYYYmmdd_HHMMSS_<PID>.log\""
-                  ,
+                  "\n\nThis writes to a file in the current working directory named \"YYYYmmdd_HHMMSS_<PID>.log\"",
         .tp_basicsize = sizeof(ProfileObject),
         .tp_itemsize = 0,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
@@ -443,8 +444,8 @@ static int
 TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
     static char *kwlist[] = {"d_rss_trigger", "message", NULL};
     int d_rss_trigger = -1;
-    char *message =NULL;
-    if (! PyArg_ParseTupleAndKeywords(args, kwds, "|is", kwlist, &d_rss_trigger, &message)) {
+    char *message = NULL;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|is", kwlist, &d_rss_trigger, &message)) {
         return -1;
     }
     self->d_rss_trigger = d_rss_trigger;
@@ -478,9 +479,9 @@ TraceObject_exit(TraceObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
 
 static PyMethodDef TraceObject_methods[] = {
         {"__enter__", (PyCFunction) TraceObject_enter, METH_NOARGS,
-         "Attach a Trace object to the C runtime."},
-        {"__exit__", (PyCFunction) TraceObject_exit, METH_VARARGS,
-         "Detach a Trace object from the C runtime."},
+                "Attach a Trace object to the C runtime."},
+        {"__exit__",  (PyCFunction) TraceObject_exit,  METH_VARARGS,
+                "Detach a Trace object from the C runtime."},
         {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
@@ -495,8 +496,7 @@ static PyTypeObject TraceObjectType = {
                   "\n\nThe tracing function does receive Python line-number events and per-opcode events"
                   " but does not receive any event related to C functionss being called."
                   " For that use ``cPyMemTrace.Profile``"
-                  "\n\nThis writes to a file in the current working directory named \"YYYYmmdd_HHMMSS_<PID>.log\""
-                  ,
+                  "\n\nThis writes to a file in the current working directory named \"YYYYmmdd_HHMMSS_<PID>.log\"",
         .tp_basicsize = sizeof(TraceObject),
         .tp_itemsize = 0,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
@@ -510,22 +510,22 @@ static PyTypeObject TraceObjectType = {
 const char *PY_MEM_TRACE_DOC = "Module that contains C memory tracer classes and functions.";
 
 PyDoc_STRVAR(py_mem_trace_doc,
-"Module that contains C memory tracer classes and functions."
-"\nNotably this has Profile() and Trace() that can attach to the Python runtime and report memory usage events."
+             "Module that contains C memory tracer classes and functions."
+             "\nNotably this has Profile() and Trace() that can attach to the Python runtime and report memory usage events."
 );
 
 static PyModuleDef cPyMemTracemodule = {
-    PyModuleDef_HEAD_INIT,
-    .m_name = "cPyMemTrace",
-    .m_doc = py_mem_trace_doc,
-    .m_size = -1,
-    .m_methods = cPyMemTraceMethods,
+        PyModuleDef_HEAD_INIT,
+        .m_name = "cPyMemTrace",
+        .m_doc = py_mem_trace_doc,
+        .m_size = -1,
+        .m_methods = cPyMemTraceMethods,
 };
 
 PyMODINIT_FUNC
 PyInit_cPyMemTrace(void) {
     PyObject *m = PyModule_Create(&cPyMemTracemodule);
-    if(m == NULL) {
+    if (m == NULL) {
         return NULL;
     }
     /* TODO: decref the refcounts properly on failure. */

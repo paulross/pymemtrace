@@ -2,6 +2,16 @@
 History
 =======
 
+0.2.0 (TODO: Date)
+------------------
+
+* cPyMemTrace:
+    * Add an optional message to the log file in cPyMemTrace.
+    * Add Python API to get log file being written to by cPyMemTrace.
+    * Bug fixes in cPyMemTrace.c
+    * Safety fix for file path name lengths.
+    * Fix for log files where '#' was being concatenated.
+
 0.1.7 (2024-09-12)
 ------------------
 
