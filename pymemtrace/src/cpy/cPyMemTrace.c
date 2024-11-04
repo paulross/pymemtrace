@@ -432,11 +432,11 @@ ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
 
 static PyObject *
 ProfileObject_enter(ProfileObject *self) {
-    PyObject *foo = py_attach_profile_function(self->d_rss_trigger, self->message);
-    if (foo == NULL) {
+    PyObject *trace_file_wrapper = py_attach_profile_function(self->d_rss_trigger, self->message);
+    if (trace_file_wrapper == NULL) {
         return NULL;
     }
-    self->trace_file_wrapper = foo;
+    self->trace_file_wrapper = trace_file_wrapper;
     Py_INCREF(self);
     return (PyObject *) self;
 }
