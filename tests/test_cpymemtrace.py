@@ -9,5 +9,7 @@ from pymemtrace import cPyMemTrace
 
 
 def test_basic():
-    with cPyMemTrace.Profile(0):
+    with cPyMemTrace.Profile(0) as foo:
+        print(foo)
+        print(dir(foo))
         b' ' * (1024 ** 2)
