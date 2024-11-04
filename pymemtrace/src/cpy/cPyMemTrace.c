@@ -327,9 +327,7 @@ py_attach_profile_function(int d_rss_trigger, const char *message) {
 static PyObject *
 py_detach_profile_function(void) {
     if (static_profile_wrapper) {
-        /* TODO: Is this combination of the next two lines dangerous as dealloc might be called twice? */
         Py_DECREF(static_profile_wrapper);
-        TraceFileWrapper_dealloc(static_profile_wrapper);
         /* TODO: Create list/stack of profilers. */
         static_profile_wrapper = NULL;
     }
@@ -352,9 +350,7 @@ py_attach_trace_function(int d_rss_trigger, const char *message) {
 static PyObject *
 py_detach_trace_function(void) {
     if (static_trace_wrapper) {
-        /* TODO: Is this combination of the next two lines dangerous as dealloc might be called twice? */
         Py_DECREF(static_trace_wrapper);
-        TraceFileWrapper_dealloc(static_trace_wrapper);
         /* TODO: Create list/stack of profilers. */
         static_trace_wrapper = NULL;
     }
