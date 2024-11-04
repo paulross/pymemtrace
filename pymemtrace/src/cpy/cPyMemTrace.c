@@ -76,6 +76,53 @@ TraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py
     return (PyObject *) self;
 }
 
+/* Backwards compatibility for versions prior to 3.12.
+ * See:
+ * https://docs.python.org/3/c-api/structures.html#member-flags
+ * https://docs.python.org/3/c-api/apiabiversion.html#c.PY_VERSION_HEX
+ * */
+
+#if PY_VERSION_HEX < 0x030c0000
+/* Flags. */
+#define Py_READONLY READONLY
+/* Types. */
+#define Py_T_PYSSIZET T_PYSSIZET
+#define Py_T_INT T_INT
+#define Py_T_STRING T_STRING
+#endif
+
+/* TraceFileWrapper members */
+static PyMemberDef TraceFileWrapper_members[] = {
+        {
+                "log_file_path",         Py_T_STRING,   offsetof(TraceFileWrapper,
+                                                                 log_file_path),         Py_READONLY,
+                                                                                                      "The path to the log file being written."
+        },
+        {
+                "event_number",          Py_T_PYSSIZET, offsetof(TraceFileWrapper,
+                                                                 event_number),          Py_READONLY, "The current event number."
+        },
+        {
+                "rss",                   Py_T_PYSSIZET, offsetof(TraceFileWrapper,
+                                                                 rss),                   Py_READONLY, "The current Resident Set Size (RSS)."
+        },
+        {
+                "d_rss_trigger",         Py_T_INT,      offsetof(TraceFileWrapper,
+                                                                 d_rss_trigger),         Py_READONLY, "The delta Resident Set Size (RSS) trigger value."
+        },
+        {
+                "previous_event_number", Py_T_PYSSIZET, offsetof(TraceFileWrapper,
+                                                                 previous_event_number), Py_READONLY, "The previous event number."
+        },
+        {
+                "event_text",            Py_T_STRING,   offsetof(TraceFileWrapper,
+                                                                 event_text),            Py_READONLY,
+                                                                                                      "The current event text."
+        },
+        {NULL, 0, 0, 0, NULL} /* Sentinel */
+};
+
+
 static PyTypeObject TraceFileWrapperType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.TraceFileWrapper",
@@ -85,6 +132,7 @@ static PyTypeObject TraceFileWrapperType = {
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
         .tp_new = TraceFileWrapper_new,
         .tp_dealloc = (destructor) TraceFileWrapper_dealloc,
+        .tp_members = TraceFileWrapper_members,
 };
 
 /*
