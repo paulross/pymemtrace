@@ -38,6 +38,21 @@
 #define PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
 //#undef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
 
+/* Backwards compatibility for object members for Python versions prior to 3.12.
+ * See:
+ * https://docs.python.org/3/c-api/structures.html#member-flags
+ * https://docs.python.org/3/c-api/apiabiversion.html#c.PY_VERSION_HEX
+ * */
+
+#if PY_VERSION_HEX < 0x030c0000
+/* Flags. */
+#define Py_READONLY READONLY
+/* Types. */
+#define Py_T_PYSSIZET T_PYSSIZET
+#define Py_T_INT T_INT
+#define Py_T_STRING T_STRING
+#define Py_T_OBJECT_EX T_OBJECT_EX
+#endif
 
 /*
  * Trace classes could make this available by looking at trace_file_wrapper or profile_file_wrapper.
@@ -76,21 +91,6 @@ TraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py
     return (PyObject *) self;
 }
 
-/* Backwards compatibility for versions prior to 3.12.
- * See:
- * https://docs.python.org/3/c-api/structures.html#member-flags
- * https://docs.python.org/3/c-api/apiabiversion.html#c.PY_VERSION_HEX
- * */
-
-#if PY_VERSION_HEX < 0x030c0000
-/* Flags. */
-#define Py_READONLY READONLY
-/* Types. */
-#define Py_T_PYSSIZET T_PYSSIZET
-#define Py_T_INT T_INT
-#define Py_T_STRING T_STRING
-#endif
-
 /* TraceFileWrapper members */
 static PyMemberDef TraceFileWrapper_members[] = {
         {
@@ -121,7 +121,6 @@ static PyMemberDef TraceFileWrapper_members[] = {
         },
         {NULL, 0, 0, 0, NULL} /* Sentinel */
 };
-
 
 static PyTypeObject TraceFileWrapperType = {
         PyVarObject_HEAD_INIT(NULL, 0)
@@ -318,7 +317,7 @@ py_attach_profile_function(int d_rss_trigger, const char *message) {
     if (static_profile_wrapper) {
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *) static_profile_wrapper);
         Py_INCREF(static_profile_wrapper);
-        return (PyObject *)static_profile_wrapper;
+        return (PyObject *) static_profile_wrapper;
     }
     PyErr_SetString(PyExc_RuntimeError, "Could not attach profile function.");
     return NULL;
@@ -341,7 +340,7 @@ py_attach_trace_function(int d_rss_trigger, const char *message) {
     if (static_trace_wrapper) {
         PyEval_SetTrace(&trace_or_profile_function, (PyObject *) static_trace_wrapper);
         Py_INCREF(static_trace_wrapper);
-        return (PyObject *)static_trace_wrapper;
+        return (PyObject *) static_trace_wrapper;
     }
     PyErr_SetString(PyExc_RuntimeError, "Could not attach trace function.");
     return NULL;
@@ -447,6 +446,15 @@ ProfileObject_exit(ProfileObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
     Py_RETURN_FALSE;
 }
 
+static PyMemberDef ProfileObject_members[] = {
+        {
+                "trace_file_wrapper", Py_T_OBJECT_EX, offsetof(ProfileObject,
+                                                               trace_file_wrapper), Py_READONLY,
+                "The trace file wrapper."
+        },
+        {NULL,                        0, 0, 0, NULL} /* Sentinel */
+};
+
 static PyMethodDef ProfileObject_methods[] = {
         {"__enter__", (PyCFunction) ProfileObject_enter, METH_NOARGS,
                 "Attach a Profile object to the C runtime."},
@@ -474,6 +482,7 @@ static PyTypeObject ProfileObjectType = {
         .tp_init = (initproc) ProfileObject_init,
         .tp_dealloc = (destructor) ProfileObject_dealloc,
         .tp_methods = ProfileObject_methods,
+        .tp_members = ProfileObject_members,
 };
 /**** END: Context manager for attach_profile_function() and detach_profile_function() ****/
 
