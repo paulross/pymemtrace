@@ -317,7 +317,8 @@ py_attach_profile_function(int d_rss_trigger, const char *message) {
     static_profile_wrapper = new_trace_file_wrapper(static_profile_wrapper, d_rss_trigger, message);
     if (static_profile_wrapper) {
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *) static_profile_wrapper);
-        Py_RETURN_NONE;
+        Py_INCREF(static_profile_wrapper);
+        return (PyObject *)static_profile_wrapper;
     }
     PyErr_SetString(PyExc_RuntimeError, "Could not attach profile function.");
     return NULL;
@@ -326,7 +327,10 @@ py_attach_profile_function(int d_rss_trigger, const char *message) {
 static PyObject *
 py_detach_profile_function(void) {
     if (static_profile_wrapper) {
+        /* TODO: Is this combination of the next two lines dangerous as dealloc might be called twice? */
+        Py_DECREF(static_profile_wrapper);
         TraceFileWrapper_dealloc(static_profile_wrapper);
+        /* TODO: Create list/stack of profilers. */
         static_profile_wrapper = NULL;
     }
     PyEval_SetProfile(NULL, NULL);
@@ -338,7 +342,8 @@ py_attach_trace_function(int d_rss_trigger, const char *message) {
     static_trace_wrapper = new_trace_file_wrapper(static_trace_wrapper, d_rss_trigger, message);
     if (static_trace_wrapper) {
         PyEval_SetTrace(&trace_or_profile_function, (PyObject *) static_trace_wrapper);
-        Py_RETURN_NONE;
+        Py_INCREF(static_trace_wrapper);
+        return (PyObject *)static_trace_wrapper;
     }
     PyErr_SetString(PyExc_RuntimeError, "Could not attach trace function.");
     return NULL;
@@ -347,7 +352,10 @@ py_attach_trace_function(int d_rss_trigger, const char *message) {
 static PyObject *
 py_detach_trace_function(void) {
     if (static_trace_wrapper) {
+        /* TODO: Is this combination of the next two lines dangerous as dealloc might be called twice? */
+        Py_DECREF(static_trace_wrapper);
         TraceFileWrapper_dealloc(static_trace_wrapper);
+        /* TODO: Create list/stack of profilers. */
         static_trace_wrapper = NULL;
     }
     PyEval_SetTrace(NULL, NULL);
@@ -388,11 +396,13 @@ typedef struct {
     int d_rss_trigger;
     // Message. Add const char *message here that is a malloc copy of the string given in ProfileObject_init
     char *message;
+    PyObject *trace_file_wrapper;
 } ProfileObject;
 
 static void
 ProfileObject_dealloc(ProfileObject *self) {
     free(self->message);
+    Py_XDECREF(self->trace_file_wrapper);
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
@@ -400,6 +410,7 @@ static PyObject *
 ProfileObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
     ProfileObject *self = (ProfileObject *) type->tp_alloc(type, 0);
     self->message = NULL;
+    self->trace_file_wrapper = NULL;
     return (PyObject *) self;
 }
 
@@ -425,9 +436,11 @@ ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
 
 static PyObject *
 ProfileObject_enter(ProfileObject *self) {
-    if (py_attach_profile_function(self->d_rss_trigger, self->message) == NULL) {
+    PyObject *foo = py_attach_profile_function(self->d_rss_trigger, self->message);
+    if (foo == NULL) {
         return NULL;
     }
+    self->trace_file_wrapper = foo;
     Py_INCREF(self);
     return (PyObject *) self;
 }
@@ -510,12 +523,14 @@ TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
 
 static PyObject *
 TraceObject_enter(TraceObject *self) {
-    /* Could use cPyMemTracemodule. */
-    if (py_attach_trace_function(self->d_rss_trigger, self->message) == NULL) {
-        return NULL;
-    }
     Py_INCREF(self);
-    return (PyObject *) self;
+    return py_attach_trace_function(self->d_rss_trigger, self->message);
+//    /* Could use cPyMemTracemodule. */
+//    if (py_attach_trace_function(self->d_rss_trigger, self->message) == NULL) {
+//        return NULL;
+//    }
+//    Py_INCREF(self);
+//    return (PyObject *) self;
 }
 
 static PyObject *
