@@ -378,65 +378,6 @@ get_log_file_path_trace(void) {
     }
 }
 
-
-#pragma mark Attach/detach profiler.
-static PyObject *
-py_attach_profile_function(int d_rss_trigger, const char *message) {
-    static_profile_wrapper = new_trace_file_wrapper(static_profile_wrapper, d_rss_trigger, message);
-    if (static_profile_wrapper) {
-        PyEval_SetProfile(&trace_or_profile_function, (PyObject *) static_profile_wrapper);
-        Py_INCREF(static_profile_wrapper);
-        // Write a marker, in this case it is the line number of the frame.
-        trace_or_profile_function((PyObject *)static_profile_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
-        return (PyObject *) static_profile_wrapper;
-    }
-    PyErr_SetString(PyExc_RuntimeError, "Could not attach profile function.");
-    return NULL;
-}
-
-static PyObject *
-py_detach_profile_function(void) {
-    if (static_profile_wrapper) {
-        // Write a marker, in this case it is the line number of the frame.
-        trace_or_profile_function((PyObject *)static_profile_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
-        fflush(static_profile_wrapper->file);
-        Py_DECREF(static_profile_wrapper);
-        /* TODO: Create list/stack of profilers. */
-        static_profile_wrapper = NULL;
-    }
-    PyEval_SetProfile(NULL, NULL);
-    Py_RETURN_NONE;
-}
-
-#pragma mark Attach/detach tracer.
-static PyObject *
-py_attach_trace_function(int d_rss_trigger, const char *message) {
-    static_trace_wrapper = new_trace_file_wrapper(static_trace_wrapper, d_rss_trigger, message);
-    if (static_trace_wrapper) {
-        PyEval_SetTrace(&trace_or_profile_function, (PyObject *) static_trace_wrapper);
-        Py_INCREF(static_trace_wrapper);
-        // Write a marker, in this case it is the line number of the frame.
-        trace_or_profile_function((PyObject *)static_trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
-        return (PyObject *) static_trace_wrapper;
-    }
-    PyErr_SetString(PyExc_RuntimeError, "Could not attach trace function.");
-    return NULL;
-}
-
-static PyObject *
-py_detach_trace_function(void) {
-    if (static_trace_wrapper) {
-        // Write a marker, in this case it is the line number of the frame.
-        trace_or_profile_function((PyObject *)static_trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
-        fflush(static_trace_wrapper->file);
-        Py_DECREF(static_trace_wrapper);
-        /* TODO: Create list/stack of profilers. */
-        static_trace_wrapper = NULL;
-    }
-    PyEval_SetTrace(NULL, NULL);
-    Py_RETURN_NONE;
-}
-
 #pragma mark cPyMemTrace methods.
 static PyObject *
 py_rss(void) {
@@ -512,6 +453,20 @@ ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
 }
 
 static PyObject *
+py_attach_profile_function(int d_rss_trigger, const char *message) {
+    static_profile_wrapper = new_trace_file_wrapper(static_profile_wrapper, d_rss_trigger, message);
+    if (static_profile_wrapper) {
+        PyEval_SetProfile(&trace_or_profile_function, (PyObject *) static_profile_wrapper);
+        Py_INCREF(static_profile_wrapper);
+        // Write a marker, in this case it is the line number of the frame.
+        trace_or_profile_function((PyObject *)static_profile_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        return (PyObject *) static_profile_wrapper;
+    }
+    PyErr_SetString(PyExc_RuntimeError, "Could not attach profile function.");
+    return NULL;
+}
+
+static PyObject *
 ProfileObject_enter(ProfileObject *self) {
     PyObject *trace_file_wrapper = py_attach_profile_function(self->d_rss_trigger, self->message);
     if (trace_file_wrapper == NULL) {
@@ -524,7 +479,15 @@ ProfileObject_enter(ProfileObject *self) {
 
 static PyObject *
 ProfileObject_exit(ProfileObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
-    py_detach_profile_function();
+    if (static_profile_wrapper) {
+        // Write a marker, in this case it is the line number of the frame.
+        trace_or_profile_function((PyObject *)static_profile_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        fflush(static_profile_wrapper->file);
+        Py_DECREF(static_profile_wrapper);
+        /* TODO: Create list/stack of profilers. */
+        static_profile_wrapper = NULL;
+    }
+    PyEval_SetProfile(NULL, NULL);
     Py_RETURN_FALSE;
 }
 
@@ -614,6 +577,20 @@ TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
 }
 
 static PyObject *
+py_attach_trace_function(int d_rss_trigger, const char *message) {
+    static_trace_wrapper = new_trace_file_wrapper(static_trace_wrapper, d_rss_trigger, message);
+    if (static_trace_wrapper) {
+        PyEval_SetTrace(&trace_or_profile_function, (PyObject *) static_trace_wrapper);
+        Py_INCREF(static_trace_wrapper);
+        // Write a marker, in this case it is the line number of the frame.
+        trace_or_profile_function((PyObject *)static_trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        return (PyObject *) static_trace_wrapper;
+    }
+    PyErr_SetString(PyExc_RuntimeError, "Could not attach trace function.");
+    return NULL;
+}
+
+static PyObject *
 TraceObject_enter(TraceObject *self) {
     PyObject *trace_file_wrapper = py_attach_trace_function(self->d_rss_trigger, self->message);
     if (trace_file_wrapper == NULL) {
@@ -626,7 +603,15 @@ TraceObject_enter(TraceObject *self) {
 
 static PyObject *
 TraceObject_exit(TraceObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
-    py_detach_trace_function();
+    if (static_trace_wrapper) {
+        // Write a marker, in this case it is the line number of the frame.
+        trace_or_profile_function((PyObject *)static_trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        fflush(static_trace_wrapper->file);
+        Py_DECREF(static_trace_wrapper);
+        /* TODO: Create list/stack of profilers. */
+        static_trace_wrapper = NULL;
+    }
+    PyEval_SetTrace(NULL, NULL);
     Py_RETURN_FALSE;
 }
 
