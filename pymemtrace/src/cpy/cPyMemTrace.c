@@ -428,10 +428,6 @@ void wrapper_ll_clear(tTraceFileWrapperLinkedList **h_linked_list) {
     }
 }
 
-//// Original single values
-//static TraceFileWrapper *static_profile_wrapper = NULL;
-//static TraceFileWrapper *static_trace_wrapper = NULL;
-
 #pragma mark Get the current log paths.
 
 static PyObject *
