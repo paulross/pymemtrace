@@ -241,7 +241,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
     } else {
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
         /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
-        func_name = (const char *)PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_name);
+        func_name = (const char *) PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_name);
 #else
         func_name = (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name);
 #endif
