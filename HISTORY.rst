@@ -6,6 +6,7 @@ History
 ------------------
 
 * cPyMemTrace:
+    * Add stacking of trace/profile functions with linked list of tTraceFileWrapperLinkedList.
     * Add an option to log to a specific file.
     * Add an API write_to_log() to inject text into the log file.
     * Add an optional message to the log file in cPyMemTrace.
