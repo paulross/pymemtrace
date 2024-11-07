@@ -6,6 +6,8 @@ History
 ------------------
 
 * cPyMemTrace:
+    * Add an option to log to a specific file.
+    * Add an API write_to_log() to inject text into the log file.
     * Add an optional message to the log file in cPyMemTrace.
     * Add Python API to get log file being written to by cPyMemTrace.
     * Bug fixes in cPyMemTrace.c
