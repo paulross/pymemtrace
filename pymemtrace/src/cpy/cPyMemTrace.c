@@ -119,6 +119,7 @@ TraceFileWrapper_dealloc(TraceFileWrapper *self) {
 
 static PyObject *
 TraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
+    assert(!PyErr_Occurred());
     TraceFileWrapper *self;
     self = (TraceFileWrapper *) type->tp_alloc(type, 0);
     if (self != NULL) {
@@ -164,6 +165,7 @@ static PyMemberDef TraceFileWrapper_members[] = {
 
 static PyObject *
 TraceFileWrapper_write_to_log(TraceFileWrapper *self, PyObject *op) {
+    assert(!PyErr_Occurred());
     if (!PyUnicode_Check(op)) {
         PyErr_Format(PyExc_ValueError, "write_log() requires a single string, not type %s", Py_TYPE(op)->tp_name);
         return NULL;
@@ -223,6 +225,7 @@ static const char *WHAT_STRINGS[] = {
 
 static int
 trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObject *arg) {
+    assert(!PyErr_Occurred());
     assert(Py_TYPE(pobj) == &TraceFileWrapperType && "trace_wrapper is not a TraceFileWrapperType.");
 
     TraceFileWrapper *trace_wrapper = (TraceFileWrapper *) pobj;
@@ -279,12 +282,14 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 #endif // PY_MEM_TRACE_WRITE_OUTPUT
     trace_wrapper->event_number++;
     trace_wrapper->rss = rss;
+    assert(!PyErr_Occurred());
     return 0;
 }
 
 static TraceFileWrapper *
 new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger, const char *message) {
     static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH];
+    assert(!PyErr_Occurred());
     if (trace_wrapper) {
         TraceFileWrapper_dealloc(trace_wrapper);
         trace_wrapper = NULL;
@@ -352,6 +357,7 @@ new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger, const
             fprintf(stderr, "Can not create TraceFileWrapper.\n");
         }
     }
+    assert(!PyErr_Occurred());
     return trace_wrapper;
 }
 
@@ -363,6 +369,7 @@ static TraceFileWrapper *static_trace_wrapper = NULL;
 
 static PyObject *
 get_log_file_path_profile(void) {
+    assert(!PyErr_Occurred());
     if (static_profile_wrapper) {
         return Py_BuildValue("s", static_profile_wrapper->log_file_path);
     } else {
@@ -372,6 +379,7 @@ get_log_file_path_profile(void) {
 
 static PyObject *
 get_log_file_path_trace(void) {
+    assert(!PyErr_Occurred());
     if (static_trace_wrapper) {
         return Py_BuildValue("s", static_trace_wrapper->log_file_path);
     } else {
@@ -383,11 +391,13 @@ get_log_file_path_trace(void) {
 
 static PyObject *
 py_rss(void) {
+    assert(!PyErr_Occurred());
     return PyLong_FromSize_t(getCurrentRSS_alternate());
 }
 
 static PyObject *
 py_rss_peak(void) {
+    assert(!PyErr_Occurred());
     return PyLong_FromSize_t(getPeakRSS());
 }
 
@@ -428,18 +438,23 @@ ProfileObject_dealloc(ProfileObject *self) {
 
 static PyObject *
 ProfileObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
+    assert(!PyErr_Occurred());
     ProfileObject *self = (ProfileObject *) type->tp_alloc(type, 0);
-    self->message = NULL;
-    self->trace_file_wrapper = NULL;
+    if (self) {
+        self->message = NULL;
+        self->trace_file_wrapper = NULL;
+    }
     return (PyObject *) self;
 }
 
 static int
 ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
+    assert(!PyErr_Occurred());
     static char *kwlist[] = {"d_rss_trigger", "message", NULL};
     int d_rss_trigger = -1;
     char *message = NULL;
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|is", kwlist, &d_rss_trigger, &message)) {
+        assert(PyErr_Occurred());
         return -1;
     }
     self->d_rss_trigger = d_rss_trigger;
@@ -448,14 +463,24 @@ ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
         if (self->message) {
             strcpy(self->message, message);
         } else {
+            PyErr_Format(PyExc_MemoryError, "ProfileObject_init() can not allocate memory in type %s.",
+                         Py_TYPE(self)->tp_name);
             return -2;
         }
     }
+    assert(!PyErr_Occurred());
     return 0;
 }
 
+/**
+ * Attach a new profile wrapper to the \c static_profile_wrapper.
+ * @param d_rss_trigger
+ * @param message
+ * @return The \c static_profile_wrapper or \c NULL on failure in which case an exception will have been set.
+ */
 static PyObject *
 py_attach_profile_function(int d_rss_trigger, const char *message) {
+    assert(!PyErr_Occurred());
     if (static_profile_wrapper) {
         Py_DECREF(static_profile_wrapper);
     }
@@ -465,6 +490,7 @@ py_attach_profile_function(int d_rss_trigger, const char *message) {
         Py_INCREF(static_profile_wrapper);
         // Write a marker, in this case it is the line number of the frame.
         trace_or_profile_function((PyObject *) static_profile_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        assert(!PyErr_Occurred());
         return (PyObject *) static_profile_wrapper;
     }
     PyErr_SetString(PyExc_RuntimeError, "Could not attach profile function.");
@@ -473,17 +499,21 @@ py_attach_profile_function(int d_rss_trigger, const char *message) {
 
 static PyObject *
 ProfileObject_enter(ProfileObject *self) {
+    assert(!PyErr_Occurred());
     PyObject *trace_file_wrapper = py_attach_profile_function(self->d_rss_trigger, self->message);
     if (trace_file_wrapper == NULL) {
+        assert(PyErr_Occurred());
         return NULL;
     }
     self->trace_file_wrapper = trace_file_wrapper;
     Py_INCREF(self);
+    assert(!PyErr_Occurred());
     return (PyObject *) self;
 }
 
 static PyObject *
 ProfileObject_exit(ProfileObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
+    // No assert(!PyErr_Occurred()); as an exception might have been set by the user.
     if (static_profile_wrapper) {
         // Write a marker, in this case it is the line number of the frame.
         trace_or_profile_function((PyObject *) static_profile_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
@@ -555,6 +585,7 @@ TraceObject_dealloc(TraceObject *self) {
 
 static PyObject *
 TraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
+    assert(!PyErr_Occurred());
     TraceObject *self = (TraceObject *) type->tp_alloc(type, 0);
     self->message = NULL;
     self->trace_file_wrapper = NULL;
@@ -563,10 +594,12 @@ TraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUS
 
 static int
 TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
+    assert(!PyErr_Occurred());
     static char *kwlist[] = {"d_rss_trigger", "message", NULL};
     int d_rss_trigger = -1;
     char *message = NULL;
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|is", kwlist, &d_rss_trigger, &message)) {
+        assert(PyErr_Occurred());
         return -1;
     }
     self->d_rss_trigger = d_rss_trigger;
@@ -575,14 +608,24 @@ TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
         if (self->message) {
             strcpy(self->message, message);
         } else {
+            PyErr_Format(PyExc_MemoryError, "TraceObject_init() can not allocate memory in type %s.",
+                         Py_TYPE(self)->tp_name);
             return -2;
         }
     }
+    assert(!PyErr_Occurred());
     return 0;
 }
 
+/**
+ * Attach a new profile wrapper to the \c static_trace_wrapper.
+ * @param d_rss_trigger
+ * @param message
+ * @return The \c static_trace_wrapper or \c NULL on failure in which case an exception will have been set.
+ */
 static PyObject *
 py_attach_trace_function(int d_rss_trigger, const char *message) {
+    assert(!PyErr_Occurred());
     if (static_trace_wrapper) {
         Py_DECREF(static_trace_wrapper);
     }
@@ -592,6 +635,7 @@ py_attach_trace_function(int d_rss_trigger, const char *message) {
         Py_INCREF(static_trace_wrapper);
         // Write a marker, in this case it is the line number of the frame.
         trace_or_profile_function((PyObject *) static_trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        assert(!PyErr_Occurred());
         return (PyObject *) static_trace_wrapper;
     }
     PyErr_SetString(PyExc_RuntimeError, "Could not attach trace function.");
@@ -600,17 +644,21 @@ py_attach_trace_function(int d_rss_trigger, const char *message) {
 
 static PyObject *
 TraceObject_enter(TraceObject *self) {
+    assert(!PyErr_Occurred());
     PyObject *trace_file_wrapper = py_attach_trace_function(self->d_rss_trigger, self->message);
     if (trace_file_wrapper == NULL) {
+        assert(PyErr_Occurred());
         return NULL;
     }
     self->trace_file_wrapper = trace_file_wrapper;
     Py_INCREF(self);
+    assert(!PyErr_Occurred());
     return (PyObject *) self;
 }
 
 static PyObject *
 TraceObject_exit(TraceObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
+    // No assert(!PyErr_Occurred()); as an exception might have been set by the users code.
     if (static_trace_wrapper) {
         // Write a marker, in this case it is the line number of the frame.
         trace_or_profile_function((PyObject *) static_trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
