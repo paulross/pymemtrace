@@ -287,14 +287,10 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 }
 
 static TraceFileWrapper *
-new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger, const char *message,
-                       const char *specific_filename) {
+new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *specific_filename) {
     static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH];
     assert(!PyErr_Occurred());
-    if (trace_wrapper) {
-        TraceFileWrapper_dealloc(trace_wrapper);
-        trace_wrapper = NULL;
-    }
+    TraceFileWrapper *trace_wrapper = NULL;
     const char *filename = specific_filename ? specific_filename : create_filename();
     if (filename) {
 #ifdef _WIN32
@@ -366,17 +362,83 @@ new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger, const
     return trace_wrapper;
 }
 
-#pragma mark Static trace/profile functions.
-static TraceFileWrapper *static_profile_wrapper = NULL;
-static TraceFileWrapper *static_trace_wrapper = NULL;
+#pragma mark Static trace/profile wrappers.
+struct TraceFileWrapperLinkedListNode {
+    TraceFileWrapper *file_wrapper;
+    struct TraceFileWrapperLinkedListNode *next;
+};
+typedef struct TraceFileWrapperLinkedListNode tTraceFileWrapperLinkedList;
+
+static tTraceFileWrapperLinkedList *static_profile_wrappers = NULL;
+static tTraceFileWrapperLinkedList *static_trace_wrappers = NULL;
+
+/**
+ * Get the head of the linked list.
+ * @param linked_list
+ * @return The head node or NULL if the list is empty.
+ */
+TraceFileWrapper *wrapper_ll_get(tTraceFileWrapperLinkedList *linked_list) {
+    if (linked_list) {
+        return linked_list->file_wrapper;
+    }
+    return NULL;
+}
+
+/**
+ * Push a created trace wrapper on the front of the list.
+ * @param linked_list
+ * @param node The node to add. The linked list takes ownership of this pointer.
+ */
+void wrapper_ll_push(tTraceFileWrapperLinkedList **h_linked_list, TraceFileWrapper *node) {
+    tTraceFileWrapperLinkedList *new_node = malloc(sizeof(tTraceFileWrapperLinkedList));
+    new_node->file_wrapper = node;
+    new_node->next = NULL;
+    if (*h_linked_list) {
+        // Push to front.
+        new_node->next = *h_linked_list;
+    }
+    *h_linked_list = new_node;
+}
+
+void wrapper_ll_pop(tTraceFileWrapperLinkedList **h_linked_list) {
+    tTraceFileWrapperLinkedList *tmp = *h_linked_list;
+    TraceFileWrapper *node = wrapper_ll_get(*h_linked_list);
+    *h_linked_list = (*h_linked_list)->next;
+    Py_DECREF(node);
+    free(tmp);
+}
+
+size_t wrapper_ll_length(tTraceFileWrapperLinkedList *p_linked_list) {
+    size_t ret = 0;
+    while (p_linked_list) {
+        ret++;
+        p_linked_list = p_linked_list->next;
+    }
+    return ret;
+}
+
+void wrapper_ll_clear(tTraceFileWrapperLinkedList **h_linked_list) {
+    tTraceFileWrapperLinkedList *tmp;
+    while (*h_linked_list) {
+        tmp = *h_linked_list;
+        Py_DECREF((*h_linked_list)->file_wrapper);
+        free(*h_linked_list);
+        *h_linked_list = tmp->next;
+    }
+}
+
+//// Original single values
+//static TraceFileWrapper *static_profile_wrapper = NULL;
+//static TraceFileWrapper *static_trace_wrapper = NULL;
 
 #pragma mark Get the current log paths.
 
 static PyObject *
 get_log_file_path_profile(void) {
     assert(!PyErr_Occurred());
-    if (static_profile_wrapper) {
-        return Py_BuildValue("s", static_profile_wrapper->log_file_path);
+    TraceFileWrapper *wrapper = wrapper_ll_get(static_profile_wrappers);
+    if (wrapper) {
+        return Py_BuildValue("s", wrapper->log_file_path);
     } else {
         Py_RETURN_NONE;
     }
@@ -385,8 +447,9 @@ get_log_file_path_profile(void) {
 static PyObject *
 get_log_file_path_trace(void) {
     assert(!PyErr_Occurred());
-    if (static_trace_wrapper) {
-        return Py_BuildValue("s", static_trace_wrapper->log_file_path);
+    TraceFileWrapper *wrapper = wrapper_ll_get(static_trace_wrappers);
+    if (wrapper) {
+        return Py_BuildValue("s", wrapper->log_file_path);
     } else {
         Py_RETURN_NONE;
     }
@@ -491,19 +554,17 @@ ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
 static PyObject *
 py_attach_profile_function(int d_rss_trigger, const char *message, const char *specific_filename) {
     assert(!PyErr_Occurred());
-    if (static_profile_wrapper) {
-        Py_DECREF(static_profile_wrapper);
-    }
-    static_profile_wrapper = new_trace_file_wrapper(static_profile_wrapper, d_rss_trigger, message, specific_filename);
-    if (static_profile_wrapper) {
-        PyEval_SetProfile(&trace_or_profile_function, (PyObject *) static_profile_wrapper);
-        Py_INCREF(static_profile_wrapper);
+    TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename);
+    if (wrapper) {
+        wrapper_ll_push(&static_profile_wrappers, wrapper);
+        Py_INCREF(wrapper);
+        PyEval_SetProfile(&trace_or_profile_function, (PyObject *) wrapper);
         // Write a marker, in this case it is the line number of the frame.
-        trace_or_profile_function((PyObject *) static_profile_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
         assert(!PyErr_Occurred());
-        return (PyObject *) static_profile_wrapper;
+        return (PyObject *) wrapper;
     }
-    PyErr_SetString(PyExc_RuntimeError, "Could not attach profile function.");
+    PyErr_SetString(PyExc_RuntimeError, "py_attach_profile_function(): Could not attach profile function.");
     return NULL;
 }
 
@@ -531,17 +592,18 @@ ProfileObject_enter(ProfileObject *self) {
 static PyObject *
 ProfileObject_exit(ProfileObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
     // No assert(!PyErr_Occurred()); as an exception might have been set by the user.
-    if (static_profile_wrapper) {
+    TraceFileWrapper *wrapper = wrapper_ll_get(static_profile_wrappers);
+    if (wrapper) {
         // Write a marker, in this case it is the line number of the frame.
-        trace_or_profile_function((PyObject *) static_profile_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
-        // fprintf(static_profile_wrapper->file, "ENDING RSS: %zu\n", getCurrentRSS());
-        fflush(static_profile_wrapper->file);
-        Py_DECREF(static_profile_wrapper);
-        /* TODO: Create list/stack of profilers. */
-        static_profile_wrapper = NULL;
+        trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        fflush(wrapper->file);
+        wrapper_ll_pop(&static_profile_wrappers);
+        PyEval_SetTrace(NULL, NULL);
+        Py_RETURN_FALSE;
     }
-    PyEval_SetProfile(NULL, NULL);
-    Py_RETURN_FALSE;
+    PyErr_Format(PyExc_RuntimeError, "TraceObject.__exit__ has no TraceFileWrapper");
+    PyEval_SetTrace(NULL, NULL);
+    return NULL;
 }
 
 static PyMemberDef ProfileObject_members[] = {
@@ -649,19 +711,17 @@ TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
 static PyObject *
 py_attach_trace_function(int d_rss_trigger, const char *message, const char *specific_filename) {
     assert(!PyErr_Occurred());
-    if (static_trace_wrapper) {
-        Py_DECREF(static_trace_wrapper);
-    }
-    static_trace_wrapper = new_trace_file_wrapper(static_trace_wrapper, d_rss_trigger, message, specific_filename);
-    if (static_trace_wrapper) {
-        PyEval_SetTrace(&trace_or_profile_function, (PyObject *) static_trace_wrapper);
-        Py_INCREF(static_trace_wrapper);
+    TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename);
+    if (wrapper) {
+        wrapper_ll_push(&static_trace_wrappers, wrapper);
+        Py_INCREF(wrapper);
+        PyEval_SetProfile(&trace_or_profile_function, (PyObject *) wrapper);
         // Write a marker, in this case it is the line number of the frame.
-        trace_or_profile_function((PyObject *) static_trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
         assert(!PyErr_Occurred());
-        return (PyObject *) static_trace_wrapper;
+        return (PyObject *) wrapper;
     }
-    PyErr_SetString(PyExc_RuntimeError, "Could not attach trace function.");
+    PyErr_SetString(PyExc_RuntimeError, "py_attach_trace_function(): Could not attach profile function.");
     return NULL;
 }
 
@@ -689,16 +749,18 @@ TraceObject_enter(TraceObject *self) {
 static PyObject *
 TraceObject_exit(TraceObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
     // No assert(!PyErr_Occurred()); as an exception might have been set by the users code.
-    if (static_trace_wrapper) {
+    TraceFileWrapper *wrapper = wrapper_ll_get(static_trace_wrappers);
+    if (wrapper) {
         // Write a marker, in this case it is the line number of the frame.
-        trace_or_profile_function((PyObject *) static_trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
-        fflush(static_trace_wrapper->file);
-        Py_DECREF(static_trace_wrapper);
-        /* TODO: Create list/stack of profilers. */
-        static_trace_wrapper = NULL;
+        trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        fflush(wrapper->file);
+        wrapper_ll_pop(&static_trace_wrappers);
+        PyEval_SetTrace(NULL, NULL);
+        Py_RETURN_FALSE;
     }
+    PyErr_Format(PyExc_RuntimeError, "TraceObject.__exit__ has no TraceFileWrapper");
     PyEval_SetTrace(NULL, NULL);
-    Py_RETURN_FALSE;
+    return NULL;
 }
 
 static PyMemberDef TraceObject_members[] = {
