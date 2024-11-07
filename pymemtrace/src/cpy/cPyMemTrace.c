@@ -301,7 +301,8 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
         if (filename[0] == seperator) {
             snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s", filename);
         } else {
-            snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s%c%s", current_working_directory(), seperator,
+            snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s%c%s", current_working_directory(),
+                     seperator,
                      filename);
         }
         trace_wrapper = (TraceFileWrapper *) TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
@@ -469,21 +470,36 @@ py_rss_peak(void) {
     return PyLong_FromSize_t(getPeakRSS());
 }
 
+static PyObject *
+profile_wrapper_depth(void) {
+    assert(!PyErr_Occurred());
+    return Py_BuildValue("n", wrapper_ll_length(static_profile_wrappers));
+}
+
+static PyObject *
+trace_wrapper_depth(void) {
+    assert(!PyErr_Occurred());
+    return Py_BuildValue("n", wrapper_ll_length(static_trace_wrappers));
+}
+
+
 static PyMethodDef cPyMemTraceMethods[] = {
-        {"rss",      (PyCFunction) py_rss,      METH_NOARGS, "Return the current RSS in bytes."},
-        {"rss_peak", (PyCFunction) py_rss_peak, METH_NOARGS, "Return the peak RSS in bytes."},
+        {"rss",                   (PyCFunction) py_rss,                METH_NOARGS, "Return the current RSS in bytes."},
+        {"rss_peak",              (PyCFunction) py_rss_peak,           METH_NOARGS, "Return the peak RSS in bytes."},
         {
          "get_log_file_path_profile",
-                     (PyCFunction) get_log_file_path_profile,
-                                                METH_NOARGS,
-                                                             "Return the current log file path for profiling."
+                                  (PyCFunction) get_log_file_path_profile,
+                                                                       METH_NOARGS,
+                                                                                    "Return the current log file path for profiling."
         },
         {
          "get_log_file_path_trace",
-                     (PyCFunction) get_log_file_path_trace,
-                                                METH_NOARGS,
-                                                             "Return the current log file path for tracing."
+                                  (PyCFunction) get_log_file_path_trace,
+                                                                       METH_NOARGS,
+                                                                                    "Return the current log file path for tracing."
         },
+        {"profile_wrapper_depth", (PyCFunction) profile_wrapper_depth, METH_NOARGS, "Return the depth of the profile wrapper stack."},
+        {"trace_wrapper_depth",   (PyCFunction) trace_wrapper_depth,   METH_NOARGS, "Return the depth of the trace wrapper stack."},
         {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
@@ -557,6 +573,7 @@ py_attach_profile_function(int d_rss_trigger, const char *message, const char *s
     TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename);
     if (wrapper) {
         wrapper_ll_push(&static_profile_wrappers, wrapper);
+        // TODO: Is this necessary? wrapper should be a new reference.
         Py_INCREF(wrapper);
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *) wrapper);
         // Write a marker, in this case it is the line number of the frame.
@@ -714,6 +731,7 @@ py_attach_trace_function(int d_rss_trigger, const char *message, const char *spe
     TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename);
     if (wrapper) {
         wrapper_ll_push(&static_trace_wrappers, wrapper);
+        // TODO: Is this necessary? wrapper should be a new reference.
         Py_INCREF(wrapper);
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *) wrapper);
         // Write a marker, in this case it is the line number of the frame.

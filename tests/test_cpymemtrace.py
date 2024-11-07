@@ -12,6 +12,25 @@ import pytest
 from pymemtrace import cPyMemTrace
 
 
+def test_module_dir():
+    assert dir(cPyMemTrace) == [
+        'Profile',
+        'Trace',
+        '__doc__',
+        '__file__',
+        '__loader__',
+        '__name__',
+        '__package__',
+        '__spec__',
+        'get_log_file_path_profile',
+        'get_log_file_path_trace',
+        'profile_wrapper_depth',
+        'rss',
+        'rss_peak',
+        'trace_wrapper_depth'
+    ]
+
+
 def test_profile_basic():
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Profile(0) as profiler:
@@ -119,3 +138,29 @@ def test_trace_to_specific_log_file():
         for line in file_data.split(b'\n'):
             print(line)
         assert file_data.startswith(bytes(message, 'ascii'))
+
+
+def test_profile_depth():
+    assert cPyMemTrace.profile_wrapper_depth() == 0
+    with cPyMemTrace.Profile(0) as profiler_0:
+        assert cPyMemTrace.profile_wrapper_depth() == 1
+        with cPyMemTrace.Profile(0) as profiler_1:
+            assert cPyMemTrace.profile_wrapper_depth() == 2
+            with cPyMemTrace.Profile(0) as profiler_2:
+                assert cPyMemTrace.profile_wrapper_depth() == 3
+            assert cPyMemTrace.profile_wrapper_depth() == 2
+        assert cPyMemTrace.profile_wrapper_depth() == 1
+    assert cPyMemTrace.profile_wrapper_depth() == 0
+
+
+def test_trace_depth():
+    assert cPyMemTrace.trace_wrapper_depth() == 0
+    with cPyMemTrace.Trace(0) as tracer_0:
+        assert cPyMemTrace.trace_wrapper_depth() == 1
+        with cPyMemTrace.Trace(0) as tracer_1:
+            assert cPyMemTrace.trace_wrapper_depth() == 2
+            with cPyMemTrace.Trace(0) as tracer_2:
+                assert cPyMemTrace.trace_wrapper_depth() == 3
+            assert cPyMemTrace.trace_wrapper_depth() == 2
+        assert cPyMemTrace.trace_wrapper_depth() == 1
+    assert cPyMemTrace.trace_wrapper_depth() == 0
