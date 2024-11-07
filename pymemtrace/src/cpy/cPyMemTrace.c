@@ -617,7 +617,7 @@ TraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUS
 static int
 TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
     assert(!PyErr_Occurred());
-    static char *kwlist[] = {"d_rss_trigger", "message", NULL};
+    static char *kwlist[] = {"d_rss_trigger", "message", "filepath", NULL};
     int d_rss_trigger = -1;
     char *message = NULL;
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|isO&", kwlist, &d_rss_trigger, &message, PyUnicode_FSConverter,

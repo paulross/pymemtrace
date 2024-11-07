@@ -102,3 +102,20 @@ def test_profile_to_specific_log_file():
         for line in file_data.split(b'\n'):
             print(line)
         assert file_data.startswith(bytes(message, 'ascii'))
+
+
+def test_trace_to_specific_log_file():
+    message = 'START MESSAGE TO LOG FILE'
+    with tempfile.NamedTemporaryFile() as file:
+        with cPyMemTrace.Trace(0, message=message, filepath=file.name) as profiler:
+            assert profiler.trace_file_wrapper.log_file_path == file.name
+            for i in range(4):
+                populate_list()
+        time.sleep(1.0)
+        file.flush()
+        file_data = file.read()
+        print()
+        print('file_data:')
+        for line in file_data.split(b'\n'):
+            print(line)
+        assert file_data.startswith(bytes(message, 'ascii'))
