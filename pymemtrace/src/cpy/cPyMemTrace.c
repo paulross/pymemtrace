@@ -456,6 +456,9 @@ ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
 
 static PyObject *
 py_attach_profile_function(int d_rss_trigger, const char *message) {
+    if (static_profile_wrapper) {
+        Py_DECREF(static_profile_wrapper);
+    }
     static_profile_wrapper = new_trace_file_wrapper(static_profile_wrapper, d_rss_trigger, message);
     if (static_profile_wrapper) {
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *) static_profile_wrapper);
@@ -580,6 +583,9 @@ TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
 
 static PyObject *
 py_attach_trace_function(int d_rss_trigger, const char *message) {
+    if (static_trace_wrapper) {
+        Py_DECREF(static_trace_wrapper);
+    }
     static_trace_wrapper = new_trace_file_wrapper(static_trace_wrapper, d_rss_trigger, message);
     if (static_trace_wrapper) {
         PyEval_SetTrace(&trace_or_profile_function, (PyObject *) static_trace_wrapper);
