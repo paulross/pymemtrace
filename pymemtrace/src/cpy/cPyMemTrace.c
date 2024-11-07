@@ -360,6 +360,7 @@ static TraceFileWrapper *static_profile_wrapper = NULL;
 static TraceFileWrapper *static_trace_wrapper = NULL;
 
 #pragma mark Get the current log paths.
+
 static PyObject *
 get_log_file_path_profile(void) {
     if (static_profile_wrapper) {
@@ -379,6 +380,7 @@ get_log_file_path_trace(void) {
 }
 
 #pragma mark cPyMemTrace methods.
+
 static PyObject *
 py_rss(void) {
     return PyLong_FromSize_t(getCurrentRSS_alternate());
@@ -459,7 +461,7 @@ py_attach_profile_function(int d_rss_trigger, const char *message) {
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *) static_profile_wrapper);
         Py_INCREF(static_profile_wrapper);
         // Write a marker, in this case it is the line number of the frame.
-        trace_or_profile_function((PyObject *)static_profile_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        trace_or_profile_function((PyObject *) static_profile_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
         return (PyObject *) static_profile_wrapper;
     }
     PyErr_SetString(PyExc_RuntimeError, "Could not attach profile function.");
@@ -481,7 +483,7 @@ static PyObject *
 ProfileObject_exit(ProfileObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
     if (static_profile_wrapper) {
         // Write a marker, in this case it is the line number of the frame.
-        trace_or_profile_function((PyObject *)static_profile_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        trace_or_profile_function((PyObject *) static_profile_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
         fflush(static_profile_wrapper->file);
         Py_DECREF(static_profile_wrapper);
         /* TODO: Create list/stack of profilers. */
@@ -583,7 +585,7 @@ py_attach_trace_function(int d_rss_trigger, const char *message) {
         PyEval_SetTrace(&trace_or_profile_function, (PyObject *) static_trace_wrapper);
         Py_INCREF(static_trace_wrapper);
         // Write a marker, in this case it is the line number of the frame.
-        trace_or_profile_function((PyObject *)static_trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        trace_or_profile_function((PyObject *) static_trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
         return (PyObject *) static_trace_wrapper;
     }
     PyErr_SetString(PyExc_RuntimeError, "Could not attach trace function.");
@@ -605,7 +607,7 @@ static PyObject *
 TraceObject_exit(TraceObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
     if (static_trace_wrapper) {
         // Write a marker, in this case it is the line number of the frame.
-        trace_or_profile_function((PyObject *)static_trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        trace_or_profile_function((PyObject *) static_trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
         fflush(static_trace_wrapper->file);
         Py_DECREF(static_trace_wrapper);
         /* TODO: Create list/stack of profilers. */
