@@ -45,7 +45,7 @@ include_directories(
     pymemtrace/src/include
 )
 
-FIND_PACKAGE (Python3 3.9 EXACT REQUIRED COMPONENTS Interpreter Development)
+FIND_PACKAGE (Python3 3.11 EXACT REQUIRED COMPONENTS Interpreter Development)
 #FIND_PACKAGE(PythonLibs 3.11 EXACT REQUIRED)
 #SET(PythonLibs_DIR "/Library/Frameworks/Python.framework/Versions/3.8")
 #FIND_PACKAGE(PythonLibs 3.8 REQUIRED PATHS ("/Library/Frameworks/Python.framework/Versions/3.8"))
