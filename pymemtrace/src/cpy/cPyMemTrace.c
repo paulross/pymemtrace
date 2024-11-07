@@ -287,25 +287,30 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 }
 
 static TraceFileWrapper *
-new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger, const char *message) {
+new_trace_file_wrapper(TraceFileWrapper *trace_wrapper, int d_rss_trigger, const char *message,
+                       const char *specific_filename) {
     static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH];
     assert(!PyErr_Occurred());
     if (trace_wrapper) {
         TraceFileWrapper_dealloc(trace_wrapper);
         trace_wrapper = NULL;
     }
-    char *filename = create_filename();
+    const char *filename = specific_filename ? specific_filename : create_filename();
     if (filename) {
 #ifdef _WIN32
         char seperator = '\\';
 #else
         char seperator = '/';
 #endif
-        snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s%c%s", current_working_directory(), seperator,
-                 filename);
-        fprintf(stdout, "Opening log file %s\n", file_path_buffer);
+        if (filename[0] == seperator) {
+            snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s", filename);
+        } else {
+            snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s%c%s", current_working_directory(), seperator,
+                     filename);
+        }
         trace_wrapper = (TraceFileWrapper *) TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
         if (trace_wrapper) {
+            fprintf(stdout, "Opening log file %s\n", file_path_buffer);
             trace_wrapper->file = fopen(filename, "w");
             if (trace_wrapper->file) {
                 // Copy the filename
@@ -426,12 +431,15 @@ typedef struct {
     int d_rss_trigger;
     // Message. Add const char *message here that is a malloc copy of the string given in ProfileObject_init
     char *message;
+    // User can provide a specific filename.
+    PyBytesObject *py_specific_filename;
     PyObject *trace_file_wrapper;
 } ProfileObject;
 
 static void
 ProfileObject_dealloc(ProfileObject *self) {
     free(self->message);
+    Py_XDECREF(self->py_specific_filename);
     Py_XDECREF(self->trace_file_wrapper);
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
@@ -442,6 +450,7 @@ ProfileObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UN
     ProfileObject *self = (ProfileObject *) type->tp_alloc(type, 0);
     if (self) {
         self->message = NULL;
+        self->py_specific_filename = NULL;
         self->trace_file_wrapper = NULL;
     }
     return (PyObject *) self;
@@ -450,10 +459,11 @@ ProfileObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UN
 static int
 ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
     assert(!PyErr_Occurred());
-    static char *kwlist[] = {"d_rss_trigger", "message", NULL};
+    static char *kwlist[] = {"d_rss_trigger", "message", "filepath", NULL};
     int d_rss_trigger = -1;
     char *message = NULL;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|is", kwlist, &d_rss_trigger, &message)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|isO&", kwlist, &d_rss_trigger, &message, PyUnicode_FSConverter,
+                                     &self->py_specific_filename)) {
         assert(PyErr_Occurred());
         return -1;
     }
@@ -479,12 +489,12 @@ ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
  * @return The \c static_profile_wrapper or \c NULL on failure in which case an exception will have been set.
  */
 static PyObject *
-py_attach_profile_function(int d_rss_trigger, const char *message) {
+py_attach_profile_function(int d_rss_trigger, const char *message, const char *specific_filename) {
     assert(!PyErr_Occurred());
     if (static_profile_wrapper) {
         Py_DECREF(static_profile_wrapper);
     }
-    static_profile_wrapper = new_trace_file_wrapper(static_profile_wrapper, d_rss_trigger, message);
+    static_profile_wrapper = new_trace_file_wrapper(static_profile_wrapper, d_rss_trigger, message, specific_filename);
     if (static_profile_wrapper) {
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *) static_profile_wrapper);
         Py_INCREF(static_profile_wrapper);
@@ -500,7 +510,14 @@ py_attach_profile_function(int d_rss_trigger, const char *message) {
 static PyObject *
 ProfileObject_enter(ProfileObject *self) {
     assert(!PyErr_Occurred());
-    PyObject *trace_file_wrapper = py_attach_profile_function(self->d_rss_trigger, self->message);
+    PyObject *trace_file_wrapper;
+    if (self->py_specific_filename) {
+        trace_file_wrapper = py_attach_profile_function(
+                self->d_rss_trigger, self->message, PyBytes_AsString((PyObject *) self->py_specific_filename)
+        );
+    } else {
+        trace_file_wrapper = py_attach_profile_function(self->d_rss_trigger, self->message, NULL);
+    }
     if (trace_file_wrapper == NULL) {
         assert(PyErr_Occurred());
         return NULL;
@@ -517,6 +534,7 @@ ProfileObject_exit(ProfileObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
     if (static_profile_wrapper) {
         // Write a marker, in this case it is the line number of the frame.
         trace_or_profile_function((PyObject *) static_profile_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        // fprintf(static_profile_wrapper->file, "ENDING RSS: %zu\n", getCurrentRSS());
         fflush(static_profile_wrapper->file);
         Py_DECREF(static_profile_wrapper);
         /* TODO: Create list/stack of profilers. */
@@ -572,6 +590,8 @@ typedef struct {
     PyObject_HEAD
     int d_rss_trigger;
     char *message;
+    // User can provide a specific filename.
+    PyBytesObject *py_specific_filename;
     PyObject *trace_file_wrapper;
 } TraceObject;
 
@@ -579,6 +599,7 @@ typedef struct {
 static void
 TraceObject_dealloc(TraceObject *self) {
     free(self->message);
+    Py_XDECREF(self->py_specific_filename);
     Py_XDECREF(self->trace_file_wrapper);
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
@@ -588,6 +609,7 @@ TraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUS
     assert(!PyErr_Occurred());
     TraceObject *self = (TraceObject *) type->tp_alloc(type, 0);
     self->message = NULL;
+    self->py_specific_filename = NULL;
     self->trace_file_wrapper = NULL;
     return (PyObject *) self;
 }
@@ -598,7 +620,8 @@ TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
     static char *kwlist[] = {"d_rss_trigger", "message", NULL};
     int d_rss_trigger = -1;
     char *message = NULL;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|is", kwlist, &d_rss_trigger, &message)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|isO&", kwlist, &d_rss_trigger, &message, PyUnicode_FSConverter,
+                                     &self->py_specific_filename)) {
         assert(PyErr_Occurred());
         return -1;
     }
@@ -624,12 +647,12 @@ TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
  * @return The \c static_trace_wrapper or \c NULL on failure in which case an exception will have been set.
  */
 static PyObject *
-py_attach_trace_function(int d_rss_trigger, const char *message) {
+py_attach_trace_function(int d_rss_trigger, const char *message, const char *specific_filename) {
     assert(!PyErr_Occurred());
     if (static_trace_wrapper) {
         Py_DECREF(static_trace_wrapper);
     }
-    static_trace_wrapper = new_trace_file_wrapper(static_trace_wrapper, d_rss_trigger, message);
+    static_trace_wrapper = new_trace_file_wrapper(static_trace_wrapper, d_rss_trigger, message, specific_filename);
     if (static_trace_wrapper) {
         PyEval_SetTrace(&trace_or_profile_function, (PyObject *) static_trace_wrapper);
         Py_INCREF(static_trace_wrapper);
@@ -645,7 +668,14 @@ py_attach_trace_function(int d_rss_trigger, const char *message) {
 static PyObject *
 TraceObject_enter(TraceObject *self) {
     assert(!PyErr_Occurred());
-    PyObject *trace_file_wrapper = py_attach_trace_function(self->d_rss_trigger, self->message);
+    PyObject *trace_file_wrapper;
+    if (self->py_specific_filename) {
+        trace_file_wrapper = py_attach_trace_function(
+                self->d_rss_trigger, self->message, PyBytes_AsString((PyObject *) self->py_specific_filename)
+        );
+    } else {
+        trace_file_wrapper = py_attach_trace_function(self->d_rss_trigger, self->message, NULL);
+    }
     if (trace_file_wrapper == NULL) {
         assert(PyErr_Occurred());
         return NULL;

@@ -11,7 +11,7 @@
 
 #include "pymemtrace_util.h"
 
-char *create_filename(void) {
+const char *create_filename(void) {
     /* Not thread safe. */
     static char filename[PYMEMTRACE_FILE_NAME_MAX_LENGTH];
     static struct tm now;
@@ -30,7 +30,7 @@ char *create_filename(void) {
     return filename;
 }
 
-char *current_working_directory(void) {
+const char *current_working_directory(void) {
     static char cwd[PYMEMTRACE_PATH_NAME_MAX_LENGTH];
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
         fprintf(stderr, "Can not get current working directory.\n");
