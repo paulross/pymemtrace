@@ -573,7 +573,6 @@ py_attach_profile_function(int d_rss_trigger, const char *message, const char *s
     TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename);
     if (wrapper) {
         wrapper_ll_push(&static_profile_wrappers, wrapper);
-        // TODO: Is this necessary? wrapper should be a new reference.
         Py_INCREF(wrapper);
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *) wrapper);
         // Write a marker, in this case it is the line number of the frame.
@@ -731,7 +730,6 @@ py_attach_trace_function(int d_rss_trigger, const char *message, const char *spe
     TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename);
     if (wrapper) {
         wrapper_ll_push(&static_trace_wrappers, wrapper);
-        // TODO: Is this necessary? wrapper should be a new reference.
         Py_INCREF(wrapper);
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *) wrapper);
         // Write a marker, in this case it is the line number of the frame.
