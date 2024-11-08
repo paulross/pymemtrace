@@ -31,6 +31,8 @@ def test_module_dir():
     ]
 
 
+# TODO: @pytest.mark.skipif(not (sys.version_info.minor > 8), reason='Python > 3.8')
+
 def test_profile_basic():
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Profile(0) as profiler:
@@ -148,10 +150,10 @@ def test_profile_to_specific_log_file():
         time.sleep(1.0)
         file.flush()
         file_data = file.read()
-        print()
-        print('file_data:')
-        for line in file_data.split(b'\n'):
-            print(line)
+        # print()
+        # print('file_data:')
+        # for line in file_data.split(b'\n'):
+        #     print(line)
         assert file_data.startswith(bytes(message, 'ascii'))
 
 
@@ -165,10 +167,10 @@ def test_trace_to_specific_log_file():
         time.sleep(1.0)
         file.flush()
         file_data = file.read()
-        print()
-        print('file_data:')
-        for line in file_data.split(b'\n'):
-            print(line)
+        # print()
+        # print('file_data:')
+        # for line in file_data.split(b'\n'):
+        #     print(line)
         assert file_data.startswith(bytes(message, 'ascii'))
 
 
