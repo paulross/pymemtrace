@@ -240,6 +240,71 @@ static const char *WHAT_STRINGS[] = {
 };
 #endif
 
+#pragma mark Static linked list of trace/profile wrappers.
+struct TraceFileWrapperLinkedListNode {
+    TraceFileWrapper *file_wrapper;
+    struct TraceFileWrapperLinkedListNode *next;
+};
+typedef struct TraceFileWrapperLinkedListNode tTraceFileWrapperLinkedList;
+
+static tTraceFileWrapperLinkedList *static_profile_wrappers = NULL;
+static tTraceFileWrapperLinkedList *static_trace_wrappers = NULL;
+
+/**
+ * Get the head of the linked list.
+ * @param linked_list
+ * @return The head node or NULL if the list is empty.
+ */
+TraceFileWrapper *wrapper_ll_get(tTraceFileWrapperLinkedList *linked_list) {
+    if (linked_list) {
+        return linked_list->file_wrapper;
+    }
+    return NULL;
+}
+
+/**
+ * Push a created trace wrapper on the front of the list.
+ * @param linked_list
+ * @param node The node to add. The linked list takes ownership of this pointer.
+ */
+void wrapper_ll_push(tTraceFileWrapperLinkedList **h_linked_list, TraceFileWrapper *node) {
+    tTraceFileWrapperLinkedList *new_node = malloc(sizeof(tTraceFileWrapperLinkedList));
+    new_node->file_wrapper = node;
+    new_node->next = NULL;
+    if (*h_linked_list) {
+        // Push to front.
+        new_node->next = *h_linked_list;
+    }
+    *h_linked_list = new_node;
+}
+
+void wrapper_ll_pop(tTraceFileWrapperLinkedList **h_linked_list) {
+    tTraceFileWrapperLinkedList *tmp = *h_linked_list;
+    TraceFileWrapper *node = wrapper_ll_get(*h_linked_list);
+    *h_linked_list = (*h_linked_list)->next;
+    Py_DECREF(node);
+    free(tmp);
+}
+
+size_t wrapper_ll_length(tTraceFileWrapperLinkedList *p_linked_list) {
+    size_t ret = 0;
+    while (p_linked_list) {
+        ret++;
+        p_linked_list = p_linked_list->next;
+    }
+    return ret;
+}
+
+void wrapper_ll_clear(tTraceFileWrapperLinkedList **h_linked_list) {
+    tTraceFileWrapperLinkedList *tmp;
+    while (*h_linked_list) {
+        tmp = *h_linked_list;
+        Py_DECREF((*h_linked_list)->file_wrapper);
+        free(*h_linked_list);
+        *h_linked_list = tmp->next;
+    }
+}
+
 /**
  * Create a trace function.
  * @param pobj The TraceFileWrapper object.
@@ -312,11 +377,18 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 }
 
 static TraceFileWrapper *
-new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *specific_filename) {
+new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *specific_filename, int is_profile) {
     static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH];
     assert(!PyErr_Occurred());
     TraceFileWrapper *trace_wrapper = NULL;
-    const char *filename = specific_filename ? specific_filename : create_filename();
+    const char *filename;
+    if (specific_filename) {
+        filename = specific_filename;
+    } else {
+        char trace_type = is_profile ? 'P' : 'T';
+        size_t ll_depth = is_profile ? wrapper_ll_length(static_profile_wrappers) : wrapper_ll_length(static_trace_wrappers);
+        filename = create_filename(trace_type, ll_depth);
+    }
     if (filename) {
 #ifdef _WIN32
         char seperator = '\\';
@@ -386,71 +458,6 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
     }
     assert(!PyErr_Occurred());
     return trace_wrapper;
-}
-
-#pragma mark Static trace/profile wrappers.
-struct TraceFileWrapperLinkedListNode {
-    TraceFileWrapper *file_wrapper;
-    struct TraceFileWrapperLinkedListNode *next;
-};
-typedef struct TraceFileWrapperLinkedListNode tTraceFileWrapperLinkedList;
-
-static tTraceFileWrapperLinkedList *static_profile_wrappers = NULL;
-static tTraceFileWrapperLinkedList *static_trace_wrappers = NULL;
-
-/**
- * Get the head of the linked list.
- * @param linked_list
- * @return The head node or NULL if the list is empty.
- */
-TraceFileWrapper *wrapper_ll_get(tTraceFileWrapperLinkedList *linked_list) {
-    if (linked_list) {
-        return linked_list->file_wrapper;
-    }
-    return NULL;
-}
-
-/**
- * Push a created trace wrapper on the front of the list.
- * @param linked_list
- * @param node The node to add. The linked list takes ownership of this pointer.
- */
-void wrapper_ll_push(tTraceFileWrapperLinkedList **h_linked_list, TraceFileWrapper *node) {
-    tTraceFileWrapperLinkedList *new_node = malloc(sizeof(tTraceFileWrapperLinkedList));
-    new_node->file_wrapper = node;
-    new_node->next = NULL;
-    if (*h_linked_list) {
-        // Push to front.
-        new_node->next = *h_linked_list;
-    }
-    *h_linked_list = new_node;
-}
-
-void wrapper_ll_pop(tTraceFileWrapperLinkedList **h_linked_list) {
-    tTraceFileWrapperLinkedList *tmp = *h_linked_list;
-    TraceFileWrapper *node = wrapper_ll_get(*h_linked_list);
-    *h_linked_list = (*h_linked_list)->next;
-    Py_DECREF(node);
-    free(tmp);
-}
-
-size_t wrapper_ll_length(tTraceFileWrapperLinkedList *p_linked_list) {
-    size_t ret = 0;
-    while (p_linked_list) {
-        ret++;
-        p_linked_list = p_linked_list->next;
-    }
-    return ret;
-}
-
-void wrapper_ll_clear(tTraceFileWrapperLinkedList **h_linked_list) {
-    tTraceFileWrapperLinkedList *tmp;
-    while (*h_linked_list) {
-        tmp = *h_linked_list;
-        Py_DECREF((*h_linked_list)->file_wrapper);
-        free(*h_linked_list);
-        *h_linked_list = tmp->next;
-    }
 }
 
 #pragma mark Get the current log paths.
@@ -591,7 +598,7 @@ ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
 static PyObject *
 py_attach_profile_function(int d_rss_trigger, const char *message, const char *specific_filename) {
     assert(!PyErr_Occurred());
-    TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename);
+    TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 1);
     if (wrapper) {
         wrapper_ll_push(&static_profile_wrappers, wrapper);
         Py_INCREF(wrapper);
@@ -748,7 +755,7 @@ TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
 static PyObject *
 py_attach_trace_function(int d_rss_trigger, const char *message, const char *specific_filename) {
     assert(!PyErr_Occurred());
-    TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename);
+    TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 0);
     if (wrapper) {
         wrapper_ll_push(&static_trace_wrappers, wrapper);
         Py_INCREF(wrapper);

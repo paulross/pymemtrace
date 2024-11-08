@@ -146,7 +146,7 @@ def test_profile_depth():
         assert cPyMemTrace.profile_wrapper_depth() == 1
         with cPyMemTrace.Profile(0) as profiler_1:
             assert cPyMemTrace.profile_wrapper_depth() == 2
-            with cPyMemTrace.Profile(0) as profiler_2:
+            with cPyMemTrace.Profile() as profiler_2:
                 assert cPyMemTrace.profile_wrapper_depth() == 3
             assert cPyMemTrace.profile_wrapper_depth() == 2
         assert cPyMemTrace.profile_wrapper_depth() == 1
@@ -159,7 +159,7 @@ def test_trace_depth():
         assert cPyMemTrace.trace_wrapper_depth() == 1
         with cPyMemTrace.Trace(0) as tracer_1:
             assert cPyMemTrace.trace_wrapper_depth() == 2
-            with cPyMemTrace.Trace(0) as tracer_2:
+            with cPyMemTrace.Trace() as tracer_2:
                 assert cPyMemTrace.trace_wrapper_depth() == 3
             assert cPyMemTrace.trace_wrapper_depth() == 2
         assert cPyMemTrace.trace_wrapper_depth() == 1
