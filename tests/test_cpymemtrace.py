@@ -122,6 +122,22 @@ def test_trace_0_populate_list():
         time.sleep(1.0)
 
 
+def test_profile_populate_list():
+    message = 'test_profile_populate_list()'
+    with cPyMemTrace.Profile(message=message):
+        for i in range(4):
+            populate_list()
+        time.sleep(1.0)
+
+
+def test_trace_populate_list():
+    message = 'test_trace_populate_list()'
+    with cPyMemTrace.Trace(message=message):
+        for i in range(4):
+            populate_list()
+        time.sleep(1.0)
+
+
 def test_profile_to_specific_log_file():
     message = 'START MESSAGE TO LOG FILE'
     with tempfile.NamedTemporaryFile() as file:
