@@ -88,7 +88,7 @@ static const char *MARKER_LOG_FILE_START = "SOF";
 static const char *MARKER_LOG_FILE_END = "EOF";
 
 #pragma mark TraceFileWrapper object
-/*
+/**
  * Trace classes could make this available by looking at trace_file_wrapper or profile_file_wrapper.
  */
 typedef struct {
@@ -105,6 +105,10 @@ typedef struct {
 #endif
 } TraceFileWrapper;
 
+/**
+ * Deallocate the TraceFileWrapper.
+ * @param self The TraceFileWrapper.
+ */
 static void
 TraceFileWrapper_dealloc(TraceFileWrapper *self) {
     if (self->file) {
@@ -117,6 +121,13 @@ TraceFileWrapper_dealloc(TraceFileWrapper *self) {
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
+/**
+ * Allocate the TraceFileWrapper.
+ * @param type The TraceFileWrapper type.
+ * @param _unused_args
+ * @param _unused_kwds
+ * @return The TraceFileWrapper instance.
+ */
 static PyObject *
 TraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
     assert(!PyErr_Occurred());
@@ -163,6 +174,12 @@ static PyMemberDef TraceFileWrapper_members[] = {
 
 #pragma mark - TraceFileWrapper methods
 
+/**
+ * Write a string to the existing logfile.
+ * @param self The file wrapper.
+ * @param op The Python unicode string.
+ * @return None on success, NULL on failure (not a unicode argument).
+ */
 static PyObject *
 TraceFileWrapper_write_to_log(TraceFileWrapper *self, PyObject *op) {
     assert(!PyErr_Occurred());
@@ -223,6 +240,14 @@ static const char *WHAT_STRINGS[] = {
 };
 #endif
 
+/**
+ * Create a trace function.
+ * @param pobj The TraceFileWrapper object.
+ * @param frame The Python frame.
+ * @param what The event type.
+ * @param arg
+ * @return 0 on success, non-zero on failure.
+ */
 static int
 trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObject *arg) {
     assert(!PyErr_Occurred());
