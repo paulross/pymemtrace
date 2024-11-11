@@ -1,6 +1,7 @@
 """
 At the moment these produce a log file per test.
 """
+import faulthandler
 import os
 import sys
 import tempfile
@@ -10,6 +11,7 @@ import pytest
 
 from pymemtrace import cPyMemTrace
 
+faulthandler.enable()
 
 def test_module_dir():
     assert dir(cPyMemTrace) == [
@@ -56,7 +58,7 @@ def test_profile_basic_lt_310():
         assert os.path.isfile(profiler.trace_file_wrapper.log_file_path)
 
 
-@pytest.mark.skipif(not (sys.version_info.minor > 10), reason='Python > 3.10')
+# @pytest.mark.skipif(not (sys.version_info.minor > 10), reason='Python > 3.10')
 def test_profile_basic_gt_310():
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Profile(0) as profiler:
@@ -138,7 +140,11 @@ def test_profile_start_message_to_log_file():
     message = 'test_profile_start_message_to_log_file():\n'
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Profile(message=message) as profiler:
+        log_path = cPyMemTrace.get_log_file_path_profile()
+        print(f'Log file Profile: {log_path}')
         b' ' * (1024 ** 2)
+    # print(dir(profiler))
+    # with open(log_path) as file:
     with open(profiler.trace_file_wrapper.log_file_path) as file:
         file_data = file.read()
         print()
@@ -257,3 +263,10 @@ def test_trace_depth():
             assert cPyMemTrace.trace_wrapper_depth() == 2
         assert cPyMemTrace.trace_wrapper_depth() == 1
     assert cPyMemTrace.trace_wrapper_depth() == 0
+
+
+if __name__ == '__main__':
+    print('START')
+    test_profile_basic_gt_310()
+    print('FINISH')
+

@@ -114,31 +114,47 @@ static const char *WHAT_STRINGS[] = {
 };
 #endif
 
+static const unsigned char MT_U_STRING[] = "";
+static const char MT_STRING[] = "";
+
 static const unsigned char *
 get_python_file_name(PyFrameObject *frame) {
+    if (frame) {
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-    /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
-    const unsigned char *file_name = PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_filename);
+        /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
+        const unsigned char *file_name = PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_filename);
 #else
-    const unsigned char *file_name = PyUnicode_1BYTE_DATA(frame->f_code->co_filename);
+        const unsigned char *file_name = PyUnicode_1BYTE_DATA(frame->f_code->co_filename);
 #endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-    return file_name;
+        return file_name;
+    }
+    return MT_U_STRING;
 }
 
 static const char *
 get_python_function_name(PyFrameObject *frame, int what, PyObject *arg) {
     const char *func_name = NULL;
-    if (what == PyTrace_C_CALL || what == PyTrace_C_EXCEPTION || what == PyTrace_C_RETURN) {
-        func_name = PyEval_GetFuncName(arg);
-    } else {
+    if (frame) {
+        if (what == PyTrace_C_CALL || what == PyTrace_C_EXCEPTION || what == PyTrace_C_RETURN) {
+            func_name = PyEval_GetFuncName(arg);
+        } else {
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-        /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
-        func_name = (const char *) PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_name);
+            /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
+            func_name = (const char *) PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_name);
 #else
-        func_name = (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name);
+            func_name = (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name);
 #endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+        }
+        return func_name;
     }
-    return func_name;
+    return MT_STRING;
+}
+
+int py_frame_get_line_number(PyFrameObject *frame) {
+    if (frame) {
+        PyFrame_GetLineNumber(frame);
+    }
+    return 0;
 }
 
 #pragma mark TraceFileWrapper object
@@ -175,13 +191,13 @@ trace_wrapper_write_frame_data_to_event_text(TraceFileWrapper *trace_wrapper, Py
     snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
              "%-12zu +%-6ld %-12.6f %-8s %-80s %4d %-32s %12zu %12ld\n",
              trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
-             clock_time, WHAT_STRINGS[what], get_python_file_name(frame), PyFrame_GetLineNumber(frame),
+             clock_time, WHAT_STRINGS[what], get_python_file_name(frame), py_frame_get_line_number(frame),
              get_python_function_name(frame, what, arg), getCurrentRSS_alternate(), d_rss);
 #else
     snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
              "%-12zu +%-6ld %-8s %-80s %4d %-32s %12zu %12ld\n",
              trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
-             WHAT_STRINGS[what], get_python_file_name(frame), PyFrame_GetLineNumber(frame),
+             WHAT_STRINGS[what], get_python_file_name(frame), py_frame_get_line_number(frame),
              get_python_function_name(frame, what, arg), getCurrentRSS_alternate(), d_rss);
 #endif // PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
 }
@@ -342,9 +358,7 @@ void wrapper_ll_push(tTraceFileWrapperLinkedList **h_linked_list, TraceFileWrapp
 
 void wrapper_ll_pop(tTraceFileWrapperLinkedList **h_linked_list) {
     tTraceFileWrapperLinkedList *tmp = *h_linked_list;
-    TraceFileWrapper *node = wrapper_ll_get(*h_linked_list);
     *h_linked_list = (*h_linked_list)->next;
-    Py_DECREF(node);
     free(tmp);
 }
 
@@ -397,7 +411,6 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
     if (labs(d_rss) >= trace_wrapper->d_rss_trigger) {
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
         fputs("NEXT: ", trace_wrapper->file);
-//        fputs("      ", trace_wrapper->file);
 #endif
         trace_wrapper_write_frame_data_to_event_text(trace_wrapper, frame, what, arg);
         fputs(trace_wrapper->event_text, trace_wrapper->file);
@@ -472,6 +485,9 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
                 );
 #endif
 #endif
+                fputs("FRST: ", trace_wrapper->file);
+                trace_wrapper_write_frame_data_to_event_text(trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+                fputs(trace_wrapper->event_text, trace_wrapper->file);
                 trace_wrapper->event_number = 0;
                 trace_wrapper->rss = 0;
                 if (d_rss_trigger < 0) {
@@ -580,6 +596,11 @@ typedef struct {
 
 static void
 ProfileObject_dealloc(ProfileObject *self) {
+    fprintf(
+            stdout, "WTF dealloc self %zd self->trace_file_wrapper %zd\n",
+            Py_REFCNT(self),
+            Py_REFCNT(self->trace_file_wrapper)
+    );
     free(self->message);
     Py_XDECREF(self->py_specific_filename);
     Py_XDECREF(self->trace_file_wrapper);
@@ -636,7 +657,7 @@ py_attach_profile_function(int d_rss_trigger, const char *message, const char *s
     TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 1);
     if (wrapper) {
         wrapper_ll_push(&static_profile_wrappers, wrapper);
-        Py_INCREF(wrapper);
+        // This increments the wrapper reference count.
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *) wrapper);
         // Write a marker, in this case it is the line number of the frame.
         trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
@@ -663,27 +684,32 @@ ProfileObject_enter(ProfileObject *self) {
         return NULL;
     }
     self->trace_file_wrapper = trace_file_wrapper;
-    Py_INCREF(self);
     assert(!PyErr_Occurred());
+    fprintf(
+            stdout, "WTF enter self %zd self->trace_file_wrapper %zd\n",
+            Py_REFCNT(self),
+            Py_REFCNT(self->trace_file_wrapper)
+    );
     return (PyObject *) self;
 }
 
 static PyObject *
-ProfileObject_exit(ProfileObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
+ProfileObject_exit(ProfileObject *self, PyObject *Py_UNUSED(args)) {
+    fprintf(
+        stdout, "WTF exit self %zd self->trace_file_wrapper %zd\n",
+        Py_REFCNT(self),
+        Py_REFCNT(self->trace_file_wrapper)
+    );
     // No assert(!PyErr_Occurred()); as an exception might have been set by the user.
-    TraceFileWrapper *wrapper = wrapper_ll_get(static_profile_wrappers);
-    if (wrapper) {
-        PyEval_SetTrace(NULL, NULL);
-        // Write a marker, in this case it is the line number of the frame.
-        // Make d_rss_trigger zero to force a log entry.
-//        wrapper->d_rss_trigger = 0;
-//        trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
-//        fflush(wrapper->file);
+    if (self->trace_file_wrapper) {
+        // PyEval_SetProfile() will decrement the reference count that incremented by
+        // PyEval_SetProfile() on __enter__
+        PyEval_SetProfile(NULL, NULL);
         wrapper_ll_pop(&static_profile_wrappers);
         Py_RETURN_FALSE;
     }
     PyErr_Format(PyExc_RuntimeError, "TraceObject.__exit__ has no TraceFileWrapper");
-    PyEval_SetTrace(NULL, NULL);
+    PyEval_SetProfile(NULL, NULL);
     return NULL;
 }
 
@@ -719,6 +745,7 @@ static PyTypeObject ProfileObjectType = {
         .tp_basicsize = sizeof(ProfileObject),
         .tp_itemsize = 0,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_alloc = PyType_GenericAlloc,
         .tp_new = ProfileObject_new,
         .tp_init = (initproc) ProfileObject_init,
         .tp_dealloc = (destructor) ProfileObject_dealloc,
@@ -732,12 +759,12 @@ static PyTypeObject ProfileObjectType = {
 typedef struct {
     PyObject_HEAD
     int d_rss_trigger;
+    // Message. Add const char *message here that is a malloc copy of the string given in ProfileObject_init
     char *message;
     // User can provide a specific filename.
     PyBytesObject *py_specific_filename;
     PyObject *trace_file_wrapper;
 } TraceObject;
-
 
 static void
 TraceObject_dealloc(TraceObject *self) {
@@ -751,9 +778,11 @@ static PyObject *
 TraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
     assert(!PyErr_Occurred());
     TraceObject *self = (TraceObject *) type->tp_alloc(type, 0);
-    self->message = NULL;
-    self->py_specific_filename = NULL;
-    self->trace_file_wrapper = NULL;
+    if (self) {
+        self->message = NULL;
+        self->py_specific_filename = NULL;
+        self->trace_file_wrapper = NULL;
+    }
     return (PyObject *) self;
 }
 
@@ -795,8 +824,8 @@ py_attach_trace_function(int d_rss_trigger, const char *message, const char *spe
     TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 0);
     if (wrapper) {
         wrapper_ll_push(&static_trace_wrappers, wrapper);
-        Py_INCREF(wrapper);
-        PyEval_SetProfile(&trace_or_profile_function, (PyObject *) wrapper);
+        // This increments the wrapper reference count.
+        PyEval_SetTrace(&trace_or_profile_function, (PyObject *) wrapper);
         // Write a marker, in this case it is the line number of the frame.
         trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
         assert(!PyErr_Occurred());
@@ -822,22 +851,17 @@ TraceObject_enter(TraceObject *self) {
         return NULL;
     }
     self->trace_file_wrapper = trace_file_wrapper;
-    Py_INCREF(self);
     assert(!PyErr_Occurred());
     return (PyObject *) self;
 }
 
 static PyObject *
-TraceObject_exit(TraceObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
+TraceObject_exit(TraceObject *self, PyObject *Py_UNUSED(args)) {
     // No assert(!PyErr_Occurred()); as an exception might have been set by the users code.
-    TraceFileWrapper *wrapper = wrapper_ll_get(static_trace_wrappers);
-    if (wrapper) {
+    if (self->trace_file_wrapper) {
+        // PyEval_SetTrace() will decrement the reference count that incremented by
+        // PyEval_SetTrace() on __enter__
         PyEval_SetTrace(NULL, NULL);
-        // Write a marker, in this case it is the line number of the frame.
-        // Make d_rss_trigger zero to force a log entry.
-//        wrapper->d_rss_trigger = 0;
-//        trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
-//        fflush(wrapper->file);
         wrapper_ll_pop(&static_trace_wrappers);
         Py_RETURN_FALSE;
     }
@@ -879,6 +903,7 @@ static PyTypeObject TraceObjectType = {
         .tp_basicsize = sizeof(TraceObject),
         .tp_itemsize = 0,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_alloc = PyType_GenericAlloc,
         .tp_new = TraceObject_new,
         .tp_init = (initproc) TraceObject_init,
         .tp_dealloc = (destructor) TraceObject_dealloc,
@@ -893,7 +918,8 @@ const char *PY_MEM_TRACE_DOC = "Module that contains C memory tracer classes and
 
 PyDoc_STRVAR(py_mem_trace_doc,
              "Module that contains C memory tracer classes and functions."
-             "\nNotably this has Profile() and Trace() that can attach to the Python runtime and report memory usage events."
+             "\nNotably this has Profile() and Trace() that can attach to the Python runtime and report memory usage"
+             " events."
 );
 
 static PyModuleDef cPyMemTracemodule = {
@@ -969,20 +995,55 @@ main (int argc, char **argv) {
     if (PyStatus_Exception(status)) {
         return -2;
     }
+//    int py_run_main = Py_RunMain();
+//    fprintf(stdout, "Py_RunMain() returned %d\n", py_run_main);
+//    if (py_run_main) {
+//        return py_run_main;
+//    }
 
-//    PyObject *py_args = Py_BuildValue("()");
-//    PyObject *py_kwargs = Py_BuildValue("{}");
+#if 0
+    if (PyType_Ready(&TraceFileWrapperType) < 0) {
+        return -8;
+    }
+    Py_INCREF(&TraceFileWrapperType);
 
-//    PyObject *trace_wrapper = TraceFileWrapper_new(&TraceFileWrapperType, py_args, py_kwargs);
     TraceFileWrapper *trace_wrapper = (TraceFileWrapper *) TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
-
-    printf("TraceFileWrapper *trace_wrapper:\n");
+    fprintf(stdout, "TraceFileWrapper *trace_wrapper:\n");
     PyObject_Print((PyObject*)trace_wrapper, stdout, Py_PRINT_RAW);
 
     Py_DECREF((PyObject*)trace_wrapper);
+#endif
 
+    if (PyType_Ready(&ProfileObjectType) < 0) {
+        return -16;
+    }
+    Py_INCREF(&ProfileObjectType);
+
+    ProfileObject *profile_object = (ProfileObject*)ProfileObject_new(&ProfileObjectType, NULL, NULL);
+    PyObject *py_args = Py_BuildValue("()");
+    PyObject *py_kwargs = Py_BuildValue("{}");
+    int init = ProfileObject_init(profile_object, py_args, py_kwargs);
+    fprintf(stdout, "ProfileObject_init() returned %d\n", init);
+    PyObject_Print((PyObject*)profile_object, stdout, Py_PRINT_RAW);
+    fprintf(stdout, "\n");
+
+    PyObject *result_enter = ProfileObject_enter(profile_object);
+    fprintf(stdout, "result_enter:\n");
+    PyObject_Print(result_enter, stdout, Py_PRINT_RAW);
+    fprintf(stdout, "\n");
+    PyObject *result_exit = ProfileObject_exit(profile_object, NULL);
+    fprintf(stdout, "result_exit:\n");
+    if (result_exit) {
+        PyObject_Print(result_exit, stdout, Py_PRINT_RAW);
+    } else {
+        fprintf(stdout, "NULL");
+    }
+    fprintf(stdout, "\n");
+
+    Py_DECREF(py_args);
+    Py_DECREF(py_kwargs);
+    Py_DECREF((PyObject*)profile_object);
     PyConfig_Clear(&config);
-
-    return 0;
+    return Py_FinalizeEx();
 }
 #endif
