@@ -384,24 +384,6 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
     TraceFileWrapper *trace_wrapper = (TraceFileWrapper *) pobj;
     size_t rss = getCurrentRSS_alternate();
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
-//#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-//    /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
-//    const unsigned char *file_name = PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_filename);
-//#else
-//    const unsigned char *file_name = PyUnicode_1BYTE_DATA(frame->f_code->co_filename);
-//#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-//    int line_number = PyFrame_GetLineNumber(frame);
-//    const char *func_name = NULL;
-//    if (what == PyTrace_C_CALL || what == PyTrace_C_EXCEPTION || what == PyTrace_C_RETURN) {
-//        func_name = PyEval_GetFuncName(arg);
-//    } else {
-//#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-//        /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
-//        func_name = (const char *) PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_name);
-//#else
-//        func_name = (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name);
-//#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-//    }
     long d_rss = rss - trace_wrapper->rss;
     if (labs(d_rss) >= trace_wrapper->d_rss_trigger
         && trace_wrapper->event_number > 0
@@ -412,21 +394,6 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 #endif
         fputs(trace_wrapper->event_text, trace_wrapper->file);
     }
-//#ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
-//    double clock_time = (double) clock() / CLOCKS_PER_SEC;
-//    snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-//             "%-12zu +%-6ld %-12.6f %-8s %-80s %4d %-32s %12zu %12ld\n",
-//             trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
-//             clock_time, WHAT_STRINGS[what], get_python_file_name(frame), PyFrame_GetLineNumber(frame),
-//             get_python_function_name(frame, what, arg), rss, d_rss);
-//#else
-//    snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-//             "%-12zu +%-6ld %-8s %-80s %4d %-32s %12zu %12ld\n",
-//             trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
-//             WHAT_STRINGS[what], get_python_file_name(frame), PyFrame_GetLineNumber(frame),
-//             get_python_function_name(frame, what, arg), rss, d_rss);
-//#endif // PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
-
     if (labs(d_rss) >= trace_wrapper->d_rss_trigger) {
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
         fputs("NEXT: ", trace_wrapper->file);
