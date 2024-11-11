@@ -6,6 +6,8 @@ History
 ------------------
 
 * cPyMemTrace:
+    * Add P/T, stack depth and python version to log file name, example:
+      "20241107_195847_62264_P_0_PY3.13.0b3.log"
     * Add stacking of trace/profile functions with linked list of tTraceFileWrapperLinkedList.
     * Add an option to log to a specific file.
     * Add an API write_to_log() to inject text into the log file.

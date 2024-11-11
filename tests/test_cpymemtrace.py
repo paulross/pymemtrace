@@ -1,9 +1,8 @@
 """
 At the moment these produce a log file per test.
-TODO: Would be handy if we could specify a temporary file or file path, inspect it and clean up.
 """
-import gc
 import os
+import sys
 import tempfile
 import time
 
@@ -31,72 +30,132 @@ def test_module_dir():
     ]
 
 
-# TODO: @pytest.mark.skipif(not (sys.version_info.minor > 8), reason='Python > 3.8')
-
-def test_profile_basic():
+@pytest.mark.skipif(not (sys.version_info.minor <= 10), reason='Python <= 3.10')
+def test_profile_basic_lt_310():
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Profile(0) as profiler:
         b' ' * (1024 ** 2)
+        print()
+        print('test_profile_basic():')
         print(profiler)
         print(dir(profiler))
-        # assert dir(profiler) == ['__class__', '__delattr__', '__dir__', '__doc__', '__enter__', '__eq__', '__exit__',
-        #                          '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__',
-        #                          '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
-        #                          '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__',
-        #                          '__subclasshook__', 'trace_file_wrapper']
+        assert dir(profiler) == ['__class__', '__delattr__', '__dir__', '__doc__', '__enter__', '__eq__', '__exit__',
+                                 '__format__', '__ge__', '__getattribute__', '__gt__', '__hash__',
+                                 '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
+                                 '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__',
+                                 '__subclasshook__', 'trace_file_wrapper']
         print(profiler.trace_file_wrapper)
         print(dir(profiler.trace_file_wrapper))
-        # assert dir(profiler.trace_file_wrapper) == ['__class__', '__delattr__', '__dir__', '__doc__', '__eq__',
-        #                                             '__format__', '__ge__', '__getattribute__', '__getstate__',
-        #                                             '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
-        #                                             '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
-        #                                             '__repr__', '__setattr__', '__sizeof__', '__str__',
-        #                                             '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
-        #                                             'log_file_path', 'previous_event_number', 'rss', 'write_to_log']
+        assert dir(profiler.trace_file_wrapper) == ['__class__', '__delattr__', '__dir__', '__doc__', '__eq__',
+                                                    '__format__', '__ge__', '__getattribute__',
+                                                    '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
+                                                    '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
+                                                    '__repr__', '__setattr__', '__sizeof__', '__str__',
+                                                    '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
+                                                    'log_file_path', 'previous_event_number', 'rss', 'write_to_log']
         assert os.path.isfile(profiler.trace_file_wrapper.log_file_path)
 
 
-def test_trace_basic():
+@pytest.mark.skipif(not (sys.version_info.minor > 10), reason='Python > 3.10')
+def test_profile_basic_gt_310():
+    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
+    with cPyMemTrace.Profile(0) as profiler:
+        b' ' * (1024 ** 2)
+        print()
+        print('test_profile_basic():')
+        print(profiler)
+        print(dir(profiler))
+        assert dir(profiler) == ['__class__', '__delattr__', '__dir__', '__doc__', '__enter__', '__eq__', '__exit__',
+                                 '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__',
+                                 '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
+                                 '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__',
+                                 '__subclasshook__', 'trace_file_wrapper']
+        print(profiler.trace_file_wrapper)
+        print(dir(profiler.trace_file_wrapper))
+        assert dir(profiler.trace_file_wrapper) == ['__class__', '__delattr__', '__dir__', '__doc__', '__eq__',
+                                                    '__format__', '__ge__', '__getattribute__', '__getstate__',
+                                                    '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
+                                                    '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
+                                                    '__repr__', '__setattr__', '__sizeof__', '__str__',
+                                                    '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
+                                                    'log_file_path', 'previous_event_number', 'rss', 'write_to_log']
+        assert os.path.isfile(profiler.trace_file_wrapper.log_file_path)
+
+
+@pytest.mark.skipif(not (sys.version_info.minor <= 10), reason='Python <= 3.10')
+def test_trace_basic_lt_310():
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Trace(0) as tracer:
         b' ' * (1024 ** 2)
+        print()
+        print('test_trace_basic():')
         print(tracer)
         print(dir(tracer))
-        # assert dir(tracer) == ['__class__', '__delattr__', '__dir__', '__doc__', '__enter__', '__eq__', '__exit__',
-        #                        '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__',
-        #                        '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
-        #                        '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__',
-        #                        '__subclasshook__', 'trace_file_wrapper']
+        assert dir(tracer) == ['__class__', '__delattr__', '__dir__', '__doc__', '__enter__', '__eq__', '__exit__',
+                               '__format__', '__ge__', '__getattribute__', '__gt__', '__hash__',
+                               '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
+                               '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__',
+                               '__subclasshook__', 'trace_file_wrapper']
         print(tracer.trace_file_wrapper)
         print(dir(tracer.trace_file_wrapper))
-        # assert dir(tracer.trace_file_wrapper) == ['__class__', '__delattr__', '__dir__', '__doc__', '__eq__',
-        #                                           '__format__', '__ge__', '__getattribute__', '__getstate__',
-        #                                           '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
-        #                                           '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
-        #                                           '__repr__', '__setattr__', '__sizeof__', '__str__',
-        #                                           '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
-        #                                           'log_file_path', 'previous_event_number', 'rss', 'write_to_log']
+        assert dir(tracer.trace_file_wrapper) == ['__class__', '__delattr__', '__dir__', '__doc__', '__eq__',
+                                                  '__format__', '__ge__', '__getattribute__',
+                                                  '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
+                                                  '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
+                                                  '__repr__', '__setattr__', '__sizeof__', '__str__',
+                                                  '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
+                                                  'log_file_path', 'previous_event_number', 'rss', 'write_to_log']
+        assert os.path.isfile(tracer.trace_file_wrapper.log_file_path)
+
+
+@pytest.mark.skipif(not (sys.version_info.minor > 10), reason='Python > 3.10')
+def test_trace_basic_gt_310():
+    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
+    with cPyMemTrace.Trace(0) as tracer:
+        b' ' * (1024 ** 2)
+        print()
+        print('test_trace_basic():')
+        print(tracer)
+        print(dir(tracer))
+        assert dir(tracer) == ['__class__', '__delattr__', '__dir__', '__doc__', '__enter__', '__eq__', '__exit__',
+                               '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__',
+                               '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
+                               '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__',
+                               '__subclasshook__', 'trace_file_wrapper']
+        print(tracer.trace_file_wrapper)
+        print(dir(tracer.trace_file_wrapper))
+        assert dir(tracer.trace_file_wrapper) == ['__class__', '__delattr__', '__dir__', '__doc__', '__eq__',
+                                                  '__format__', '__ge__', '__getattribute__', '__getstate__',
+                                                  '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
+                                                  '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
+                                                  '__repr__', '__setattr__', '__sizeof__', '__str__',
+                                                  '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
+                                                  'log_file_path', 'previous_event_number', 'rss', 'write_to_log']
         assert os.path.isfile(tracer.trace_file_wrapper.log_file_path)
 
 
 def test_profile_start_message_to_log_file():
-    message = 'START MESSAGE TO LOG FILE'
+    message = 'test_profile_start_message_to_log_file():\n'
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Profile(message=message) as profiler:
         b' ' * (1024 ** 2)
     with open(profiler.trace_file_wrapper.log_file_path) as file:
         file_data = file.read()
+        print()
+        print(f'File data: {file_data}')
         assert file_data.startswith(message)
 
 
 def test_profile_inline_message_to_log_file():
-    message = 'INLINE MESSAGE TO LOG'
+    message = 'test_profile_inline_message_to_log_file():\n'
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Profile() as profiler:
         b' ' * (1024 ** 2)
         profiler.trace_file_wrapper.write_to_log(message)
     with open(profiler.trace_file_wrapper.log_file_path) as file:
         file_data = file.read()
+        print()
+        print(f'File data: {file_data}')
         assert message in file_data
 
 
@@ -141,7 +200,7 @@ def test_trace_populate_list():
 
 
 def test_profile_to_specific_log_file():
-    message = 'START MESSAGE TO LOG FILE'
+    message = 'test_profile_to_specific_log_file():'
     with tempfile.NamedTemporaryFile() as file:
         with cPyMemTrace.Profile(0, message=message, filepath=file.name) as profiler:
             assert profiler.trace_file_wrapper.log_file_path == file.name
@@ -158,7 +217,7 @@ def test_profile_to_specific_log_file():
 
 
 def test_trace_to_specific_log_file():
-    message = 'START MESSAGE TO LOG FILE'
+    message = 'test_trace_to_specific_log_file():'
     with tempfile.NamedTemporaryFile() as file:
         with cPyMemTrace.Trace(0, message=message, filepath=file.name) as profiler:
             assert profiler.trace_file_wrapper.log_file_path == file.name

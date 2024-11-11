@@ -66,6 +66,7 @@ void macosx_get_short_pid_info(void) {
     printf(" gid: %d\n", (int)proc.pbsi_gid);
 }
 
+#if 0
 int
 main (int argc, char **argv)
 {
@@ -130,3 +131,4 @@ main (int argc, char **argv)
 
     return 0;
 }
+#endif

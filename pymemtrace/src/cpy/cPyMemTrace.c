@@ -87,6 +87,60 @@
 static const char *MARKER_LOG_FILE_START = "SOF";
 static const char *MARKER_LOG_FILE_END = "EOF";
 
+#pragma mark Python definitions and functions.
+/*
+ * Defined in Include/cpython/pystate.h
+ * #define PyTrace_CALL 0
+ * #define PyTrace_EXCEPTION 1
+ * #define PyTrace_LINE 2
+ * #define PyTrace_RETURN 3
+ * #define PyTrace_C_CALL 4
+ * #define PyTrace_C_EXCEPTION 5
+ * #define PyTrace_C_RETURN 6
+ * #define PyTrace_OPCODE 7
+ *
+ * Here these are trimmed to be a maximum of 8 long.
+ */
+#ifdef PY_MEM_TRACE_WRITE_OUTPUT
+static const char *WHAT_STRINGS[] = {
+        "CALL",
+        "EXCEPT",
+        "LINE",
+        "RETURN",
+        "C_CALL",
+        "C_EXCEPT",
+        "C_RETURN",
+        "OPCODE",
+};
+#endif
+
+static const unsigned char *
+get_python_file_name(PyFrameObject *frame) {
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+    /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
+    const unsigned char *file_name = PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_filename);
+#else
+    const unsigned char *file_name = PyUnicode_1BYTE_DATA(frame->f_code->co_filename);
+#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+    return file_name;
+}
+
+static const char *
+get_python_function_name(PyFrameObject *frame, int what, PyObject *arg) {
+    const char *func_name = NULL;
+    if (what == PyTrace_C_CALL || what == PyTrace_C_EXCEPTION || what == PyTrace_C_RETURN) {
+        func_name = PyEval_GetFuncName(arg);
+    } else {
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+        /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
+        func_name = (const char *) PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_name);
+#else
+        func_name = (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name);
+#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+    }
+    return func_name;
+}
+
 #pragma mark TraceFileWrapper object
 /**
  * Trace classes could make this available by looking at trace_file_wrapper or profile_file_wrapper.
@@ -98,12 +152,39 @@ typedef struct {
     char *log_file_path;
     size_t event_number;
     size_t rss;
+    // This determines the granularity of the log file.
+    // <0 - A call to trace_or_profile_function() is logged only if the dRSS is >= the page size given by
+    //      getpagesize() in unistd.h.
+    // 0 - Every call to trace_or_profile_function() is logged.
+    // >0 - A call to trace_or_profile_function() is logged only if the dRSS is >= this value.
+    // Default is -1. See ProfileObject_init() and TraceObject_init().
     int d_rss_trigger;
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
     size_t previous_event_number;
     char event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
 #endif
 } TraceFileWrapper;
+
+static void
+trace_wrapper_write_frame_data_to_event_text(TraceFileWrapper *trace_wrapper, PyFrameObject *frame, int what,
+                                             PyObject *arg) {
+    size_t rss = getCurrentRSS_alternate();
+    long d_rss = rss - trace_wrapper->rss;
+#ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
+    double clock_time = (double) clock() / CLOCKS_PER_SEC;
+    snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+             "%-12zu +%-6ld %-12.6f %-8s %-80s %4d %-32s %12zu %12ld\n",
+             trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
+             clock_time, WHAT_STRINGS[what], get_python_file_name(frame), PyFrame_GetLineNumber(frame),
+             get_python_function_name(frame, what, arg), getCurrentRSS_alternate(), d_rss);
+#else
+    snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+             "%-12zu +%-6ld %-8s %-80s %4d %-32s %12zu %12ld\n",
+             trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
+             WHAT_STRINGS[what], get_python_file_name(frame), PyFrame_GetLineNumber(frame),
+             get_python_function_name(frame, what, arg), getCurrentRSS_alternate(), d_rss);
+#endif // PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
+}
 
 /**
  * Deallocate the TraceFileWrapper.
@@ -112,13 +193,19 @@ typedef struct {
 static void
 TraceFileWrapper_dealloc(TraceFileWrapper *self) {
     if (self->file) {
+        fputs("LAST: ", self->file);
+        trace_wrapper_write_frame_data_to_event_text(self, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        fputs(self->event_text, self->file);
+//        fputc('\n', self->file);
+        // Write a final line
         if (MARKER_LOG_FILE_END) {
             fprintf(self->file, "%s\n", MARKER_LOG_FILE_END);
         }
         fclose(self->file);
     }
     free(self->log_file_path);
-    Py_TYPE(self)->tp_free((PyObject *) self);
+//    Py_TYPE(self)->tp_free((PyObject *) self);
+    PyObject_Del((PyObject *) self);
 }
 
 /**
@@ -175,7 +262,8 @@ static PyMemberDef TraceFileWrapper_members[] = {
 #pragma mark - TraceFileWrapper methods
 
 /**
- * Write a string to the existing logfile.
+ * Write any string to the existing logfile.
+ *
  * @param self The file wrapper.
  * @param op The Python unicode string.
  * @return None on success, NULL on failure (not a unicode argument).
@@ -184,7 +272,7 @@ static PyObject *
 TraceFileWrapper_write_to_log(TraceFileWrapper *self, PyObject *op) {
     assert(!PyErr_Occurred());
     if (!PyUnicode_Check(op)) {
-        PyErr_Format(PyExc_ValueError, "write_log() requires a single string, not type %s", Py_TYPE(op)->tp_name);
+        PyErr_Format(PyExc_ValueError, "write_to_log() requires a single string, not type %s", Py_TYPE(op)->tp_name);
         return NULL;
     }
     Py_UCS1 *c_str = PyUnicode_1BYTE_DATA(op);
@@ -208,37 +296,11 @@ static PyTypeObject TraceFileWrapperType = {
         .tp_itemsize = 0,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
         .tp_new = TraceFileWrapper_new,
+        .tp_alloc = PyType_GenericAlloc,
         .tp_dealloc = (destructor) TraceFileWrapper_dealloc,
         .tp_members = TraceFileWrapper_members,
         .tp_methods = TraceFileWrapper_methods,
 };
-
-#pragma mark The trace_or_profile_function()
-/*
- * Defined in Include/cpython/pystate.h
- * #define PyTrace_CALL 0
- * #define PyTrace_EXCEPTION 1
- * #define PyTrace_LINE 2
- * #define PyTrace_RETURN 3
- * #define PyTrace_C_CALL 4
- * #define PyTrace_C_EXCEPTION 5
- * #define PyTrace_C_RETURN 6
- * #define PyTrace_OPCODE 7
- *
- * Here these are trimmed to be a maximum of 8 long.
- */
-#ifdef PY_MEM_TRACE_WRITE_OUTPUT
-static const char *WHAT_STRINGS[] = {
-        "CALL",
-        "EXCEPT",
-        "LINE",
-        "RETURN",
-        "C_CALL",
-        "C_EXCEPT",
-        "C_RETURN",
-        "OPCODE",
-};
-#endif
 
 #pragma mark Static linked list of trace/profile wrappers.
 struct TraceFileWrapperLinkedListNode {
@@ -307,6 +369,7 @@ void wrapper_ll_clear(tTraceFileWrapperLinkedList **h_linked_list) {
 
 /**
  * Create a trace function.
+ *
  * @param pobj The TraceFileWrapper object.
  * @param frame The Python frame.
  * @param what The event type.
@@ -321,24 +384,24 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
     TraceFileWrapper *trace_wrapper = (TraceFileWrapper *) pobj;
     size_t rss = getCurrentRSS_alternate();
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-    /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
-    const unsigned char *file_name = PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_filename);
-#else
-    const unsigned char *file_name = PyUnicode_1BYTE_DATA(frame->f_code->co_filename);
-#endif
-    int line_number = PyFrame_GetLineNumber(frame);
-    const char *func_name = NULL;
-    if (what == PyTrace_C_CALL || what == PyTrace_C_EXCEPTION || what == PyTrace_C_RETURN) {
-        func_name = PyEval_GetFuncName(arg);
-    } else {
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-        /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
-        func_name = (const char *) PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_name);
-#else
-        func_name = (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name);
-#endif
-    }
+//#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+//    /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
+//    const unsigned char *file_name = PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_filename);
+//#else
+//    const unsigned char *file_name = PyUnicode_1BYTE_DATA(frame->f_code->co_filename);
+//#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+//    int line_number = PyFrame_GetLineNumber(frame);
+//    const char *func_name = NULL;
+//    if (what == PyTrace_C_CALL || what == PyTrace_C_EXCEPTION || what == PyTrace_C_RETURN) {
+//        func_name = PyEval_GetFuncName(arg);
+//    } else {
+//#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+//        /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
+//        func_name = (const char *) PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_name);
+//#else
+//        func_name = (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name);
+//#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+//    }
     long d_rss = rss - trace_wrapper->rss;
     if (labs(d_rss) >= trace_wrapper->d_rss_trigger
         && trace_wrapper->event_number > 0
@@ -349,23 +412,27 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 #endif
         fputs(trace_wrapper->event_text, trace_wrapper->file);
     }
-#ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
-    double clock_time = (double) clock() / CLOCKS_PER_SEC;
-    snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             "%-12zu +%-6ld %-12.6f %-8s %-80s %4d %-32s %12zu %12ld\n",
-             trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
-             clock_time, WHAT_STRINGS[what], file_name, line_number, func_name, rss, d_rss);
-#else
-    snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             "%-12zu +%-6ld %-8s %-80s %4d %-32s %12zu %12ld\n",
-             trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
-             WHAT_STRINGS[what], file_name, line_number, func_name, rss, d_rss);
-#endif // PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
+//#ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
+//    double clock_time = (double) clock() / CLOCKS_PER_SEC;
+//    snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+//             "%-12zu +%-6ld %-12.6f %-8s %-80s %4d %-32s %12zu %12ld\n",
+//             trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
+//             clock_time, WHAT_STRINGS[what], get_python_file_name(frame), PyFrame_GetLineNumber(frame),
+//             get_python_function_name(frame, what, arg), rss, d_rss);
+//#else
+//    snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+//             "%-12zu +%-6ld %-8s %-80s %4d %-32s %12zu %12ld\n",
+//             trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
+//             WHAT_STRINGS[what], get_python_file_name(frame), PyFrame_GetLineNumber(frame),
+//             get_python_function_name(frame, what, arg), rss, d_rss);
+//#endif // PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
+
     if (labs(d_rss) >= trace_wrapper->d_rss_trigger) {
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
         fputs("NEXT: ", trace_wrapper->file);
 //        fputs("      ", trace_wrapper->file);
 #endif
+        trace_wrapper_write_frame_data_to_event_text(trace_wrapper, frame, what, arg);
         fputs(trace_wrapper->event_text, trace_wrapper->file);
         trace_wrapper->previous_event_number = trace_wrapper->event_number;
     }
@@ -386,7 +453,8 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
         filename = specific_filename;
     } else {
         char trace_type = is_profile ? 'P' : 'T';
-        size_t ll_depth = is_profile ? wrapper_ll_length(static_profile_wrappers) : wrapper_ll_length(static_trace_wrappers);
+        size_t ll_depth = is_profile ? wrapper_ll_length(static_profile_wrappers) : wrapper_ll_length(
+                static_trace_wrappers);
         filename = create_filename(trace_type, ll_depth);
     }
     if (filename) {
@@ -638,11 +706,13 @@ ProfileObject_exit(ProfileObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
     // No assert(!PyErr_Occurred()); as an exception might have been set by the user.
     TraceFileWrapper *wrapper = wrapper_ll_get(static_profile_wrappers);
     if (wrapper) {
-        // Write a marker, in this case it is the line number of the frame.
-        trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
-        fflush(wrapper->file);
-        wrapper_ll_pop(&static_profile_wrappers);
         PyEval_SetTrace(NULL, NULL);
+        // Write a marker, in this case it is the line number of the frame.
+        // Make d_rss_trigger zero to force a log entry.
+//        wrapper->d_rss_trigger = 0;
+//        trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+//        fflush(wrapper->file);
+        wrapper_ll_pop(&static_profile_wrappers);
         Py_RETURN_FALSE;
     }
     PyErr_Format(PyExc_RuntimeError, "TraceObject.__exit__ has no TraceFileWrapper");
@@ -795,11 +865,13 @@ TraceObject_exit(TraceObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
     // No assert(!PyErr_Occurred()); as an exception might have been set by the users code.
     TraceFileWrapper *wrapper = wrapper_ll_get(static_trace_wrappers);
     if (wrapper) {
-        // Write a marker, in this case it is the line number of the frame.
-        trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
-        fflush(wrapper->file);
-        wrapper_ll_pop(&static_trace_wrappers);
         PyEval_SetTrace(NULL, NULL);
+        // Write a marker, in this case it is the line number of the frame.
+        // Make d_rss_trigger zero to force a log entry.
+//        wrapper->d_rss_trigger = 0;
+//        trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+//        fflush(wrapper->file);
+        wrapper_ll_pop(&static_trace_wrappers);
         Py_RETURN_FALSE;
     }
     PyErr_Format(PyExc_RuntimeError, "TraceObject.__exit__ has no TraceFileWrapper");
@@ -906,3 +978,44 @@ PyInit_cPyMemTrace(void) {
     }
     return m;
 }
+
+#if 1
+
+int
+main (int argc, char **argv) {
+    printf("Testing cPyMemTrace. argc=%d\n", argc);
+    for (int i = 0; i < argc; ++i) {
+        printf("Arg[%d]: %s\n", i, argv[i]);
+    }
+
+    PyStatus status;
+    PyConfig config;
+
+    PyConfig_InitPythonConfig(&config);
+    config.isolated = 1;
+    status = PyConfig_SetBytesArgv(&config, argc, argv);
+    if (PyStatus_Exception(status)) {
+        return -1;
+    }
+//    Py_Initialize();
+    status = Py_InitializeFromConfig(&config);
+    if (PyStatus_Exception(status)) {
+        return -2;
+    }
+
+//    PyObject *py_args = Py_BuildValue("()");
+//    PyObject *py_kwargs = Py_BuildValue("{}");
+
+//    PyObject *trace_wrapper = TraceFileWrapper_new(&TraceFileWrapperType, py_args, py_kwargs);
+    TraceFileWrapper *trace_wrapper = (TraceFileWrapper *) TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
+
+    printf("TraceFileWrapper *trace_wrapper:\n");
+    PyObject_Print((PyObject*)trace_wrapper, stdout, Py_PRINT_RAW);
+
+    Py_DECREF((PyObject*)trace_wrapper);
+
+    PyConfig_Clear(&config);
+
+    return 0;
+}
+#endif
