@@ -684,6 +684,7 @@ ProfileObject_enter(ProfileObject *self) {
         return NULL;
     }
     self->trace_file_wrapper = trace_file_wrapper;
+    Py_INCREF(self);
     assert(!PyErr_Occurred());
     fprintf(
             stdout, "WTF enter self %zd self->trace_file_wrapper %zd\n",
@@ -851,6 +852,7 @@ TraceObject_enter(TraceObject *self) {
         return NULL;
     }
     self->trace_file_wrapper = trace_file_wrapper;
+    Py_INCREF(self);
     assert(!PyErr_Occurred());
     return (PyObject *) self;
 }
