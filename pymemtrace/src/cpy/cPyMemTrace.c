@@ -66,12 +66,38 @@
 #define PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
 //#undef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
 
-/* Backwards compatibility for object members for Python versions prior to 3.12.
+
+/* Tracing reference counts. */
+#if 1
+#define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(op)                                    \
+    fprintf(stdout, "TRACE: %50s() BEG REFCNT %10zd\n", __FUNCTION__, Py_REFCNT(op))
+
+#define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(op)                                    \
+    fprintf(stdout, "TRACE: %50s() END REFCNT %10zd\n", __FUNCTION__, Py_REFCNT(op))
+
+#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG                       \
+    fprintf(stdout, "TRACE: %50s() BEG REFCNT %10zd trace_file_wrapper REFCNT %10zd\n", \
+        __FUNCTION__, Py_REFCNT(self),                                                  \
+        self->trace_file_wrapper ? Py_REFCNT(self->trace_file_wrapper) : -1             \
+    )
+
+#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END                       \
+    fprintf(stdout, "TRACE: %50s() END REFCNT %10zd trace_file_wrapper REFCNT %10zd\n", \
+        __FUNCTION__, Py_REFCNT(self),                                                  \
+        self->trace_file_wrapper ? Py_REFCNT(self->trace_file_wrapper) : -1             \
+    )
+#else
+#define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(op)
+#define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(op)
+#define TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG
+#define TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END
+#endif
+
+/** Backwards compatibility for object members for Python versions prior to 3.12.
  * See:
  * https://docs.python.org/3/c-api/structures.html#member-flags
  * https://docs.python.org/3/c-api/apiabiversion.html#c.PY_VERSION_HEX
  * */
-
 #if PY_VERSION_HEX < 0x030c0000
 /* Flags. */
 #define Py_READONLY READONLY
@@ -184,6 +210,7 @@ typedef struct {
 static void
 trace_wrapper_write_frame_data_to_event_text(TraceFileWrapper *trace_wrapper, PyFrameObject *frame, int what,
                                              PyObject *arg) {
+    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(trace_wrapper);
     size_t rss = getCurrentRSS_alternate();
     long d_rss = rss - trace_wrapper->rss;
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
@@ -200,6 +227,26 @@ trace_wrapper_write_frame_data_to_event_text(TraceFileWrapper *trace_wrapper, Py
              WHAT_STRINGS[what], get_python_file_name(frame), py_frame_get_line_number(frame),
              get_python_function_name(frame, what, arg), getCurrentRSS_alternate(), d_rss);
 #endif // PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
+    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(trace_wrapper);
+}
+
+
+static void
+TraceFileWrapper_close_file(TraceFileWrapper *self) {
+    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
+    if (self->file) {
+        // Write LAST event
+        fputs("LAST: ", self->file);
+        trace_wrapper_write_frame_data_to_event_text(self, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+        fputs(self->event_text, self->file);
+        // Write a final line
+        if (MARKER_LOG_FILE_END) {
+            fprintf(self->file, "%s\n", MARKER_LOG_FILE_END);
+        }
+        fclose(self->file);
+        self->file = NULL;
+    }
+    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
 }
 
 /**
@@ -208,20 +255,14 @@ trace_wrapper_write_frame_data_to_event_text(TraceFileWrapper *trace_wrapper, Py
  */
 static void
 TraceFileWrapper_dealloc(TraceFileWrapper *self) {
+    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     if (self->file) {
-        fputs("LAST: ", self->file);
-        trace_wrapper_write_frame_data_to_event_text(self, PyEval_GetFrame(), PyTrace_LINE, Py_None);
-        fputs(self->event_text, self->file);
-//        fputc('\n', self->file);
-        // Write a final line
-        if (MARKER_LOG_FILE_END) {
-            fprintf(self->file, "%s\n", MARKER_LOG_FILE_END);
-        }
-        fclose(self->file);
+        TraceFileWrapper_close_file(self);
     }
     free(self->log_file_path);
 //    Py_TYPE(self)->tp_free((PyObject *) self);
     PyObject_Del((PyObject *) self);
+    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
 }
 
 /**
@@ -240,6 +281,7 @@ TraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py
         self->file = NULL;
         self->log_file_path = NULL;
     }
+    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     return (PyObject *) self;
 }
 
@@ -286,6 +328,7 @@ static PyMemberDef TraceFileWrapper_members[] = {
  */
 static PyObject *
 TraceFileWrapper_write_to_log(TraceFileWrapper *self, PyObject *op) {
+    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     assert(!PyErr_Occurred());
     if (!PyUnicode_Check(op)) {
         PyErr_Format(PyExc_ValueError, "write_to_log() requires a single string, not type %s", Py_TYPE(op)->tp_name);
@@ -293,6 +336,7 @@ TraceFileWrapper_write_to_log(TraceFileWrapper *self, PyObject *op) {
     }
     Py_UCS1 *c_str = PyUnicode_1BYTE_DATA(op);
     fprintf(self->file, "%s\n", c_str);
+    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     Py_RETURN_NONE;
 }
 
@@ -459,6 +503,7 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
                 trace_wrapper->log_file_path = malloc(strlen(file_path_buffer) + 1);
                 strcpy(trace_wrapper->log_file_path, file_path_buffer);
                 // Write the message to the log file if present.
+                // fprintf(stdout, "TRACE: Message \"%s\"\n", message);
                 if (message) {
                     fprintf(trace_wrapper->file, "%s\n", message);
                 } else if (MARKER_LOG_FILE_START) {
@@ -591,20 +636,22 @@ typedef struct {
     char *message;
     // User can provide a specific filename.
     PyBytesObject *py_specific_filename;
-    PyObject *trace_file_wrapper;
+    TraceFileWrapper *trace_file_wrapper;
 } ProfileObject;
 
 static void
 ProfileObject_dealloc(ProfileObject *self) {
-    fprintf(
-            stdout, "WTF dealloc self %zd self->trace_file_wrapper %zd\n",
-            Py_REFCNT(self),
-            Py_REFCNT(self->trace_file_wrapper)
-    );
+//    fprintf(
+//            stdout, "TRACE: dealloc self %zd self->trace_file_wrapper %zd\n",
+//            Py_REFCNT(self),
+//            Py_REFCNT(self->trace_file_wrapper)
+//    );
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG;
     free(self->message);
     Py_XDECREF(self->py_specific_filename);
     Py_XDECREF(self->trace_file_wrapper);
     Py_TYPE(self)->tp_free((PyObject *) self);
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END;
 }
 
 static PyObject *
@@ -616,12 +663,14 @@ ProfileObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UN
         self->py_specific_filename = NULL;
         self->trace_file_wrapper = NULL;
     }
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END;
     return (PyObject *) self;
 }
 
 static int
 ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
     assert(!PyErr_Occurred());
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG;
     static char *kwlist[] = {"d_rss_trigger", "message", "filepath", NULL};
     int d_rss_trigger = -1;
     char *message = NULL;
@@ -642,6 +691,7 @@ ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
         }
     }
     assert(!PyErr_Occurred());
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END;
     return 0;
 }
 
@@ -651,7 +701,7 @@ ProfileObject_init(ProfileObject *self, PyObject *args, PyObject *kwds) {
  * @param message
  * @return The \c static_profile_wrapper or \c NULL on failure in which case an exception will have been set.
  */
-static PyObject *
+static TraceFileWrapper *
 py_attach_profile_function(int d_rss_trigger, const char *message, const char *specific_filename) {
     assert(!PyErr_Occurred());
     TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 1);
@@ -662,7 +712,7 @@ py_attach_profile_function(int d_rss_trigger, const char *message, const char *s
         // Write a marker, in this case it is the line number of the frame.
         trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
         assert(!PyErr_Occurred());
-        return (PyObject *) wrapper;
+        return wrapper;
     }
     PyErr_SetString(PyExc_RuntimeError, "py_attach_profile_function(): Could not attach profile function.");
     return NULL;
@@ -670,47 +720,43 @@ py_attach_profile_function(int d_rss_trigger, const char *message, const char *s
 
 static PyObject *
 ProfileObject_enter(ProfileObject *self) {
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG;
     assert(!PyErr_Occurred());
-    PyObject *trace_file_wrapper;
     if (self->py_specific_filename) {
-        trace_file_wrapper = py_attach_profile_function(
+        self->trace_file_wrapper = py_attach_profile_function(
                 self->d_rss_trigger, self->message, PyBytes_AsString((PyObject *) self->py_specific_filename)
         );
     } else {
-        trace_file_wrapper = py_attach_profile_function(self->d_rss_trigger, self->message, NULL);
+        self->trace_file_wrapper = py_attach_profile_function(self->d_rss_trigger, self->message, NULL);
     }
-    if (trace_file_wrapper == NULL) {
+    if (self->trace_file_wrapper == NULL) {
         assert(PyErr_Occurred());
         return NULL;
     }
-    self->trace_file_wrapper = trace_file_wrapper;
     Py_INCREF(self);
     assert(!PyErr_Occurred());
-    fprintf(
-            stdout, "WTF enter self %zd self->trace_file_wrapper %zd\n",
-            Py_REFCNT(self),
-            Py_REFCNT(self->trace_file_wrapper)
-    );
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END;
     return (PyObject *) self;
 }
 
 static PyObject *
 ProfileObject_exit(ProfileObject *self, PyObject *Py_UNUSED(args)) {
-    fprintf(
-        stdout, "WTF exit self %zd self->trace_file_wrapper %zd\n",
-        Py_REFCNT(self),
-        Py_REFCNT(self->trace_file_wrapper)
-    );
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG;
     // No assert(!PyErr_Occurred()); as an exception might have been set by the user.
     if (self->trace_file_wrapper) {
         // PyEval_SetProfile() will decrement the reference count that incremented by
         // PyEval_SetProfile() on __enter__
         PyEval_SetProfile(NULL, NULL);
+        TraceFileWrapper *trace_file_wrapper = (TraceFileWrapper *) self->trace_file_wrapper;
+        TraceFileWrapper_close_file(trace_file_wrapper);
         wrapper_ll_pop(&static_profile_wrappers);
+        TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END;
         Py_RETURN_FALSE;
     }
     PyErr_Format(PyExc_RuntimeError, "TraceObject.__exit__ has no TraceFileWrapper");
     PyEval_SetProfile(NULL, NULL);
+    Py_DECREF(self);
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END;
     return NULL;
 }
 
@@ -764,7 +810,7 @@ typedef struct {
     char *message;
     // User can provide a specific filename.
     PyBytesObject *py_specific_filename;
-    PyObject *trace_file_wrapper;
+    TraceFileWrapper *trace_file_wrapper;
 } TraceObject;
 
 static void
@@ -819,7 +865,7 @@ TraceObject_init(TraceObject *self, PyObject *args, PyObject *kwds) {
  * @param message
  * @return The \c static_trace_wrapper or \c NULL on failure in which case an exception will have been set.
  */
-static PyObject *
+static TraceFileWrapper *
 py_attach_trace_function(int d_rss_trigger, const char *message, const char *specific_filename) {
     assert(!PyErr_Occurred());
     TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 0);
@@ -830,7 +876,7 @@ py_attach_trace_function(int d_rss_trigger, const char *message, const char *spe
         // Write a marker, in this case it is the line number of the frame.
         trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
         assert(!PyErr_Occurred());
-        return (PyObject *) wrapper;
+        return wrapper;
     }
     PyErr_SetString(PyExc_RuntimeError, "py_attach_trace_function(): Could not attach profile function.");
     return NULL;
@@ -839,19 +885,17 @@ py_attach_trace_function(int d_rss_trigger, const char *message, const char *spe
 static PyObject *
 TraceObject_enter(TraceObject *self) {
     assert(!PyErr_Occurred());
-    PyObject *trace_file_wrapper;
     if (self->py_specific_filename) {
-        trace_file_wrapper = py_attach_trace_function(
+        self->trace_file_wrapper = py_attach_trace_function(
                 self->d_rss_trigger, self->message, PyBytes_AsString((PyObject *) self->py_specific_filename)
         );
     } else {
-        trace_file_wrapper = py_attach_trace_function(self->d_rss_trigger, self->message, NULL);
+        self->trace_file_wrapper = py_attach_trace_function(self->d_rss_trigger, self->message, NULL);
     }
-    if (trace_file_wrapper == NULL) {
+    if (self->trace_file_wrapper == NULL) {
         assert(PyErr_Occurred());
         return NULL;
     }
-    self->trace_file_wrapper = trace_file_wrapper;
     Py_INCREF(self);
     assert(!PyErr_Occurred());
     return (PyObject *) self;
@@ -864,6 +908,8 @@ TraceObject_exit(TraceObject *self, PyObject *Py_UNUSED(args)) {
         // PyEval_SetTrace() will decrement the reference count that incremented by
         // PyEval_SetTrace() on __enter__
         PyEval_SetTrace(NULL, NULL);
+        TraceFileWrapper *trace_file_wrapper = (TraceFileWrapper *) self->trace_file_wrapper;
+        TraceFileWrapper_close_file(trace_file_wrapper);
         wrapper_ll_pop(&static_trace_wrappers);
         Py_RETURN_FALSE;
     }
@@ -977,7 +1023,7 @@ PyInit_cPyMemTrace(void) {
 #if 1
 
 int
-main (int argc, char **argv) {
+main(int argc, char **argv) {
     printf("Testing cPyMemTrace. argc=%d\n", argc);
     for (int i = 0; i < argc; ++i) {
         printf("Arg[%d]: %s\n", i, argv[i]);
@@ -1021,12 +1067,12 @@ main (int argc, char **argv) {
     }
     Py_INCREF(&ProfileObjectType);
 
-    ProfileObject *profile_object = (ProfileObject*)ProfileObject_new(&ProfileObjectType, NULL, NULL);
+    ProfileObject *profile_object = (ProfileObject *) ProfileObject_new(&ProfileObjectType, NULL, NULL);
     PyObject *py_args = Py_BuildValue("()");
     PyObject *py_kwargs = Py_BuildValue("{}");
     int init = ProfileObject_init(profile_object, py_args, py_kwargs);
     fprintf(stdout, "ProfileObject_init() returned %d\n", init);
-    PyObject_Print((PyObject*)profile_object, stdout, Py_PRINT_RAW);
+    PyObject_Print((PyObject *) profile_object, stdout, Py_PRINT_RAW);
     fprintf(stdout, "\n");
 
     PyObject *result_enter = ProfileObject_enter(profile_object);
@@ -1034,7 +1080,7 @@ main (int argc, char **argv) {
     PyObject_Print(result_enter, stdout, Py_PRINT_RAW);
     fprintf(stdout, "\n");
     PyObject *result_exit = ProfileObject_exit(profile_object, NULL);
-    fprintf(stdout, "result_exit:\n");
+    fprintf(stdout, "result_exit: ");
     if (result_exit) {
         PyObject_Print(result_exit, stdout, Py_PRINT_RAW);
     } else {
@@ -1044,8 +1090,19 @@ main (int argc, char **argv) {
 
     Py_DECREF(py_args);
     Py_DECREF(py_kwargs);
-    Py_DECREF((PyObject*)profile_object);
+    /* Context manager example:
+     *  with cPyMemTrace.Profile(message=message) as profiler:
+     *      # profiler will have refcount of 2, one from the ctor, one from __enter__.
+     *  # profiler has a refcount of 1 as __exit__ decrements self..
+     *  del profiler
+     *  # profiler has a refcount of 0 and is deallocated.
+     */
+    fprintf(stdout, "First decref from %zd\n", Py_REFCNT(profile_object));
+    Py_DECREF((PyObject *) profile_object);
+    fprintf(stdout, "Second decref from %zd\n", Py_REFCNT(profile_object));
+    Py_DECREF((PyObject *) profile_object);
     PyConfig_Clear(&config);
     return Py_FinalizeEx();
 }
+
 #endif

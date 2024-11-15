@@ -13,6 +13,7 @@ from pymemtrace import cPyMemTrace
 
 faulthandler.enable()
 
+
 def test_module_dir():
     assert dir(cPyMemTrace) == [
         'Profile',
@@ -61,11 +62,13 @@ def test_profile_basic_lt_310():
 # @pytest.mark.skipif(not (sys.version_info.minor > 10), reason='Python > 3.10')
 def test_profile_basic_gt_310():
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
+    print()
+    print('test_profile_basic_gt_310():')
     with cPyMemTrace.Profile(0) as profiler:
         b' ' * (1024 ** 2)
-        print()
-        print('test_profile_basic():')
-        print(profiler)
+        print(f'Profiler: {profiler}')
+        print(f'sys.getrefcount(profiler): {sys.getrefcount(profiler)}')
+        print(f'sys.getrefcount(profiler.trace_file_wrapper): {sys.getrefcount(profiler.trace_file_wrapper)}')
         print(dir(profiler))
         assert dir(profiler) == ['__class__', '__delattr__', '__dir__', '__doc__', '__enter__', '__eq__', '__exit__',
                                  '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__',
@@ -81,7 +84,14 @@ def test_profile_basic_gt_310():
                                                     '__repr__', '__setattr__', '__sizeof__', '__str__',
                                                     '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
                                                     'log_file_path', 'previous_event_number', 'rss', 'write_to_log']
+        print(f'Profiler.trace_file_wrapper: {profiler.trace_file_wrapper}')
         assert os.path.isfile(profiler.trace_file_wrapper.log_file_path)
+    print(f'Profiler: {profiler}')
+    print(type(profiler))
+    print(profiler.trace_file_wrapper)
+    print(f'Profiler.trace_file_wrapper: {profiler.trace_file_wrapper}')
+    print(f'sys.getrefcount(profiler): {sys.getrefcount(profiler)}')
+    print(f'sys.getrefcount(profiler.trace_file_wrapper): {sys.getrefcount(profiler.trace_file_wrapper)}')
 
 
 @pytest.mark.skipif(not (sys.version_info.minor <= 10), reason='Python <= 3.10')
@@ -145,10 +155,11 @@ def test_profile_start_message_to_log_file():
         b' ' * (1024 ** 2)
     # print(dir(profiler))
     # with open(log_path) as file:
+    time.sleep(2.0)
     with open(profiler.trace_file_wrapper.log_file_path) as file:
         file_data = file.read()
         print()
-        print(f'File data: {file_data}')
+        print(f'File data [{len(file_data)}]: {file_data}')
         assert file_data.startswith(message)
 
 
@@ -161,7 +172,7 @@ def test_profile_inline_message_to_log_file():
     with open(profiler.trace_file_wrapper.log_file_path) as file:
         file_data = file.read()
         print()
-        print(f'File data: {file_data}')
+        print(f'File data [{len(file_data)}]: {file_data}')
         assert message in file_data
 
 
@@ -265,8 +276,15 @@ def test_trace_depth():
     assert cPyMemTrace.trace_wrapper_depth() == 0
 
 
+def test_context_manager_refcounts():
+    with open(__file__) as f:
+        print(f'Refcount: {sys.getrefcount(f)}')
+        assert sys.getrefcount(f) == 3
+    print(f'Refcount: {sys.getrefcount(f)}')
+    assert sys.getrefcount(f) == 2
+
+
 if __name__ == '__main__':
     print('START')
     test_profile_basic_gt_310()
     print('FINISH')
-
