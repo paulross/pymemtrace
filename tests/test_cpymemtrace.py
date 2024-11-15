@@ -59,7 +59,7 @@ def test_profile_basic_lt_310():
         assert os.path.isfile(profiler.trace_file_wrapper.log_file_path)
 
 
-# @pytest.mark.skipif(not (sys.version_info.minor > 10), reason='Python > 3.10')
+@pytest.mark.skipif(not (sys.version_info.minor > 10), reason='Python > 3.10')
 def test_profile_basic_gt_310():
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     print()

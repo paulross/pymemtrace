@@ -963,7 +963,7 @@ PyInit_cPyMemTrace(void) {
     return m;
 }
 
-#if 1
+#if 0
 
 int
 main(int argc, char **argv) {
@@ -972,6 +972,7 @@ main(int argc, char **argv) {
         printf("Arg[%d]: %s\n", i, argv[i]);
     }
 
+    // TODO: Initialisation for different Python versions.
     PyStatus status;
     PyConfig config;
 
