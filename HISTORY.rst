@@ -2,8 +2,8 @@
 History
 =======
 
-0.2.0 (TODO: Date)
-------------------
+0.2.0rc0 (TODO: Date)
+---------------------
 
 * cPyMemTrace:
     * Add P/T, stack depth and python version to log file name, example:
