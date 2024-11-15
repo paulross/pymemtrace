@@ -68,7 +68,7 @@
 
 
 /* Tracing reference counts. */
-#if 1
+#if 0
 #define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(op)                                    \
     fprintf(stdout, "TRACE: %50s() BEG REFCNT %10zd\n", __FUNCTION__, Py_REFCNT(op))
 
@@ -89,8 +89,8 @@
 #else
 #define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(op)
 #define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(op)
-#define TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG
-#define TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END
+#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG
+#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END
 #endif
 
 /** Backwards compatibility for object members for Python versions prior to 3.12.
