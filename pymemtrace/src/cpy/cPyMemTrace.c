@@ -36,10 +36,6 @@
  *
  * So this is useful when tracing Python code ignoring C extensions.
  *
- * TODO: Optionally pass in filename to write the log to.
- * TODO: Optionally pass in a Pytho file objedct to write the log to.
- * TODO: Have stack of profiling functions so then nested cPyMemTrace.Profile()/Trace() can be used.
- *
 */
 #define PY_SSIZE_T_CLEAN
 
@@ -362,6 +358,13 @@ static PyTypeObject TraceFileWrapperType = {
 };
 
 #pragma mark Static linked list of trace/profile wrappers.
+/**
+ * A node in the linked list of trace file wrappers.
+ *
+ * NOTE: Operations on this list do not manipulate the reference counts
+ * of the Python objects.
+ * That is up to the caller of these functions.
+ */
 struct TraceFileWrapperLinkedListNode {
     TraceFileWrapper *file_wrapper;
     struct TraceFileWrapperLinkedListNode *next;
@@ -373,7 +376,7 @@ static tTraceFileWrapperLinkedList *static_trace_wrappers = NULL;
 
 /**
  * Get the head of the linked list.
- * @param linked_list
+ * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  * @return The head node or NULL if the list is empty.
  */
 TraceFileWrapper *wrapper_ll_get(tTraceFileWrapperLinkedList *linked_list) {
@@ -385,7 +388,7 @@ TraceFileWrapper *wrapper_ll_get(tTraceFileWrapperLinkedList *linked_list) {
 
 /**
  * Push a created trace wrapper on the front of the list.
- * @param linked_list
+ * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  * @param node The node to add. The linked list takes ownership of this pointer.
  */
 void wrapper_ll_push(tTraceFileWrapperLinkedList **h_linked_list, TraceFileWrapper *node) {
@@ -399,12 +402,21 @@ void wrapper_ll_push(tTraceFileWrapperLinkedList **h_linked_list, TraceFileWrapp
     *h_linked_list = new_node;
 }
 
+/**
+ * Free the first value on the list and adjust the list pointer.
+ * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ */
 void wrapper_ll_pop(tTraceFileWrapperLinkedList **h_linked_list) {
     tTraceFileWrapperLinkedList *tmp = *h_linked_list;
     *h_linked_list = (*h_linked_list)->next;
     free(tmp);
 }
 
+/**
+ * Return the length of the linked list.
+ * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @return The length of the linked list
+ */
 size_t wrapper_ll_length(tTraceFileWrapperLinkedList *p_linked_list) {
     size_t ret = 0;
     while (p_linked_list) {
@@ -414,6 +426,10 @@ size_t wrapper_ll_length(tTraceFileWrapperLinkedList *p_linked_list) {
     return ret;
 }
 
+/**
+ * Remove all the items in the linked list.
+ * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ */
 void wrapper_ll_clear(tTraceFileWrapperLinkedList **h_linked_list) {
     tTraceFileWrapperLinkedList *tmp;
     while (*h_linked_list) {
