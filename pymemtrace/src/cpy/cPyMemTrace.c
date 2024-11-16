@@ -642,7 +642,7 @@ static PyMethodDef cPyMemTraceMethods[] = {
         {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
-#pragma mark Context manager for ProfileOrTraceObject
+#pragma mark Common object for Profile or Trace
 /**** Context manager for attach_profile/trace_function() and detach_profile/trace_function() ****/
 typedef struct {
     PyObject_HEAD
@@ -704,6 +704,17 @@ ProfileOrTraceObject_init(ProfileOrTraceObject *self, PyObject *args, PyObject *
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END;
     return 0;
 }
+
+static PyMemberDef ProfileOrTraceObject_members[] = {
+        {
+                "trace_file_wrapper", Py_T_OBJECT_EX, offsetof(ProfileOrTraceObject,
+                                                               trace_file_wrapper), Py_READONLY,
+                "The trace file wrapper."
+        },
+        {NULL, 0, 0, 0, NULL} /* Sentinel */
+};
+
+#pragma mark Context manager for ProfileObject
 
 /**
  * Attach a new profile wrapper to the \c static_profile_wrapper.
@@ -769,15 +780,6 @@ ProfileObject_exit(ProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END;
     return NULL;
 }
-
-static PyMemberDef ProfileOrTraceObject_members[] = {
-        {
-                "trace_file_wrapper", Py_T_OBJECT_EX, offsetof(ProfileOrTraceObject,
-                                                               trace_file_wrapper), Py_READONLY,
-                "The trace file wrapper."
-        },
-        {NULL, 0, 0, 0, NULL} /* Sentinel */
-};
 
 static PyMethodDef ProfileOrTraceObject_methods[] = {
         {"__enter__", (PyCFunction) ProfileObject_enter, METH_NOARGS,
