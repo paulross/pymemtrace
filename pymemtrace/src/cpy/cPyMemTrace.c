@@ -467,7 +467,8 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 #endif
         fputs(trace_wrapper->event_text, trace_wrapper->file);
     }
-    if (labs(d_rss) >= trace_wrapper->d_rss_trigger) {
+    if (labs(d_rss) >= trace_wrapper->d_rss_trigger && trace_wrapper->event_number) {
+        // NOTE: Ignore event number 0 as that is covered by "FRST:" below.
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
         fputs("NEXT: ", trace_wrapper->file);
 #endif
