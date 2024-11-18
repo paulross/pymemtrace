@@ -1,3 +1,6 @@
+"""
+TODO: This does not work when running under pytest.
+"""
 import ctypes
 import io
 import sys
