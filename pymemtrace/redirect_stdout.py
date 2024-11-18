@@ -8,6 +8,8 @@ Changes:
 * Duplicate for stderr
 
 TODO: Unite duplicate code.
+
+TODO: This does not work when running under pytest.
 """
 from contextlib import contextmanager
 import ctypes
