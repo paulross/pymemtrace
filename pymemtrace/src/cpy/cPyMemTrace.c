@@ -174,7 +174,7 @@ get_python_function_name(PyFrameObject *frame, int what, PyObject *arg) {
 
 int py_frame_get_line_number(PyFrameObject *frame) {
     if (frame) {
-        PyFrame_GetLineNumber(frame);
+        return PyFrame_GetLineNumber(frame);
     }
     return 0;
 }
