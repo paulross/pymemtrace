@@ -66,27 +66,27 @@
 /* Tracing reference counts. */
 #if 0
 #define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(op)                                    \
-    fprintf(stdout, "TRACE: %50s() BEG REFCNT %10zd\n", __FUNCTION__, Py_REFCNT(op))
+    fprintf(stdout, "TRACE: %50s() BEG REFCNT %p %10zd\n", __FUNCTION__, (void *)op, Py_REFCNT(op))
 
 #define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(op)                                    \
-    fprintf(stdout, "TRACE: %50s() END REFCNT %10zd\n", __FUNCTION__, Py_REFCNT(op))
+    fprintf(stdout, "TRACE: %50s() END REFCNT %p %10zd\n", __FUNCTION__, (void *)op, Py_REFCNT(op))
 
-#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG                       \
-    fprintf(stdout, "TRACE: %50s() BEG REFCNT %10zd trace_file_wrapper REFCNT %10zd\n", \
-        __FUNCTION__, Py_REFCNT(self),                                                  \
-        self->trace_file_wrapper ? Py_REFCNT(self->trace_file_wrapper) : -1             \
+#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self)                     \
+    fprintf(stdout, "TRACE: %50s() BEG REFCNT %p %10zd trace_file_wrapper REFCNT %10zd\n",  \
+        __FUNCTION__, (void *)self, Py_REFCNT(self),                                        \
+        self->trace_file_wrapper ? Py_REFCNT(self->trace_file_wrapper) : -1                 \
     )
 
-#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END                       \
-    fprintf(stdout, "TRACE: %50s() END REFCNT %10zd trace_file_wrapper REFCNT %10zd\n", \
-        __FUNCTION__, Py_REFCNT(self),                                                  \
-        self->trace_file_wrapper ? Py_REFCNT(self->trace_file_wrapper) : -1             \
+#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self)                     \
+    fprintf(stdout, "TRACE: %50s() END REFCNT %p  %10zd trace_file_wrapper REFCNT %10zd\n", \
+        __FUNCTION__, (void *)self, Py_REFCNT(self),                                        \
+        self->trace_file_wrapper ? Py_REFCNT(self->trace_file_wrapper) : -1                 \
     )
 #else
 #define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(op)
 #define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(op)
-#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG
-#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END
+#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(op)
+#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(op)
 #endif
 
 /** Backwards compatibility for object members for Python versions prior to 3.12.
@@ -284,30 +284,46 @@ TraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py
 
 static PyMemberDef TraceFileWrapper_members[] = {
         {
-                "log_file_path",         Py_T_STRING,   offsetof(TraceFileWrapper,
-                                                                 log_file_path),         Py_READONLY,
-                                                                                                      "The path to the log file being written."
+                "log_file_path",
+                Py_T_STRING,
+                offsetof(TraceFileWrapper, log_file_path),
+                Py_READONLY,
+                "The path to the log file being written."
         },
         {
-                "event_number",          Py_T_PYSSIZET, offsetof(TraceFileWrapper,
-                                                                 event_number),          Py_READONLY, "The current event number."
+                "event_number",
+                Py_T_PYSSIZET,
+                offsetof(TraceFileWrapper, event_number),
+                Py_READONLY,
+                "The current event number."
         },
         {
-                "rss",                   Py_T_PYSSIZET, offsetof(TraceFileWrapper,
-                                                                 rss),                   Py_READONLY, "The current Resident Set Size (RSS)."
+                "rss",
+                Py_T_PYSSIZET,
+                offsetof(TraceFileWrapper, rss),
+                Py_READONLY,
+                "The current Resident Set Size (RSS)."
         },
         {
-                "d_rss_trigger",         Py_T_INT,      offsetof(TraceFileWrapper,
-                                                                 d_rss_trigger),         Py_READONLY, "The delta Resident Set Size (RSS) trigger value."
+                "d_rss_trigger",
+                Py_T_INT,
+                offsetof(TraceFileWrapper, d_rss_trigger),
+                Py_READONLY,
+                "The delta Resident Set Size (RSS) trigger value."
         },
         {
-                "previous_event_number", Py_T_PYSSIZET, offsetof(TraceFileWrapper,
-                                                                 previous_event_number), Py_READONLY, "The previous event number."
+                "previous_event_number",
+                Py_T_PYSSIZET,
+                offsetof(TraceFileWrapper, previous_event_number),
+                Py_READONLY,
+                "The previous event number."
         },
         {
-                "event_text",            Py_T_STRING,   offsetof(TraceFileWrapper,
-                                                                 event_text),            Py_READONLY,
-                                                                                                      "The current event text."
+                "event_text",
+                Py_T_STRING,
+                offsetof(TraceFileWrapper, event_text),
+                Py_READONLY,
+                "The current event text."
         },
         {NULL, 0, 0, 0, NULL} /* Sentinel */
 };
@@ -326,7 +342,11 @@ TraceFileWrapper_write_to_log(TraceFileWrapper *self, PyObject *op) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     assert(!PyErr_Occurred());
     if (!PyUnicode_Check(op)) {
-        PyErr_Format(PyExc_ValueError, "write_to_log() requires a single string, not type %s", Py_TYPE(op)->tp_name);
+        PyErr_Format(
+            PyExc_ValueError,
+            "write_to_log() requires a single string, not type %s",
+            Py_TYPE(op)->tp_name
+        );
         return NULL;
     }
     Py_UCS1 *c_str = PyUnicode_1BYTE_DATA(op);
@@ -657,12 +677,12 @@ typedef struct {
 
 static void
 ProfileOrTraceObject_dealloc(ProfileOrTraceObject *self) {
-    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG;
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     free(self->message);
     Py_XDECREF(self->py_specific_filename);
     Py_XDECREF(self->trace_file_wrapper);
     Py_TYPE(self)->tp_free((PyObject *) self);
-    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END;
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
 }
 
 static PyObject *
@@ -670,18 +690,19 @@ ProfileOrTraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject
     assert(!PyErr_Occurred());
     ProfileOrTraceObject *self = (ProfileOrTraceObject *) type->tp_alloc(type, 0);
     if (self) {
+        TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
         self->message = NULL;
         self->py_specific_filename = NULL;
         self->trace_file_wrapper = NULL;
+        TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
     }
-    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END;
     return (PyObject *) self;
 }
 
 static int
 ProfileOrTraceObject_init(ProfileOrTraceObject *self, PyObject *args, PyObject *kwds) {
     assert(!PyErr_Occurred());
-    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG;
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     static char *kwlist[] = {"d_rss_trigger", "message", "filepath", NULL};
     int d_rss_trigger = -1;
     char *message = NULL;
@@ -702,7 +723,7 @@ ProfileOrTraceObject_init(ProfileOrTraceObject *self, PyObject *args, PyObject *
         }
     }
     assert(!PyErr_Occurred());
-    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END;
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
     return 0;
 }
 
@@ -742,7 +763,7 @@ py_attach_profile_function(int d_rss_trigger, const char *message, const char *s
 
 static PyObject *
 ProfileObject_enter(ProfileOrTraceObject *self) {
-    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG;
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     assert(!PyErr_Occurred());
     if (self->py_specific_filename) {
         self->trace_file_wrapper = py_attach_profile_function(
@@ -757,13 +778,13 @@ ProfileObject_enter(ProfileOrTraceObject *self) {
     }
     Py_INCREF(self);
     assert(!PyErr_Occurred());
-    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END;
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
     return (PyObject *) self;
 }
 
 static PyObject *
 ProfileObject_exit(ProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
-    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG;
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     // No assert(!PyErr_Occurred()); as an exception might have been set by the user.
     if (self->trace_file_wrapper) {
         // PyEval_SetProfile() will decrement the reference count that incremented by
@@ -772,13 +793,13 @@ ProfileObject_exit(ProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
         TraceFileWrapper *trace_file_wrapper = (TraceFileWrapper *) self->trace_file_wrapper;
         TraceFileWrapper_close_file(trace_file_wrapper);
         wrapper_ll_pop(&static_profile_wrappers);
-        TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END;
+        TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
         Py_RETURN_FALSE;
     }
     PyErr_Format(PyExc_RuntimeError, "TraceObject.__exit__ has no TraceFileWrapper");
     PyEval_SetProfile(NULL, NULL);
     Py_DECREF(self);
-    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END;
+    TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
     return NULL;
 }
 
