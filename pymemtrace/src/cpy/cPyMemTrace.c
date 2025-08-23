@@ -195,7 +195,7 @@ typedef struct {
     //      getpagesize() in unistd.h.
     // 0 - Every call to trace_or_profile_function() is logged.
     // >0 - A call to trace_or_profile_function() is logged only if the dRSS is >= this value.
-    // Default is -1. See ProfileOrTraceObject_init() and TraceObject_init().
+    // Default is -1. See cpyProfileOrTraceObject_init() and TraceObject_init().
     int d_rss_trigger;
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
     size_t previous_event_number;
@@ -670,15 +670,15 @@ static PyMethodDef cPyMemTraceMethods[] = {
 typedef struct {
     PyObject_HEAD
     int d_rss_trigger;
-    // Message. Add const char *message here that is a malloc copy of the string given in ProfileOrTraceObject_init
+    // Message. Add const char *message here that is a malloc copy of the string given in cpyProfileOrTraceObject_init
     char *message;
     // User can provide a specific filename.
     PyBytesObject *py_specific_filename;
     cpyTraceFileWrapper *trace_file_wrapper;
-} ProfileOrTraceObject;
+} cpyProfileOrTraceObject;
 
 static void
-ProfileOrTraceObject_dealloc(ProfileOrTraceObject *self) {
+cpyProfileOrTraceObject_dealloc(cpyProfileOrTraceObject *self) {
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     free(self->message);
     Py_XDECREF(self->py_specific_filename);
@@ -688,9 +688,9 @@ ProfileOrTraceObject_dealloc(ProfileOrTraceObject *self) {
 }
 
 static PyObject *
-ProfileOrTraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
+cpyProfileOrTraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
     assert(!PyErr_Occurred());
-    ProfileOrTraceObject *self = (ProfileOrTraceObject *) type->tp_alloc(type, 0);
+    cpyProfileOrTraceObject *self = (cpyProfileOrTraceObject *) type->tp_alloc(type, 0);
     if (self) {
         TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
         self->message = NULL;
@@ -702,7 +702,7 @@ ProfileOrTraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject
 }
 
 static int
-ProfileOrTraceObject_init(ProfileOrTraceObject *self, PyObject *args, PyObject *kwds) {
+cpyProfileOrTraceObject_init(cpyProfileOrTraceObject *self, PyObject *args, PyObject *kwds) {
     assert(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     static char *kwlist[] = {"d_rss_trigger", "message", "filepath", NULL};
@@ -719,7 +719,7 @@ ProfileOrTraceObject_init(ProfileOrTraceObject *self, PyObject *args, PyObject *
         if (self->message) {
             strcpy(self->message, message);
         } else {
-            PyErr_Format(PyExc_MemoryError, "ProfileOrTraceObject_init() can not allocate memory in type %s.",
+            PyErr_Format(PyExc_MemoryError, "cpyProfileOrTraceObject_init() can not allocate memory in type %s.",
                          Py_TYPE(self)->tp_name);
             return -2;
         }
@@ -729,9 +729,9 @@ ProfileOrTraceObject_init(ProfileOrTraceObject *self, PyObject *args, PyObject *
     return 0;
 }
 
-static PyMemberDef ProfileOrTraceObject_members[] = {
+static PyMemberDef cpyProfileOrTraceObject_members[] = {
         {
-                "trace_file_wrapper", Py_T_OBJECT_EX, offsetof(ProfileOrTraceObject,
+                "trace_file_wrapper", Py_T_OBJECT_EX, offsetof(cpyProfileOrTraceObject,
                                                                trace_file_wrapper), Py_READONLY,
                 "The trace file wrapper."
         },
@@ -764,7 +764,7 @@ py_attach_profile_function(int d_rss_trigger, const char *message, const char *s
 }
 
 static PyObject *
-ProfileObject_enter(ProfileOrTraceObject *self) {
+ProfileObject_enter(cpyProfileOrTraceObject *self) {
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     assert(!PyErr_Occurred());
     if (self->py_specific_filename) {
@@ -785,7 +785,7 @@ ProfileObject_enter(ProfileOrTraceObject *self) {
 }
 
 static PyObject *
-ProfileObject_exit(ProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
+ProfileObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     // No assert(!PyErr_Occurred()); as an exception might have been set by the user.
     if (self->trace_file_wrapper) {
@@ -808,7 +808,7 @@ ProfileObject_exit(ProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
     return NULL;
 }
 
-static PyMethodDef ProfileOrTraceObject_methods[] = {
+static PyMethodDef cpyProfileOrTraceObject_methods[] = {
         {"__enter__", (PyCFunction) ProfileObject_enter, METH_NOARGS,
                 "Attach a Profile object to the C runtime."},
         {"__exit__",  (PyCFunction) ProfileObject_exit,  METH_VARARGS,
@@ -828,15 +828,15 @@ static PyTypeObject ProfileObjectType = {
                   " called for all monitored events except the Python ``PyTrace_LINE PyTrace_OPCODE`` and"
                   " ``PyTrace_EXCEPTION`` events."
                   "\n\nThis writes to a file in the current working directory named \"YYYYmmdd_HHMMSS_<PID>.log\"",
-        .tp_basicsize = sizeof(ProfileOrTraceObject),
+        .tp_basicsize = sizeof(cpyProfileOrTraceObject),
         .tp_itemsize = 0,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
         .tp_alloc = PyType_GenericAlloc,
-        .tp_new = ProfileOrTraceObject_new,
-        .tp_init = (initproc) ProfileOrTraceObject_init,
-        .tp_dealloc = (destructor) ProfileOrTraceObject_dealloc,
-        .tp_methods = ProfileOrTraceObject_methods,
-        .tp_members = ProfileOrTraceObject_members,
+        .tp_new = cpyProfileOrTraceObject_new,
+        .tp_init = (initproc) cpyProfileOrTraceObject_init,
+        .tp_dealloc = (destructor) cpyProfileOrTraceObject_dealloc,
+        .tp_methods = cpyProfileOrTraceObject_methods,
+        .tp_members = cpyProfileOrTraceObject_members,
 };
 /**** END: Context manager for attach_profile_function() and detach_profile_function() ****/
 
@@ -867,7 +867,7 @@ py_attach_trace_function(int d_rss_trigger, const char *message, const char *spe
 }
 
 static PyObject *
-TraceObject_enter(ProfileOrTraceObject *self) {
+TraceObject_enter(cpyProfileOrTraceObject *self) {
     assert(!PyErr_Occurred());
     if (self->py_specific_filename) {
         self->trace_file_wrapper = py_attach_trace_function(
@@ -886,7 +886,7 @@ TraceObject_enter(ProfileOrTraceObject *self) {
 }
 
 static PyObject *
-TraceObject_exit(ProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
+TraceObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
     // No assert(!PyErr_Occurred()); as an exception might have been set by the users code.
     if (self->trace_file_wrapper) {
         // PyEval_SetTrace() will decrement the reference count that incremented by
@@ -925,15 +925,15 @@ static PyTypeObject TraceObjectType = {
                   " but does not receive any event related to C functionss being called."
                   " For that use ``cPyMemTrace.Profile``"
                   "\n\nThis writes to a file in the current working directory named \"YYYYmmdd_HHMMSS_<PID>.log\"",
-        .tp_basicsize = sizeof(ProfileOrTraceObject),
+        .tp_basicsize = sizeof(cpyProfileOrTraceObject),
         .tp_itemsize = 0,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
         .tp_alloc = PyType_GenericAlloc,
-        .tp_new = ProfileOrTraceObject_new,
-        .tp_init = (initproc) ProfileOrTraceObject_init,
-        .tp_dealloc = (destructor) ProfileOrTraceObject_dealloc,
+        .tp_new = cpyProfileOrTraceObject_new,
+        .tp_init = (initproc) cpyProfileOrTraceObject_init,
+        .tp_dealloc = (destructor) cpyProfileOrTraceObject_dealloc,
         .tp_methods = TraceObject_methods,
-        .tp_members = ProfileOrTraceObject_members,
+        .tp_members = cpyProfileOrTraceObject_members,
 };
 /**** END: Context manager for attach_trace_function() and detach_trace_function() ****/
 
@@ -1043,11 +1043,11 @@ main(int argc, char **argv) {
     }
     Py_INCREF(&ProfileObjectType);
 
-    ProfileOrTraceObject *profile_object = (ProfileOrTraceObject *) ProfileOrTraceObject_new(&ProfileObjectType, NULL, NULL);
+    cpyProfileOrTraceObject *profile_object = (cpyProfileOrTraceObject *) cpyProfileOrTraceObject_new(&ProfileObjectType, NULL, NULL);
     PyObject *py_args = Py_BuildValue("()");
     PyObject *py_kwargs = Py_BuildValue("{}");
-    int init = ProfileOrTraceObject_init(profile_object, py_args, py_kwargs);
-    fprintf(stdout, "ProfileOrTraceObject_init() returned %d\n", init);
+    int init = cpyProfileOrTraceObject_init(profile_object, py_args, py_kwargs);
+    fprintf(stdout, "cpyProfileOrTraceObject_init() returned %d\n", init);
     PyObject_Print((PyObject *) profile_object, stdout, Py_PRINT_RAW);
     fprintf(stdout, "\n");
 
