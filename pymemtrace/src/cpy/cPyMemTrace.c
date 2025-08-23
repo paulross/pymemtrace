@@ -429,6 +429,7 @@ void wrapper_ll_push(tTraceFileWrapperLinkedList **h_linked_list, TraceFileWrapp
 void wrapper_ll_pop(tTraceFileWrapperLinkedList **h_linked_list) {
     tTraceFileWrapperLinkedList *tmp = *h_linked_list;
     *h_linked_list = (*h_linked_list)->next;
+    /* TODO: Decref the tmp->file_wrapper? */
     free(tmp);
 }
 
