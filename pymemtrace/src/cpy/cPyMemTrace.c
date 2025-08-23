@@ -816,7 +816,7 @@ static PyMethodDef cpyProfileOrTraceObject_methods[] = {
         {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
-static PyTypeObject ProfileObjectType = {
+static PyTypeObject cpyProfileObjectType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.Profile",
         .tp_doc = "A context manager to attach a C profile function to the interpreter.\n"
@@ -913,7 +913,7 @@ static PyMethodDef TraceObject_methods[] = {
         {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
-static PyTypeObject TraceObjectType = {
+static PyTypeObject cpyTraceObjectType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.Trace",
         .tp_doc = "A context manager to attach a C profile function to the interpreter.\n"
@@ -970,25 +970,25 @@ PyInit_cPyMemTrace(void) {
     Py_INCREF(&cpyTraceFileWrapperType);
 
     /* Add the Profile object. */
-    if (PyType_Ready(&ProfileObjectType) < 0) {
+    if (PyType_Ready(&cpyProfileObjectType) < 0) {
         Py_DECREF(m);
         return NULL;
     }
-    Py_INCREF(&ProfileObjectType);
-    if (PyModule_AddObject(m, "Profile", (PyObject *) &ProfileObjectType) < 0) {
-        Py_DECREF(&ProfileObjectType);
+    Py_INCREF(&cpyProfileObjectType);
+    if (PyModule_AddObject(m, "Profile", (PyObject *) &cpyProfileObjectType) < 0) {
+        Py_DECREF(&cpyProfileObjectType);
         Py_DECREF(m);
         return NULL;
     }
 
     /* Add the Trace object. */
-    if (PyType_Ready(&TraceObjectType) < 0) {
+    if (PyType_Ready(&cpyTraceObjectType) < 0) {
         Py_DECREF(m);
         return NULL;
     }
-    Py_INCREF(&TraceObjectType);
-    if (PyModule_AddObject(m, "Trace", (PyObject *) &TraceObjectType) < 0) {
-        Py_DECREF(&TraceObjectType);
+    Py_INCREF(&cpyTraceObjectType);
+    if (PyModule_AddObject(m, "Trace", (PyObject *) &cpyTraceObjectType) < 0) {
+        Py_DECREF(&cpyTraceObjectType);
         Py_DECREF(m);
         return NULL;
     }
@@ -1038,12 +1038,12 @@ main(int argc, char **argv) {
     Py_DECREF((PyObject*)trace_wrapper);
 #endif
 
-    if (PyType_Ready(&ProfileObjectType) < 0) {
+    if (PyType_Ready(&cpyProfileObjectType) < 0) {
         return -16;
     }
-    Py_INCREF(&ProfileObjectType);
+    Py_INCREF(&cpyProfileObjectType);
 
-    cpyProfileOrTraceObject *profile_object = (cpyProfileOrTraceObject *) cpyProfileOrTraceObject_new(&ProfileObjectType, NULL, NULL);
+    cpyProfileOrTraceObject *profile_object = (cpyProfileOrTraceObject *) cpyProfileOrTraceObject_new(&cpyProfileObjectType, NULL, NULL);
     PyObject *py_args = Py_BuildValue("()");
     PyObject *py_kwargs = Py_BuildValue("{}");
     int init = cpyProfileOrTraceObject_init(profile_object, py_args, py_kwargs);
