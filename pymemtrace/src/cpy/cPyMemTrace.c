@@ -236,9 +236,7 @@ TraceFileWrapper_close_file(TraceFileWrapper *self) {
         trace_wrapper_write_frame_data_to_event_text(self, PyEval_GetFrame(), PyTrace_LINE, Py_None);
         fputs(self->event_text, self->file);
         // Write a final line
-        if (MARKER_LOG_FILE_END) {
-            fprintf(self->file, "%s\n", MARKER_LOG_FILE_END);
-        }
+        fprintf(self->file, "%s\n", MARKER_LOG_FILE_END);
         fclose(self->file);
         self->file = NULL;
     }
@@ -543,9 +541,8 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
                 // fprintf(stdout, "TRACE: Message \"%s\"\n", message);
                 if (message) {
                     fprintf(trace_wrapper->file, "%s\n", message);
-                } else if (MARKER_LOG_FILE_START) {
-                    fprintf(trace_wrapper->file, "%s\n", MARKER_LOG_FILE_START);
                 }
+                fprintf(trace_wrapper->file, "%s\n", MARKER_LOG_FILE_START);
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
                 fprintf(trace_wrapper->file, "      %-12s %-6s  %-12s %-8s %-80s %4s %-32s %12s %12s\n",
