@@ -179,7 +179,7 @@ int py_frame_get_line_number(PyFrameObject *frame) {
     return 0;
 }
 
-#pragma mark TraceFileWrapper object
+#pragma mark cpyTraceFileWrapper object
 /**
  * Trace classes could make this available by looking at trace_file_wrapper or profile_file_wrapper.
  */
@@ -201,11 +201,11 @@ typedef struct {
     size_t previous_event_number;
     char event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
 #endif
-} TraceFileWrapper;
+} cpyTraceFileWrapper;
 
 static void
-trace_wrapper_write_frame_data_to_event_text(TraceFileWrapper *trace_wrapper, PyFrameObject *frame, int what,
-                                             PyObject *arg) {
+trace_wrapper_write_frame_data_to_event_text(cpyTraceFileWrapper *trace_wrapper, PyFrameObject *frame,
+                                             int what, PyObject *arg) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(trace_wrapper);
     size_t rss = getCurrentRSS_alternate();
     long d_rss = rss - trace_wrapper->rss;
@@ -228,7 +228,7 @@ trace_wrapper_write_frame_data_to_event_text(TraceFileWrapper *trace_wrapper, Py
 
 
 static void
-TraceFileWrapper_close_file(TraceFileWrapper *self) {
+cpyTraceFileWrapper_close_file(cpyTraceFileWrapper *self) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     if (self->file) {
         // Write LAST event
@@ -244,14 +244,14 @@ TraceFileWrapper_close_file(TraceFileWrapper *self) {
 }
 
 /**
- * Deallocate the TraceFileWrapper.
- * @param self The TraceFileWrapper.
+ * Deallocate the cpyTraceFileWrapper.
+ * @param self The cpyTraceFileWrapper.
  */
 static void
-TraceFileWrapper_dealloc(TraceFileWrapper *self) {
+cpyTraceFileWrapper_dealloc(cpyTraceFileWrapper *self) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     if (self->file) {
-        TraceFileWrapper_close_file(self);
+        cpyTraceFileWrapper_close_file(self);
     }
     free(self->log_file_path);
     PyObject_Del((PyObject *) self);
@@ -259,17 +259,17 @@ TraceFileWrapper_dealloc(TraceFileWrapper *self) {
 }
 
 /**
- * Allocate the TraceFileWrapper.
- * @param type The TraceFileWrapper type.
+ * Allocate the cpyTraceFileWrapper.
+ * @param type The cpyTraceFileWrapper type.
  * @param _unused_args
  * @param _unused_kwds
- * @return The TraceFileWrapper instance.
+ * @return The cpyTraceFileWrapper instance.
  */
 static PyObject *
-TraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
+cpyTraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
     assert(!PyErr_Occurred());
-    TraceFileWrapper *self;
-    self = (TraceFileWrapper *) type->tp_alloc(type, 0);
+    cpyTraceFileWrapper *self;
+    self = (cpyTraceFileWrapper *) type->tp_alloc(type, 0);
     if (self != NULL) {
         self->file = NULL;
         self->log_file_path = NULL;
@@ -278,55 +278,55 @@ TraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py
     return (PyObject *) self;
 }
 
-#pragma mark - TraceFileWrapper members
+#pragma mark - cpyTraceFileWrapper members
 
-static PyMemberDef TraceFileWrapper_members[] = {
+static PyMemberDef cpyTraceFileWrapper_members[] = {
         {
                 "log_file_path",
                 Py_T_STRING,
-                offsetof(TraceFileWrapper, log_file_path),
+                offsetof(cpyTraceFileWrapper, log_file_path),
                 Py_READONLY,
                 "The path to the log file being written."
         },
         {
                 "event_number",
                 Py_T_PYSSIZET,
-                offsetof(TraceFileWrapper, event_number),
+                offsetof(cpyTraceFileWrapper, event_number),
                 Py_READONLY,
                 "The current event number."
         },
         {
                 "rss",
                 Py_T_PYSSIZET,
-                offsetof(TraceFileWrapper, rss),
+                offsetof(cpyTraceFileWrapper, rss),
                 Py_READONLY,
                 "The current Resident Set Size (RSS)."
         },
         {
                 "d_rss_trigger",
                 Py_T_INT,
-                offsetof(TraceFileWrapper, d_rss_trigger),
+                offsetof(cpyTraceFileWrapper, d_rss_trigger),
                 Py_READONLY,
                 "The delta Resident Set Size (RSS) trigger value."
         },
         {
                 "previous_event_number",
                 Py_T_PYSSIZET,
-                offsetof(TraceFileWrapper, previous_event_number),
+                offsetof(cpyTraceFileWrapper, previous_event_number),
                 Py_READONLY,
                 "The previous event number."
         },
         {
                 "event_text",
                 Py_T_STRING,
-                offsetof(TraceFileWrapper, event_text),
+                offsetof(cpyTraceFileWrapper, event_text),
                 Py_READONLY,
                 "The current event text."
         },
         {NULL, 0, 0, 0, NULL} /* Sentinel */
 };
 
-#pragma mark - TraceFileWrapper methods
+#pragma mark - cpyTraceFileWrapper methods
 
 /**
  * Write any string to the existing logfile.
@@ -336,14 +336,14 @@ static PyMemberDef TraceFileWrapper_members[] = {
  * @return None on success, NULL on failure (not a unicode argument).
  */
 static PyObject *
-TraceFileWrapper_write_to_log(TraceFileWrapper *self, PyObject *op) {
+cpyTraceFileWrapper_write_to_log(cpyTraceFileWrapper *self, PyObject *op) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     assert(!PyErr_Occurred());
     if (!PyUnicode_Check(op)) {
         PyErr_Format(
-            PyExc_ValueError,
-            "write_to_log() requires a single string, not type %s",
-            Py_TYPE(op)->tp_name
+                PyExc_ValueError,
+                "write_to_log() requires a single string, not type %s",
+                Py_TYPE(op)->tp_name
         );
         return NULL;
     }
@@ -353,26 +353,26 @@ TraceFileWrapper_write_to_log(TraceFileWrapper *self, PyObject *op) {
     Py_RETURN_NONE;
 }
 
-static PyMethodDef TraceFileWrapper_methods[] = {
-        {"write_to_log", (PyCFunction) TraceFileWrapper_write_to_log, METH_O,
+static PyMethodDef cpyTraceFileWrapper_methods[] = {
+        {"write_to_log", (PyCFunction) cpyTraceFileWrapper_write_to_log, METH_O,
                 "Write a string to the existing log file  with a newline. Returns None."},
         {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
-#pragma mark - TraceFileWrapper declaration
+#pragma mark - cpyTraceFileWrapper declaration
 
-static PyTypeObject TraceFileWrapperType = {
+static PyTypeObject cpyTraceFileWrapperType = {
         PyVarObject_HEAD_INIT(NULL, 0)
-        .tp_name = "cPyMemTrace.TraceFileWrapper",
+        .tp_name = "cPyMemTrace.cpyTraceFileWrapper",
         .tp_doc = "Wrapper round a trace-to-file object.",
-        .tp_basicsize = sizeof(TraceFileWrapper),
+        .tp_basicsize = sizeof(cpyTraceFileWrapper),
         .tp_itemsize = 0,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-        .tp_new = TraceFileWrapper_new,
+        .tp_new = cpyTraceFileWrapper_new,
         .tp_alloc = PyType_GenericAlloc,
-        .tp_dealloc = (destructor) TraceFileWrapper_dealloc,
-        .tp_members = TraceFileWrapper_members,
-        .tp_methods = TraceFileWrapper_methods,
+        .tp_dealloc = (destructor) cpyTraceFileWrapper_dealloc,
+        .tp_members = cpyTraceFileWrapper_members,
+        .tp_methods = cpyTraceFileWrapper_methods,
 };
 
 #pragma mark Static linked list of trace/profile wrappers.
@@ -383,21 +383,21 @@ static PyTypeObject TraceFileWrapperType = {
  * of the Python objects.
  * That is up to the caller of these functions.
  */
-struct TraceFileWrapperLinkedListNode {
-    TraceFileWrapper *file_wrapper;
-    struct TraceFileWrapperLinkedListNode *next;
+struct cpyTraceFileWrapperLinkedListNode {
+    cpyTraceFileWrapper *file_wrapper;
+    struct cpyTraceFileWrapperLinkedListNode *next;
 };
-typedef struct TraceFileWrapperLinkedListNode tTraceFileWrapperLinkedList;
+typedef struct cpyTraceFileWrapperLinkedListNode tcpyTraceFileWrapperLinkedList;
 
-static tTraceFileWrapperLinkedList *static_profile_wrappers = NULL;
-static tTraceFileWrapperLinkedList *static_trace_wrappers = NULL;
+static tcpyTraceFileWrapperLinkedList *static_profile_wrappers = NULL;
+static tcpyTraceFileWrapperLinkedList *static_trace_wrappers = NULL;
 
 /**
  * Get the head of the linked list.
  * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  * @return The head node or NULL if the list is empty.
  */
-TraceFileWrapper *wrapper_ll_get(tTraceFileWrapperLinkedList *linked_list) {
+cpyTraceFileWrapper *wrapper_ll_get(tcpyTraceFileWrapperLinkedList *linked_list) {
     if (linked_list) {
         return linked_list->file_wrapper;
     }
@@ -409,8 +409,8 @@ TraceFileWrapper *wrapper_ll_get(tTraceFileWrapperLinkedList *linked_list) {
  * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  * @param node The node to add. The linked list takes ownership of this pointer.
  */
-void wrapper_ll_push(tTraceFileWrapperLinkedList **h_linked_list, TraceFileWrapper *node) {
-    tTraceFileWrapperLinkedList *new_node = malloc(sizeof(tTraceFileWrapperLinkedList));
+void wrapper_ll_push(tcpyTraceFileWrapperLinkedList **h_linked_list, cpyTraceFileWrapper *node) {
+    tcpyTraceFileWrapperLinkedList *new_node = malloc(sizeof(tcpyTraceFileWrapperLinkedList));
     new_node->file_wrapper = node;
     new_node->next = NULL;
     if (*h_linked_list) {
@@ -424,8 +424,8 @@ void wrapper_ll_push(tTraceFileWrapperLinkedList **h_linked_list, TraceFileWrapp
  * Free the first value on the list and adjust the list pointer.
  * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  */
-void wrapper_ll_pop(tTraceFileWrapperLinkedList **h_linked_list) {
-    tTraceFileWrapperLinkedList *tmp = *h_linked_list;
+void wrapper_ll_pop(tcpyTraceFileWrapperLinkedList **h_linked_list) {
+    tcpyTraceFileWrapperLinkedList *tmp = *h_linked_list;
     *h_linked_list = (*h_linked_list)->next;
     /* TODO: Decref the tmp->file_wrapper? */
     free(tmp);
@@ -436,7 +436,7 @@ void wrapper_ll_pop(tTraceFileWrapperLinkedList **h_linked_list) {
  * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  * @return The length of the linked list
  */
-size_t wrapper_ll_length(tTraceFileWrapperLinkedList *p_linked_list) {
+size_t wrapper_ll_length(tcpyTraceFileWrapperLinkedList *p_linked_list) {
     size_t ret = 0;
     while (p_linked_list) {
         ret++;
@@ -449,8 +449,8 @@ size_t wrapper_ll_length(tTraceFileWrapperLinkedList *p_linked_list) {
  * Remove all the items in the linked list.
  * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  */
-void wrapper_ll_clear(tTraceFileWrapperLinkedList **h_linked_list) {
-    tTraceFileWrapperLinkedList *tmp;
+void wrapper_ll_clear(tcpyTraceFileWrapperLinkedList **h_linked_list) {
+    tcpyTraceFileWrapperLinkedList *tmp;
     while (*h_linked_list) {
         tmp = *h_linked_list;
         Py_DECREF((*h_linked_list)->file_wrapper);
@@ -462,7 +462,7 @@ void wrapper_ll_clear(tTraceFileWrapperLinkedList **h_linked_list) {
 /**
  * Create a trace function.
  *
- * @param pobj The TraceFileWrapper object.
+ * @param pobj The cpyTraceFileWrapper object.
  * @param frame The Python frame.
  * @param what The event type.
  * @param arg
@@ -471,9 +471,9 @@ void wrapper_ll_clear(tTraceFileWrapperLinkedList **h_linked_list) {
 static int
 trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObject *arg) {
     assert(!PyErr_Occurred());
-    assert(Py_TYPE(pobj) == &TraceFileWrapperType && "trace_wrapper is not a TraceFileWrapperType.");
+    assert(Py_TYPE(pobj) == &cpyTraceFileWrapperType && "trace_wrapper is not a cpyTraceFileWrapperType.");
 
-    TraceFileWrapper *trace_wrapper = (TraceFileWrapper *) pobj;
+    cpyTraceFileWrapper *trace_wrapper = (cpyTraceFileWrapper *) pobj;
     size_t rss = getCurrentRSS_alternate();
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
     long d_rss = rss - trace_wrapper->rss;
@@ -502,11 +502,11 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
     return 0;
 }
 
-static TraceFileWrapper *
+static cpyTraceFileWrapper *
 new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *specific_filename, int is_profile) {
     static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH];
     assert(!PyErr_Occurred());
-    TraceFileWrapper *trace_wrapper = NULL;
+    cpyTraceFileWrapper *trace_wrapper = NULL;
     const char *filename;
     if (specific_filename) {
         filename = specific_filename;
@@ -529,7 +529,7 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
                      seperator,
                      filename);
         }
-        trace_wrapper = (TraceFileWrapper *) TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
+        trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(&cpyTraceFileWrapperType, NULL, NULL);
         if (trace_wrapper) {
             fprintf(stdout, "Opening log file %s\n", file_path_buffer);
             trace_wrapper->file = fopen(filename, "w");
@@ -578,12 +578,12 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
                 trace_wrapper->previous_event_number = 0;
 #endif
             } else {
-                TraceFileWrapper_dealloc(trace_wrapper);
-                fprintf(stderr, "Can not open writable file for TraceFileWrapper at %s\n", filename);
+                cpyTraceFileWrapper_dealloc(trace_wrapper);
+                fprintf(stderr, "Can not open writable file for cpyTraceFileWrapper at %s\n", filename);
                 return NULL;
             }
         } else {
-            fprintf(stderr, "Can not create TraceFileWrapper.\n");
+            fprintf(stderr, "Can not create cpyTraceFileWrapper.\n");
         }
     }
     assert(!PyErr_Occurred());
@@ -595,7 +595,7 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
 static PyObject *
 get_log_file_path_profile(void) {
     assert(!PyErr_Occurred());
-    TraceFileWrapper *wrapper = wrapper_ll_get(static_profile_wrappers);
+    cpyTraceFileWrapper *wrapper = wrapper_ll_get(static_profile_wrappers);
     if (wrapper) {
         return Py_BuildValue("s", wrapper->log_file_path);
     } else {
@@ -606,7 +606,7 @@ get_log_file_path_profile(void) {
 static PyObject *
 get_log_file_path_trace(void) {
     assert(!PyErr_Occurred());
-    TraceFileWrapper *wrapper = wrapper_ll_get(static_trace_wrappers);
+    cpyTraceFileWrapper *wrapper = wrapper_ll_get(static_trace_wrappers);
     if (wrapper) {
         return Py_BuildValue("s", wrapper->log_file_path);
     } else {
@@ -670,7 +670,7 @@ typedef struct {
     char *message;
     // User can provide a specific filename.
     PyBytesObject *py_specific_filename;
-    TraceFileWrapper *trace_file_wrapper;
+    cpyTraceFileWrapper *trace_file_wrapper;
 } ProfileOrTraceObject;
 
 static void
@@ -742,10 +742,10 @@ static PyMemberDef ProfileOrTraceObject_members[] = {
  * @param message
  * @return The \c static_profile_wrapper or \c NULL on failure in which case an exception will have been set.
  */
-static TraceFileWrapper *
+static cpyTraceFileWrapper *
 py_attach_profile_function(int d_rss_trigger, const char *message, const char *specific_filename) {
     assert(!PyErr_Occurred());
-    TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 1);
+    cpyTraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 1);
     if (wrapper) {
         wrapper_ll_push(&static_profile_wrappers, wrapper);
         // This increments the wrapper reference count.
@@ -788,13 +788,13 @@ ProfileObject_exit(ProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
         // PyEval_SetProfile() will decrement the reference count that incremented by
         // PyEval_SetProfile() on __enter__
         PyEval_SetProfile(NULL, NULL);
-        TraceFileWrapper *trace_file_wrapper = (TraceFileWrapper *) self->trace_file_wrapper;
-        TraceFileWrapper_close_file(trace_file_wrapper);
+        cpyTraceFileWrapper *trace_file_wrapper = (cpyTraceFileWrapper *) self->trace_file_wrapper;
+        cpyTraceFileWrapper_close_file(trace_file_wrapper);
         wrapper_ll_pop(&static_profile_wrappers);
         TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
         Py_RETURN_FALSE;
     }
-    PyErr_Format(PyExc_RuntimeError, "TraceObject.__exit__ has no TraceFileWrapper");
+    PyErr_Format(PyExc_RuntimeError, "TraceObject.__exit__ has no cpyTraceFileWrapper");
     PyEval_SetProfile(NULL, NULL);
     Py_DECREF(self);
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
@@ -842,10 +842,10 @@ static PyTypeObject ProfileObjectType = {
  * @param message
  * @return The \c static_trace_wrapper or \c NULL on failure in which case an exception will have been set.
  */
-static TraceFileWrapper *
+static cpyTraceFileWrapper *
 py_attach_trace_function(int d_rss_trigger, const char *message, const char *specific_filename) {
     assert(!PyErr_Occurred());
-    TraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 0);
+    cpyTraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 0);
     if (wrapper) {
         wrapper_ll_push(&static_trace_wrappers, wrapper);
         // This increments the wrapper reference count.
@@ -885,12 +885,12 @@ TraceObject_exit(ProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
         // PyEval_SetTrace() will decrement the reference count that incremented by
         // PyEval_SetTrace() on __enter__
         PyEval_SetTrace(NULL, NULL);
-        TraceFileWrapper *trace_file_wrapper = (TraceFileWrapper *) self->trace_file_wrapper;
-        TraceFileWrapper_close_file(trace_file_wrapper);
+        cpyTraceFileWrapper *trace_file_wrapper = (cpyTraceFileWrapper *) self->trace_file_wrapper;
+        cpyTraceFileWrapper_close_file(trace_file_wrapper);
         wrapper_ll_pop(&static_trace_wrappers);
         Py_RETURN_FALSE;
     }
-    PyErr_Format(PyExc_RuntimeError, "TraceObject.__exit__ has no TraceFileWrapper");
+    PyErr_Format(PyExc_RuntimeError, "TraceObject.__exit__ has no cpyTraceFileWrapper");
     PyEval_SetTrace(NULL, NULL);
     return NULL;
 }
@@ -954,10 +954,10 @@ PyInit_cPyMemTrace(void) {
     /* This is a PyObject that wraps a C FILE object.
      * It is not visible at module level so PyModule_AddObject is not called.
      */
-    if (PyType_Ready(&TraceFileWrapperType) < 0) {
+    if (PyType_Ready(&cpyTraceFileWrapperType) < 0) {
         return NULL;
     }
-    Py_INCREF(&TraceFileWrapperType);
+    Py_INCREF(&cpyTraceFileWrapperType);
 
     /* Add the Profile object. */
     if (PyType_Ready(&ProfileObjectType) < 0) {
@@ -1016,13 +1016,13 @@ main(int argc, char **argv) {
 //    }
 
 #if 0
-    if (PyType_Ready(&TraceFileWrapperType) < 0) {
+    if (PyType_Ready(&cpyTraceFileWrapperType) < 0) {
         return -8;
     }
-    Py_INCREF(&TraceFileWrapperType);
+    Py_INCREF(&cpyTraceFileWrapperType);
 
-    TraceFileWrapper *trace_wrapper = (TraceFileWrapper *) TraceFileWrapper_new(&TraceFileWrapperType, NULL, NULL);
-    fprintf(stdout, "TraceFileWrapper *trace_wrapper:\n");
+    cpyTraceFileWrapper *trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(&cpyTraceFileWrapperType, NULL, NULL);
+    fprintf(stdout, "cpyTraceFileWrapper *trace_wrapper:\n");
     PyObject_Print((PyObject*)trace_wrapper, stdout, Py_PRINT_RAW);
 
     Py_DECREF((PyObject*)trace_wrapper);
