@@ -424,11 +424,15 @@ void wrapper_ll_push(tcpyTraceFileWrapperLinkedList **h_linked_list, cpyTraceFil
  * Free the first value on the list and adjust the list pointer.
  * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  */
-void wrapper_ll_pop(tcpyTraceFileWrapperLinkedList **h_linked_list) {
+cpyTraceFileWrapper *
+wrapper_ll_pop(tcpyTraceFileWrapperLinkedList **h_linked_list) {
     tcpyTraceFileWrapperLinkedList *tmp = *h_linked_list;
     *h_linked_list = (*h_linked_list)->next;
-    /* TODO: Decref the tmp->file_wrapper? */
     free(tmp);
+    /* NOTE: Caller has to decide whether to decref the tmp->file_wrapper.
+     * If call as the result of and __exit__ function then do **not** decref as CPython
+     * will automatically do this on completion of the with statement. */
+    return tmp->file_wrapper;
 }
 
 /**
@@ -790,6 +794,9 @@ ProfileObject_exit(ProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
         PyEval_SetProfile(NULL, NULL);
         cpyTraceFileWrapper *trace_file_wrapper = (cpyTraceFileWrapper *) self->trace_file_wrapper;
         cpyTraceFileWrapper_close_file(trace_file_wrapper);
+        /* NOTE: wrapper_ll_pop returns a cpyTraceFileWrapper *.
+         * This should **not** be decref'd here as CPython will do that on completion of a
+         * with statement. */
         wrapper_ll_pop(&static_profile_wrappers);
         TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
         Py_RETURN_FALSE;
@@ -887,6 +894,9 @@ TraceObject_exit(ProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
         PyEval_SetTrace(NULL, NULL);
         cpyTraceFileWrapper *trace_file_wrapper = (cpyTraceFileWrapper *) self->trace_file_wrapper;
         cpyTraceFileWrapper_close_file(trace_file_wrapper);
+        /* NOTE: wrapper_ll_pop returns a cpyTraceFileWrapper *.
+         * This should **not** be decref'd here as CPython will do that on completion of a
+         * with statement. */
         wrapper_ll_pop(&static_trace_wrappers);
         Py_RETURN_FALSE;
     }
