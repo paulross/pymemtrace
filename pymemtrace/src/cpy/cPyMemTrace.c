@@ -66,21 +66,21 @@
 /* Tracing reference counts. */
 #if 0
 #define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(op)                                    \
-    fprintf(stdout, "TRACE: %50s() BEG REFCNT %p %10zd\n", __FUNCTION__, (void *)op, Py_REFCNT(op))
+    fprintf(stdout, "TRACE: %50s() BEG REFCNT %12p %10zd\n", __FUNCTION__, (void *)op, Py_REFCNT(op))
 
 #define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(op)                                    \
-    fprintf(stdout, "TRACE: %50s() END REFCNT %p %10zd\n", __FUNCTION__, (void *)op, Py_REFCNT(op))
+    fprintf(stdout, "TRACE: %50s() END REFCNT %12p %10zd\n", __FUNCTION__, (void *)op, Py_REFCNT(op))
 
-#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self)                     \
-    fprintf(stdout, "TRACE: %50s() BEG REFCNT %p %10zd trace_file_wrapper REFCNT %10zd\n",  \
-        __FUNCTION__, (void *)self, Py_REFCNT(self),                                        \
-        self->trace_file_wrapper ? Py_REFCNT(self->trace_file_wrapper) : -1                 \
+#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self)                         \
+    fprintf(stdout, "TRACE: %50s() BEG REFCNT %12p %10zd trace_file_wrapper REFCNT %10zd\n",    \
+        __FUNCTION__, (void *)self, Py_REFCNT(self),                                            \
+        self->trace_file_wrapper ? Py_REFCNT(self->trace_file_wrapper) : -1                     \
     )
 
-#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self)                     \
-    fprintf(stdout, "TRACE: %50s() END REFCNT %p  %10zd trace_file_wrapper REFCNT %10zd\n", \
-        __FUNCTION__, (void *)self, Py_REFCNT(self),                                        \
-        self->trace_file_wrapper ? Py_REFCNT(self->trace_file_wrapper) : -1                 \
+#define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self)                         \
+    fprintf(stdout, "TRACE: %50s() END REFCNT %12p %10zd trace_file_wrapper REFCNT %10zd\n",    \
+        __FUNCTION__, (void *)self, Py_REFCNT(self),                                            \
+        self->trace_file_wrapper ? Py_REFCNT(self->trace_file_wrapper) : -1                     \
     )
 #else
 #define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(op)
