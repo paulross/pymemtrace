@@ -45,7 +45,7 @@ Baseline: Python 3.9
 
 This is using a standard build of Python 3.9 **without** DTrace support. It establishes a benchmark baseline:
 
- .. image:: images/LASToHTML.log_77077.svg
+ .. image:: images/LASToHTML.log_77077.png
     :alt: Basic Python 3.9 (release) performance.
     :width: 800
     :align: center
@@ -64,7 +64,7 @@ Python 3.9 Release with DTrace support, no Tracing
 Python 3.9 (release) with DTrace support but *not* tracing with DTrace:
 
 
- .. image:: images/LASToHTML.log_76753.svg
+ .. image:: images/LASToHTML.log_76753.png
     :alt: Python 3.9 (release) with DTrace capability.
     :width: 800
     :align: center
@@ -85,7 +85,7 @@ Python 3.9 Release with DTrace support, DTrace Tracing
 
 Python 3.9 (release) with DTrace support and DTrace running:
 
- .. image:: images/LASToHTML.log_77633.svg
+ .. image:: images/LASToHTML.log_77633.png
     :alt: Python 3.9 (release) with DTrace capability, DTrace runnning.
     :width: 800
     :align: center
@@ -115,7 +115,7 @@ Python 3.9 Debug with DTrace support, no Tracing
 
 This is running a debug, DTrace capable build:
 
- .. image:: images/LASToHTML.log_3938.svg
+ .. image:: images/LASToHTML.log_3938.png
     :alt: Python 3.9 (debug) with DTrace capability, DTrace not tracing.
     :width: 800
     :align: center
@@ -145,7 +145,7 @@ Python 3.9 Debug with DTrace support, DTrace Tracing
 
 This is running a debug DTrace capable build *and* tracing with DTrace:
 
-.. image:: images/LASToHTML.log_4147.svg
+.. image:: images/LASToHTML.log_4147.png
     :alt: Python 3.9 (debug) with DTrace capability, DTrace tracing.
     :width: 800
     :align: center

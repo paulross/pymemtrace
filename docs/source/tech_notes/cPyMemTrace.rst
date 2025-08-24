@@ -31,7 +31,7 @@ No use of ``cPyMemTrace``
 
 This is the baseline run with no tracing which took 25.8s [#]_
 
-.. image:: images/LASToHTML.log_8631.svg
+.. image:: images/LASToHTML.log_8631.png
     :alt: Benchmark.
     :width: 800
     :align: center
@@ -44,7 +44,7 @@ This was to establish the overhead of calling ``trace_or_profile_function()`` bu
 Nothing is calculated.
 Nothing is logged [#]_.
 
-.. image:: images/LASToHTML.log_9434.svg
+.. image:: images/LASToHTML.log_9434.png
     :alt: Benchmark.
     :width: 800
     :align: center
@@ -58,7 +58,7 @@ This was to establish the overhead of calling ``trace_or_profile_function()`` as
 Nothing is logged [#]_.
 
 
-.. image:: images/LASToHTML.log_9552.svg
+.. image:: images/LASToHTML.log_9552.png
     :alt: Benchmark.
     :width: 800
     :align: center
@@ -72,7 +72,7 @@ Time was 241.2s, that is baseline x9.35
 This was to establish the overhead of calling ``trace_or_profile_function()`` and calculating all the log file data but
 not actually logging any of it [#]_.
 
-.. image:: images/LASToHTML.log_9236.svg
+.. image:: images/LASToHTML.log_9236.png
     :alt: Benchmark.
     :width: 800
     :align: center
@@ -85,7 +85,7 @@ Time was 252.6s, that is baseline x9.8
 This was to establish the overhead of calling ``trace_or_profile_function()`` and extracting all the log file data but
 only logging them if the RSS changed by >=±4096 bytes (one page) [#]_.
 
-.. image:: images/LASToHTML.log_9685.svg
+.. image:: images/LASToHTML.log_9685.png
     :alt: Benchmark.
     :width: 800
     :align: center
@@ -127,7 +127,7 @@ There were 138,243,077 events and the log file contained:
 This was a compromise of only logging events if the RSS changed by >=±4096 bytes (one page) **plus** the immediately previous event.
 The calculation cost is as much as logging every event (as any event can be a previous event) but the log file is much more manageable [#]_.
 
-.. image:: images/LASToHTML.log_20328.svg
+.. image:: images/LASToHTML.log_20328.png
     :alt: Benchmark.
     :width: 800
     :align: center
@@ -184,7 +184,7 @@ Out of 138,243,077 events the log file contained:
 Everything was logged [#]_
 
 
-.. image:: images/LASToHTML.log_8692.svg
+.. image:: images/LASToHTML.log_8692.png
     :alt: Benchmark.
     :width: 800
     :align: center

@@ -85,24 +85,6 @@ Clearly there are trade-offs between these depending on the problem you are tryi
      - Minimal.
      - x2000+ for small objects, x12 for large objects.
 
-Package Metadata
-=========================
-
-.. image:: https://img.shields.io/pypi/v/pymemtrace.svg
-        :target: https://pypi.python.org/pypi/pymemtrace
-
-.. image:: https://img.shields.io/travis/paulross/pymemtrace.svg
-        :target: https://travis-ci.org/paulross/pymemtrace
-
-.. image:: https://readthedocs.org/projects/pymemtrace/badge/?version=latest
-        :target: https://pymemtrace.readthedocs.io/en/latest/?badge=latest
-        :alt: Documentation Status
-
-.. image:: https://pyup.io/repos/github/paulross/pymemtrace/shield.svg
-     :target: https://pyup.io/repos/github/paulross/pymemtrace/
-     :alt: Updates
-    
-
 Licence
 -----------------------
 

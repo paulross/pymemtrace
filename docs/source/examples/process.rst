@@ -119,7 +119,7 @@ Using ``gnuplot`` on the Log File
 
 The file ``process.log_14129.svg`` will look like this:
 
-.. image:: images/process.log_14129.svg
+.. image:: images/process.log_14129.png
     :alt: Example of process.py
     :width: 800
     :align: center
