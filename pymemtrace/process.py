@@ -53,7 +53,7 @@ PSUTIL_PROCESS_AS_DICT_KEYS = [
     'memory_full_info', 'memory_info', 'memory_percent', 'name', 'nice', 'num_ctx_switches', 'num_fds', 'num_threads',
     'open_files', 'pid', 'ppid', 'status', 'terminal', 'threads', 'uids', 'username'
 ]
-#: Usage: GNUPLOT_PLT.format(name=dat_file_name)
+#: Usage: GNUPLOT_PLT.format(name=dat_file_name, extension='png', labels=[])
 GNUPLOT_PLT = """
 set grid
 set title "Memory and CPU Usage." font ",14"
@@ -79,8 +79,8 @@ set pointsize 1
 set datafile separator whitespace#"	"
 set datafile missing "NaN"
 
-set terminal svg size 1000,700 # choose the file format
-set output "{name}.svg" # choose the output device
+set terminal {extension} size 1000,700 # choose the file format
+set output "{name}.{extension}" # choose the output device
 
 # set key off
 
@@ -227,20 +227,12 @@ def invoke_gnuplot(log_path: str, gnuplot_dir: str) -> int:
                 f' left font ",10" rotate by 90 noenhanced front'
             )
         ret = gnuplot.invoke_gnuplot(
-            gnuplot_dir, log_name, table[pid], GNUPLOT_PLT.format(name=log_name, labels='\n'.join(label_lines))
+            gnuplot_dir, log_name, table[pid],
+            GNUPLOT_PLT.format(name=log_name, extension='png', labels='\n'.join(label_lines))
         )
         if ret:
             break
     return ret
-
-
-# Message passing
-process_queue = queue.Queue()
-
-
-def add_message_to_queue(msg: str) -> None:
-    """Adds a message onto the queue."""
-    process_queue.put(msg)
 
 
 class ProcessLoggingThread(threading.Thread):
@@ -263,7 +255,15 @@ class ProcessLoggingThread(threading.Thread):
         else:
             self._process = psutil.Process()
             self._pid = self._process.pid
+        # Message passing
+        self.process_queue = queue.Queue()
         self._run = True
+
+    def add_message_to_queue(self, msg: str) -> None:
+        """Adds a message onto the queue."""
+        self.process_queue.put(msg)
+
+
 
     def _get_process_data(self, **kwargs):
         ret = {
@@ -285,11 +285,11 @@ class ProcessLoggingThread(threading.Thread):
     def _write_to_log(self, prefix: str) -> None:
         """Write process data to log flushing message queue if necessary."""
         if self._run:
-            if process_queue.empty():
+            if self.process_queue.empty():
                 logger.log(self._log_level, f'{prefix} {json.dumps(self._get_process_data())}')
             else:
-                while not process_queue.empty():
-                    msg = process_queue.get()
+                while not self.process_queue.empty():
+                    msg = self.process_queue.get()
                     logger.log(self._log_level, f'{prefix} {json.dumps(self._get_process_data(label=msg))}')
 
     def run(self) -> None:
@@ -312,7 +312,7 @@ def log_process(*args, **kwargs):
     process_thread = ProcessLoggingThread(*args, **kwargs)
     process_thread.start()
     try:
-        yield
+        yield process_thread
     finally:
         process_thread.join()
 
@@ -352,11 +352,11 @@ def main() -> int:
     else:
         # Log another process or self
         logger.info('Demonstration of logging a process')
-        with log_process(interval=args.interval, log_level=args.log_level, pid=args.pid):
+        with log_process(interval=args.interval, log_level=args.log_level, pid=args.pid) as process_thread:
             try:
                 while True:
                     time.sleep(1000)
-                    add_message_to_queue(f'Parent process wakes...')
+                    process_thread.add_message_to_queue(f'Parent process wakes...')
             except KeyboardInterrupt:
                 print('KeyboardInterrupt!')
                 pass
