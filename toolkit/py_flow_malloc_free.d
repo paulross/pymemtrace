@@ -132,6 +132,46 @@ pid$target::malloc:entry
     @malloc_lib_dist[usym(ucaller)] = quantize(arg0);
 }
 
+pid$target::calloc:entry
+/self->file != NULL/
+{
+    /* So this is slightly not well understood. It seems that self-file and self-> name do not persist to
+     * pid$target::calloc:return
+     * They are often null or truncated in some way.
+     *
+     * Instead we report them here but without the terminating '\n' then pid$target::calloc:return can add the pointer
+     * value onto the end of the line and terminate it.
+     *
+     * It seems to work in practice.
+     */
+
+    /*
+     * arg0 is the number of buffers to allocate.
+     * arg1 is the buffer size to allocate.
+     */
+    printf("%6d %16s:%-4d -> %s calloc(%d, %d)", pid, self->file, self->line, self->name, arg0, arg1);
+
+    @calloc_func_size[self->file, self->name] = sum(arg0 * arg1);
+    @calloc_func_dist[self->file, self->name] = quantize(arg0 * arg1);
+}
+
+pid$target::calloc:return
+/self->file != NULL/
+{
+    /*
+     * arg0 is the program counter.
+     * arg1 is the buffer pointer that has been allocated.
+     */
+    printf(" pntr 0x%x\n", arg1);
+}
+
+pid$target::calloc:entry
+/self->name == NULL/
+{
+    @calloc_lib_size[usym(ucaller)] = sum(arg0 * arg1);
+    @calloc_lib_dist[usym(ucaller)] = quantize(arg0 * arg1);
+}
+
 pid$target::free:entry
 /self->file != NULL/
 {
@@ -144,8 +184,16 @@ pid$target::free:entry
 dtrace:::END
 {
 	printf("\ndtrace:::END\n");
+
 	printf("Python malloc byte distributions by engine caller:\n");
 	printa("   %A, total bytes = %@d %@d\n", @malloc_lib_size, @malloc_lib_dist);
-	printf("\nPython malloc byte distributions by Python file and function:\n\n");
+
+    printf("\nPython malloc byte distributions by Python file and function:\n\n");
 	printa("   %s, %s, bytes total = %@d %@d\n", @malloc_func_size, @malloc_func_dist);
+
+    printf("Python calloc byte distributions by engine caller:\n");
+	printa("   %A, total bytes = %@d %@d\n", @calloc_lib_size, @calloc_lib_dist);
+
+    printf("\nPython calloc byte distributions by Python file and function:\n\n");
+	printa("   %s, %s, bytes total = %@d %@d\n", @calloc_func_size, @calloc_func_dist);
 }
