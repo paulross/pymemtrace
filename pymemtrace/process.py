@@ -342,11 +342,11 @@ def main() -> int:
                         )
     parser.add_argument('path_in', type=str, help='Input path.', nargs='?')
     parser.add_argument('path_out', type=str, help='Output path.', nargs='?')
+    args = parser.parse_args()
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=args.log_level,
         format='%(asctime)s - %(filename)s#%(lineno)d - %(process)5d - (%(threadName)-10s) - %(levelname)-8s - %(message)s',
     )
-    args = parser.parse_args()
     if args.path_in and args.path_out:
         invoke_gnuplot(args.path_in, args.path_out)
     else:
