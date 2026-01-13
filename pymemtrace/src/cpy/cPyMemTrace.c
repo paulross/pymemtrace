@@ -109,7 +109,7 @@
 static const char *MARKER_LOG_FILE_START = "SOF";
 static const char *MARKER_LOG_FILE_END = "EOF";
 
-#pragma mark Python definitions and functions.
+// MARK: Python definitions and functions.
 /*
  * Defined in Include/cpython/pystate.h
  * #define PyTrace_CALL 0
@@ -179,7 +179,7 @@ int py_frame_get_line_number(PyFrameObject *frame) {
     return 0;
 }
 
-#pragma mark TraceFileWrapper object
+// MARK: TraceFileWrapper object
 /**
  * Trace classes could make this available by looking at trace_file_wrapper or profile_file_wrapper.
  */
@@ -280,7 +280,7 @@ TraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py
     return (PyObject *) self;
 }
 
-#pragma mark - TraceFileWrapper members
+// MARK: - TraceFileWrapper members
 
 static PyMemberDef TraceFileWrapper_members[] = {
         {
@@ -312,7 +312,7 @@ static PyMemberDef TraceFileWrapper_members[] = {
         {NULL, 0, 0, 0, NULL} /* Sentinel */
 };
 
-#pragma mark - TraceFileWrapper methods
+// MARK: - TraceFileWrapper methods
 
 /**
  * Write any string to the existing logfile.
@@ -341,7 +341,7 @@ static PyMethodDef TraceFileWrapper_methods[] = {
         {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
-#pragma mark - TraceFileWrapper declaration
+// MARK: - TraceFileWrapper declaration
 
 static PyTypeObject TraceFileWrapperType = {
         PyVarObject_HEAD_INIT(NULL, 0)
@@ -357,7 +357,7 @@ static PyTypeObject TraceFileWrapperType = {
         .tp_methods = TraceFileWrapper_methods,
 };
 
-#pragma mark Static linked list of trace/profile wrappers.
+// MARK: Static linked list of trace/profile wrappers.
 /**
  * A node in the linked list of trace file wrappers.
  *
@@ -572,7 +572,7 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
     return trace_wrapper;
 }
 
-#pragma mark Get the current log paths.
+// MARK: Get the current log paths.
 
 static PyObject *
 get_log_file_path_profile(void) {
@@ -596,7 +596,7 @@ get_log_file_path_trace(void) {
     }
 }
 
-#pragma mark cPyMemTrace methods.
+// MARK: cPyMemTrace methods.
 
 static PyObject *
 py_rss(void) {
@@ -643,7 +643,7 @@ static PyMethodDef cPyMemTraceMethods[] = {
         {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
-#pragma mark Common object for Profile or Trace
+// MARK: Common object for Profile or Trace
 /**** Context manager for attach_profile/trace_function() and detach_profile/trace_function() ****/
 typedef struct {
     PyObject_HEAD
@@ -715,7 +715,7 @@ static PyMemberDef ProfileOrTraceObject_members[] = {
         {NULL, 0, 0, 0, NULL} /* Sentinel */
 };
 
-#pragma mark Context manager for ProfileObject
+// MARK: Context manager for ProfileObject
 
 /**
  * Attach a new profile wrapper to the \c static_profile_wrapper.
@@ -814,7 +814,7 @@ static PyTypeObject ProfileObjectType = {
 };
 /**** END: Context manager for attach_profile_function() and detach_profile_function() ****/
 
-#pragma mark Context manager for TraceObject
+// MARK: Context manager for TraceObject
 /**** Context manager for attach_trace_function() and detach_trace_function() ****/
 
 /**
@@ -908,7 +908,7 @@ static PyTypeObject TraceObjectType = {
 };
 /**** END: Context manager for attach_trace_function() and detach_trace_function() ****/
 
-#pragma mark cPyMemTrace module
+// MARK: cPyMemTrace module
 
 PyDoc_STRVAR(py_mem_trace_doc,
              "Module that contains C memory tracer classes and functions."
