@@ -29,7 +29,6 @@ test_requirements = [
 extra_compile_args = [
     '-Wall',
     '-Wextra',
-    '-Werror',
     '-Wfatal-errors',
     '-Wpedantic',
     # Some internal Python library code does not like this with C++11.
