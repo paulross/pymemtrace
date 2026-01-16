@@ -5,7 +5,9 @@
 
 #include <Python.h>
 
+#ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200112L  // For gmtime_r in <time.h>
+#endif
 
 #include <stdio.h>
 #include <sys/types.h>
