@@ -31,6 +31,9 @@ class ProcessTree:
         else:
             self.proc = proc
         self.children: typing.List[ProcessTree] = []
+        # So that value differences can be computes between write_summary calls.
+        # TODO: There is a flaw here as update_children deletes all the previous child data.
+        self.previous_values = {}
 
     def clear_children(self) -> None:
         for child in self.children:
@@ -38,21 +41,46 @@ class ProcessTree:
         self.children = []
 
     def update_children(self) -> None:
-        self.clear_children()
+        """Update the children process list.
+        This preserves existing processes based on their ppid being the same as self.
+        It adds new ones and discards old ones."""
+        # self.clear_children()
+        # Remove orphans. TODO: Does this actually do anything?
+        self.children = [c for c in self.children if c.proc.ppid() == self.proc.pid]
+        child_pids = set([c.proc.pid for c in self.children])
+        # print(f'TRACE: {child_pids}')
+        # Add any new processes.
         for child_process in self.proc.children(recursive=False):
             # child_process is a psutil.Process
-            self.children.append(ProcessTree(child_process))
+            if child_process.pid not in child_pids:
+                self.children.append(ProcessTree(child_process))
+        # Sort the children by PID.
+        self.children.sort(key=lambda process_tree: process_tree.proc.pid)
+        for child in self.children:
+            child.update_children()
 
     def write_summary(self, depth: int, write_summary_config: WriteSummaryConfig, ostream=sys.stdout) -> None:
         if depth == 0:
             exec_time = time.time() - self.proc.create_time()
-            ostream.write(f'{exec_time:8.1f} ')
+            ostream.write(f'{exec_time:8.1f}')
         else:
-            ostream.write(f'{"":8s} ')
-        ostream.write(f'{" " * depth:s} {self.proc.pid:5d} ')
+            ostream.write(f'{"":8s}')
+        ostream.write(f' {" " * depth:s} {self.proc.pid:5d}')
         # See: https://psutil.readthedocs.io/en/latest/#processes for the available data
-        ostream.write(' '.join(self.proc.cmdline()))
+        ostream.write(f' {self.proc.name():24}')
+
+        try:
+            mem_info = self.proc.memory_info()
+
+            ostream.write(f' {mem_info.rss / 1024 ** 2:8.1f} (MB)')
+            d_rss = mem_info.rss - self.previous_values.get('RSS', 0)
+            ostream.write(f' {d_rss / 1024 ** 2:+4.1f} (MB)')
+            self.previous_values['RSS'] = mem_info.rss
+        except psutil.AccessDenied:
+            pass
+        # ostream.write(' '.join(self.proc.cmdline()))
         ostream.write('\n')
+        # print(f'TRACE: {self.children}')
         for child in self.children:
             child.write_summary(depth + 1, write_summary_config, ostream)
 
