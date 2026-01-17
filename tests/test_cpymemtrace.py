@@ -276,12 +276,22 @@ def test_trace_depth():
     assert cPyMemTrace.trace_wrapper_depth() == 0
 
 
-def test_context_manager_refcounts():
+@pytest.mark.skipif(not (sys.version_info.minor < 14), reason='Python < 3.14')
+def test_context_manager_refcounts_pre_314():
     with open(__file__) as f:
         print(f'Refcount: {sys.getrefcount(f)}')
         assert sys.getrefcount(f) == 3
     print(f'Refcount: {sys.getrefcount(f)}')
     assert sys.getrefcount(f) == 2
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 14), reason='Python >= 3.14')
+def test_context_manager_refcounts_post_314():
+    with open(__file__) as f:
+        print(f'Refcount: {sys.getrefcount(f)}')
+        assert sys.getrefcount(f) == 2
+    print(f'Refcount: {sys.getrefcount(f)}')
+    assert sys.getrefcount(f) == 1
 
 
 if __name__ == '__main__':
