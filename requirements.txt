@@ -1,3 +1,4 @@
+colorama
 psutil
 pytest
 pytest-runner
