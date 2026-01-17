@@ -46,11 +46,12 @@ class ProcessTree:
     def write_summary(self, depth: int, write_summary_config: WriteSummaryConfig, ostream=sys.stdout) -> None:
         if depth == 0:
             exec_time = time.time() - self.proc.create_time()
-            ostream.write(f'{exec_time:6.1f} ')
+            ostream.write(f'{exec_time:8.1f} ')
         else:
-            ostream.write(f'{"":6s} ')
+            ostream.write(f'{"":8s} ')
         ostream.write(f'{" " * depth:s} {self.proc.pid:5d} ')
         # See: https://psutil.readthedocs.io/en/latest/#processes for the available data
+        ostream.write(' '.join(self.proc.cmdline()))
         ostream.write('\n')
         for child in self.children:
             child.write_summary(depth + 1, write_summary_config, ostream)
