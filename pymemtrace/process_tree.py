@@ -15,10 +15,29 @@ logger = logging.getLogger(__file__)
 
 
 @dataclasses.dataclass
+class ColumnWidthFormat:
+    """Specifies the column width and format string when writing out the summary."""
+    # Find a way of combining this with the format?
+    width: int
+    format: str
+
+
+@dataclasses.dataclass
+class WriteSummaryColumn:
+    """Specifies the column to write out in the summary."""
+    name: str
+    # A function that takes a psutil.Process and returns a value
+    getter: typing.Callable
+    mult_factor: float
+    units: str
+    width_and_format: ColumnWidthFormat
+    width_and_format_diff: typing.Optional[ColumnWidthFormat]
+
+
+@dataclasses.dataclass
 class WriteSummaryConfig:
-    """What to write out in the summary.
-    TODO: """
-    pass
+    """What to write out in the summary."""
+    columns: typing.Tuple[WriteSummaryColumn, ...]
 
 
 class ProcessTree:
@@ -70,12 +89,17 @@ class ProcessTree:
         ostream.write(f' {self.proc.name():24}')
 
         try:
-            mem_info = self.proc.memory_info()
-
-            ostream.write(f' {mem_info.rss / 1024 ** 2:8.1f} (MB)')
-            d_rss = mem_info.rss - self.previous_values.get('RSS', 0)
-            ostream.write(f' {d_rss / 1024 ** 2:+4.1f} (MB)')
-            self.previous_values['RSS'] = mem_info.rss
+            for col_spec in write_summary_config.columns:
+                value = col_spec.getter(self.proc)
+                ostream.write(' ')
+                ostream.write(format(value * col_spec.mult_factor, col_spec.width_and_format.format))
+                ostream.write(f' ({col_spec.units})')
+                if col_spec.width_and_format_diff is not None:
+                    delta = value - self.previous_values.get(col_spec.name, 0)
+                    ostream.write(' ')
+                    ostream.write(format(delta * col_spec.mult_factor, col_spec.width_and_format_diff.format))
+                    ostream.write(f' ({col_spec.units})')
+                    self.previous_values[col_spec.name] = value
         except psutil.AccessDenied:
             pass
         # ostream.write(' '.join(self.proc.cmdline()))
@@ -83,6 +107,10 @@ class ProcessTree:
         # print(f'TRACE: {self.children}')
         for child in self.children:
             child.write_summary(depth + 1, write_summary_config, ostream)
+
+    @staticmethod
+    def get_memory_rss(proc: psutil.Process) -> int:
+        return proc.memory_info().rss
 
 
 def log_process(pid: int, interval: float, write_summary_config: WriteSummaryConfig):
@@ -122,7 +150,14 @@ def main() -> int:
     else:
         pid = args.pid
     logger.info(f'Processing PID {pid}')
-    write_summary_config = WriteSummaryConfig()
+    write_summary_config = WriteSummaryConfig(
+        (
+            WriteSummaryColumn(
+                'RSS', ProcessTree.get_memory_rss, 1 / 1024**2, 'MB',
+                ColumnWidthFormat(8, '8.1f'), ColumnWidthFormat(4, '+8.1f'),
+            ),
+        )
+    )
     log_process(pid, args.interval, write_summary_config)
     print('Bye, bye!')
     return 0
