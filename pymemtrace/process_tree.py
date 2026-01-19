@@ -45,7 +45,7 @@ class WriteSummaryConfig:
 
 class ProcessTree:
     """Creates a tree of psutil.Process objects"""
-    DEPTH_INDENT_PREFIX = '  '
+    DEPTH_INDENT_PREFIX = ''
 
     def __init__(self, proc: typing.Union[int, psutil.Process]):
         """Takes a PID and creates the tree of all child processes."""
@@ -88,14 +88,21 @@ class ProcessTree:
             ostream: typing.TextIO = sys.stdout,
     ) -> None:
         ostream.write(f'{"Time(s)":8s}')
-        ostream.write(f' {"PID":5s}')
+        ostream.write(f' ')
+        ostream.write(f' {"PID":>5s}')
         ostream.write(f' {"Name(s)":24s}')
         for col_spec in write_summary_config.columns:
-            name_and_units = f'{col_spec.name}({col_spec.units})'
-            ostream.write(f' {name_and_units:{col_spec.width_and_format.width}s}')
+            if col_spec.units:
+                name_and_units = f'{col_spec.name}({col_spec.units})'
+            else:
+                name_and_units = f'{col_spec.name}'
+            ostream.write(f' {name_and_units:>{col_spec.width_and_format.width}s}')
             if col_spec.width_and_format_diff is not None:
-                name_and_units = f'd{col_spec.name}({col_spec.units})'
-                ostream.write(f' {name_and_units:{col_spec.width_and_format_diff.width}s}')
+                if col_spec.units:
+                    name_and_units = f'd{col_spec.name}({col_spec.units})'
+                else:
+                    name_and_units = f'd{col_spec.name}'
+                ostream.write(f' {name_and_units:>{col_spec.width_and_format_diff.width}s}')
         ostream.write('\n')
 
     def write_summary(
@@ -122,15 +129,27 @@ class ProcessTree:
                     ostream.write(format(value * col_spec.mult_factor, col_spec.width_and_format.format))
                     # ostream.write(f' ({col_spec.units})')
                     if col_spec.width_and_format_diff is not None:
-                        delta = value - self.previous_values.get(col_spec.name, 0)
+                        if type(value) == str:
+                            if value != self.previous_values.get(col_spec.name, ''):
+                                delta = value
+                            else:
+                                delta = ''
+                        else:
+                            delta = value - self.previous_values.get(col_spec.name, 0)
                         ostream.write(' ')
                         delta_str = format(delta * col_spec.mult_factor, col_spec.width_and_format_diff.format)
-                        if delta > 0:
-                            ostream.write(colorama.Fore.RED + delta_str)
-                        elif delta < 0:
-                            ostream.write(colorama.Fore.GREEN + delta_str)
+                        if type(value) == str:
+                            if delta:
+                                ostream.write(colorama.Fore.RED + delta_str)
+                            else:
+                                ostream.write(colorama.Fore.GREEN + delta_str)
                         else:
-                            ostream.write(delta_str)
+                            if delta > 0:
+                                ostream.write(colorama.Fore.RED + delta_str)
+                            elif delta < 0:
+                                ostream.write(colorama.Fore.GREEN + delta_str)
+                            else:
+                                ostream.write(delta_str)
                         # ostream.write(f' ({col_spec.units})')
                         self.previous_values[col_spec.name] = value
         except psutil.AccessDenied:
@@ -147,8 +166,40 @@ class ProcessTree:
         return exec_time
 
     @staticmethod
+    def get_cpu_percent(proc: psutil.Process) -> float:
+        return proc.cpu_percent()
+
+    @staticmethod
     def get_memory_rss(proc: psutil.Process) -> int:
         return proc.memory_info().rss
+
+    @staticmethod
+    def get_memory_page_faults(proc: psutil.Process) -> int:
+        mem_info = proc.memory_info()
+        if hasattr(mem_info, 'pfaults'):
+            return mem_info.pfaults
+        return 0
+
+    @staticmethod
+    def get_num_context_switches(proc: psutil.Process) -> int:
+        ctx = proc.num_ctx_switches()
+        return ctx.involuntary + ctx.voluntary
+
+    @staticmethod
+    def get_num_threads(proc: psutil.Process) -> int:
+        return proc.num_threads()
+
+    @staticmethod
+    def get_status(proc: psutil.Process) -> str:
+        return proc.status()
+
+    @staticmethod
+    def get_num_open_files(proc: psutil.Process) -> int:
+        return len(proc.open_files())
+
+    @staticmethod
+    def get_num_net_connections(proc: psutil.Process) -> int:
+        return len(proc.net_connections())
 
 
 def log_process(
@@ -182,6 +233,18 @@ def main() -> int:
                         help="Log Level (debug=10, info=20, warning=30, error=40, critical=50)"
                              " [default: %(default)s]"
                         )
+
+    parser.add_argument("-c", "--context_switches", action="store_true",
+                        help="Show number of contest switches. default: %(default)s")
+    parser.add_argument("-t", "--threads", action="store_true",
+                        help="Show number of threads. default: %(default)s")
+    parser.add_argument("-s", "--status", action="store_true",
+                        help="Show the status. default: %(default)s")
+    parser.add_argument("-f", "--open-files", action="store_true",
+                        help="Show the number of open files. default: %(default)s")
+    parser.add_argument("-n", "--net-connections", action="store_true",
+                        help="Show the number of network connections. default: %(default)s")
+
     # parser.add_argument('path_in', type=str, help='Input path.', nargs='?')
     # parser.add_argument('path_out', type=str, help='Output path.', nargs='?')
     args = parser.parse_args()
@@ -197,11 +260,54 @@ def main() -> int:
     write_summary_config = WriteSummaryConfig(
         [
             WriteSummaryColumn(
+                'CPU', ProcessTree.get_cpu_percent, 1, '%',
+                ColumnWidthFormat(8, '8.1f'), ColumnWidthFormat(8, '+8.1f'),
+            ),
+            WriteSummaryColumn(
                 'RSS', ProcessTree.get_memory_rss, 1 / 1024 ** 2, 'MB',
-                ColumnWidthFormat(8, '8.1f'), ColumnWidthFormat(4, '+8.1f'),
+                ColumnWidthFormat(8, '8,.1f'), ColumnWidthFormat(8, '+8,.1f'),
+            ),
+            WriteSummaryColumn(
+                'PFaults', ProcessTree.get_memory_page_faults, 1, '',
+                ColumnWidthFormat(12, '12,d'), ColumnWidthFormat(12, '+12,d'),
             ),
         ]
     )
+    if args.context_switches:
+        write_summary_config.columns.append(
+            WriteSummaryColumn(
+                'Ctx', ProcessTree.get_num_context_switches, 1, '',
+                ColumnWidthFormat(24, '24,d'), ColumnWidthFormat(24, '24,d'),
+            ),
+        )
+    if args.threads:
+        write_summary_config.columns.append(
+            WriteSummaryColumn(
+                'Threads', ProcessTree.get_num_threads, 1, '',
+                ColumnWidthFormat(10, '10,d'), ColumnWidthFormat(10, '+10,d'),
+            ),
+        )
+    if args.status:
+        write_summary_config.columns.append(
+            WriteSummaryColumn(
+                'Status', ProcessTree.get_status, 1, '',
+                ColumnWidthFormat(10, '>10s'), ColumnWidthFormat(10, '>10s'),
+            ),
+        )
+    if args.open_files:
+        write_summary_config.columns.append(
+            WriteSummaryColumn(
+                'Files', ProcessTree.get_num_open_files, 1, '',
+                ColumnWidthFormat(6, '>6d'), ColumnWidthFormat(6, '>6d'),
+            ),
+        )
+    if args.net_connections:
+        write_summary_config.columns.append(
+            WriteSummaryColumn(
+                'Net', ProcessTree.get_num_net_connections, 1, '',
+                ColumnWidthFormat(6, '>6d'), ColumnWidthFormat(6, '>6d'),
+            ),
+        )
     log_process(pid, args.interval, write_summary_config)
     print('Bye, bye!')
     return 0
