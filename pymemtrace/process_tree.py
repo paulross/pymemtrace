@@ -82,22 +82,44 @@ class ProcessTree:
         for child in self.children:
             child.update_children()
 
-    def write_summary(self, depth: int, write_summary_config: WriteSummaryConfig, ostream=sys.stdout) -> None:
+    @staticmethod
+    def write_header(
+            write_summary_config: WriteSummaryConfig,
+            ostream: typing.TextIO = sys.stdout,
+    ) -> None:
+        ostream.write(f'{"Time(s)":8s}')
+        ostream.write(f' {"PID":5s}')
+        ostream.write(f' {"Name(s)":24s}')
+        for col_spec in write_summary_config.columns:
+            name_and_units = f'{col_spec.name}({col_spec.units})'
+            ostream.write(f' {name_and_units:{col_spec.width_and_format.width}s}')
+            if col_spec.width_and_format_diff is not None:
+                name_and_units = f'd{col_spec.name}({col_spec.units})'
+                ostream.write(f' {name_and_units:{col_spec.width_and_format_diff.width}s}')
+        ostream.write('\n')
+
+    def write_summary(
+            self,
+            depth: int,
+            write_summary_config: WriteSummaryConfig,
+            ostream: typing.TextIO = sys.stdout,
+    ) -> None:
         if depth == 0:
-            exec_time = time.time() - self.proc.create_time()
+            exec_time = self.get_exec_time(self.proc)
             ostream.write(f'{exec_time:8.1f}')
         else:
             ostream.write(f'{"":8s}')
         ostream.write(f' {self.DEPTH_INDENT_PREFIX * depth:s} {self.proc.pid:5d}')
         # See: https://psutil.readthedocs.io/en/latest/#processes for the available data
-        ostream.write(f' {self.proc.name():24}')
+        proc_name = '"' + self.proc.name() + '"'
+        ostream.write(f' {proc_name:24}')
 
         try:
             for col_spec in write_summary_config.columns:
                 value = col_spec.getter(self.proc)
                 ostream.write(' ')
                 ostream.write(format(value * col_spec.mult_factor, col_spec.width_and_format.format))
-                ostream.write(f' ({col_spec.units})')
+                # ostream.write(f' ({col_spec.units})')
                 if col_spec.width_and_format_diff is not None:
                     delta = value - self.previous_values.get(col_spec.name, 0)
                     ostream.write(' ')
@@ -108,7 +130,7 @@ class ProcessTree:
                         ostream.write(colorama.Fore.GREEN + delta_str)
                     else:
                         ostream.write(delta_str)
-                    ostream.write(f' ({col_spec.units})')
+                    # ostream.write(f' ({col_spec.units})')
                     self.previous_values[col_spec.name] = value
         except psutil.AccessDenied:
             pass
@@ -119,16 +141,27 @@ class ProcessTree:
             child.write_summary(depth + 1, write_summary_config, ostream)
 
     @staticmethod
+    def get_exec_time(proc: psutil.Process) -> float:
+        exec_time = time.time() - proc.create_time()
+        return exec_time
+
+    @staticmethod
     def get_memory_rss(proc: psutil.Process) -> int:
         return proc.memory_info().rss
 
 
-def log_process(pid: int, interval: float, write_summary_config: WriteSummaryConfig):
+def log_process(
+        pid: int,
+        interval: float,
+        write_summary_config: WriteSummaryConfig,
+        ostream: typing.TextIO = sys.stdout,
+) -> None:
     proc_tree = ProcessTree(pid)
+    proc_tree.write_header(write_summary_config, ostream)
     try:
         while True:
             proc_tree.update_children()
-            proc_tree.write_summary(0, write_summary_config, sys.stdout)
+            proc_tree.write_summary(0, write_summary_config, ostream)
             time.sleep(interval)
     except KeyboardInterrupt:
         print('KeyboardInterrupt!')
