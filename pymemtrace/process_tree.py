@@ -115,23 +115,24 @@ class ProcessTree:
         ostream.write(f' {proc_name:24}')
 
         try:
-            for col_spec in write_summary_config.columns:
-                value = col_spec.getter(self.proc)
-                ostream.write(' ')
-                ostream.write(format(value * col_spec.mult_factor, col_spec.width_and_format.format))
-                # ostream.write(f' ({col_spec.units})')
-                if col_spec.width_and_format_diff is not None:
-                    delta = value - self.previous_values.get(col_spec.name, 0)
+            with self.proc.oneshot():
+                for col_spec in write_summary_config.columns:
+                    value = col_spec.getter(self.proc)
                     ostream.write(' ')
-                    delta_str = format(delta * col_spec.mult_factor, col_spec.width_and_format_diff.format)
-                    if delta > 0:
-                        ostream.write(colorama.Fore.RED + delta_str)
-                    elif delta < 0:
-                        ostream.write(colorama.Fore.GREEN + delta_str)
-                    else:
-                        ostream.write(delta_str)
+                    ostream.write(format(value * col_spec.mult_factor, col_spec.width_and_format.format))
                     # ostream.write(f' ({col_spec.units})')
-                    self.previous_values[col_spec.name] = value
+                    if col_spec.width_and_format_diff is not None:
+                        delta = value - self.previous_values.get(col_spec.name, 0)
+                        ostream.write(' ')
+                        delta_str = format(delta * col_spec.mult_factor, col_spec.width_and_format_diff.format)
+                        if delta > 0:
+                            ostream.write(colorama.Fore.RED + delta_str)
+                        elif delta < 0:
+                            ostream.write(colorama.Fore.GREEN + delta_str)
+                        else:
+                            ostream.write(delta_str)
+                        # ostream.write(f' ({col_spec.units})')
+                        self.previous_values[col_spec.name] = value
         except psutil.AccessDenied:
             pass
         # ostream.write(' '.join(self.proc.cmdline()))
