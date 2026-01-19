@@ -9,9 +9,12 @@ import sys
 import time
 import typing
 
+import colorama
 import psutil
 
 logger = logging.getLogger(__file__)
+
+colorama.init(autoreset=True)
 
 
 @dataclasses.dataclass
@@ -37,11 +40,12 @@ class WriteSummaryColumn:
 @dataclasses.dataclass
 class WriteSummaryConfig:
     """What to write out in the summary."""
-    columns: typing.Tuple[WriteSummaryColumn, ...]
+    columns: typing.List[WriteSummaryColumn]
 
 
 class ProcessTree:
     """Creates a tree of psutil.Process objects"""
+    DEPTH_INDENT_PREFIX = '  '
 
     def __init__(self, proc: typing.Union[int, psutil.Process]):
         """Takes a PID and creates the tree of all child processes."""
@@ -84,7 +88,7 @@ class ProcessTree:
             ostream.write(f'{exec_time:8.1f}')
         else:
             ostream.write(f'{"":8s}')
-        ostream.write(f' {" " * depth:s} {self.proc.pid:5d}')
+        ostream.write(f' {self.DEPTH_INDENT_PREFIX * depth:s} {self.proc.pid:5d}')
         # See: https://psutil.readthedocs.io/en/latest/#processes for the available data
         ostream.write(f' {self.proc.name():24}')
 
@@ -97,7 +101,13 @@ class ProcessTree:
                 if col_spec.width_and_format_diff is not None:
                     delta = value - self.previous_values.get(col_spec.name, 0)
                     ostream.write(' ')
-                    ostream.write(format(delta * col_spec.mult_factor, col_spec.width_and_format_diff.format))
+                    delta_str = format(delta * col_spec.mult_factor, col_spec.width_and_format_diff.format)
+                    if delta > 0:
+                        ostream.write(colorama.Fore.RED + delta_str)
+                    elif delta < 0:
+                        ostream.write(colorama.Fore.GREEN + delta_str)
+                    else:
+                        ostream.write(delta_str)
                     ostream.write(f' ({col_spec.units})')
                     self.previous_values[col_spec.name] = value
         except psutil.AccessDenied:
@@ -151,12 +161,12 @@ def main() -> int:
         pid = args.pid
     logger.info(f'Processing PID {pid}')
     write_summary_config = WriteSummaryConfig(
-        (
+        [
             WriteSummaryColumn(
-                'RSS', ProcessTree.get_memory_rss, 1 / 1024**2, 'MB',
+                'RSS', ProcessTree.get_memory_rss, 1 / 1024 ** 2, 'MB',
                 ColumnWidthFormat(8, '8.1f'), ColumnWidthFormat(4, '+8.1f'),
             ),
-        )
+        ]
     )
     log_process(pid, args.interval, write_summary_config)
     print('Bye, bye!')
