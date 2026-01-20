@@ -89,6 +89,7 @@ class ProcessTree:
             sep: str,
             ostream: typing.TextIO = sys.stdout,
     ) -> None:
+        """Write the column header."""
         if sep:
             ostream.write(f'{"Time(s)":s}')
             ostream.write(f'{sep}{"PID":s}')
@@ -150,79 +151,85 @@ class ProcessTree:
             sep: str,
             ostream: typing.TextIO = sys.stdout,
     ) -> None:
-        if depth == 0:
-            exec_time = self.get_exec_time(self.proc)
-            if sep:
-                ostream.write(f'{exec_time:.1f}')
-            else:
-                ostream.write(f'{exec_time:8.1f}')
-        else:
-            if not sep:
-                ostream.write(f'{"":8s}')
-        if sep:
-            ostream.write(f'{sep}{self.proc.pid:d}')
-        else:
-            ostream.write(f' {self.DEPTH_INDENT_PREFIX * depth:s} {self.proc.pid:5d}')
-        # See: https://psutil.readthedocs.io/en/latest/#processes for the available data
-        proc_name = '"' + self.proc.name() + '"'
-        if sep:
-            ostream.write(f'{sep}{proc_name:s}')
-        else:
-            ostream.write(f' {proc_name:24}')
-
+        """Write the summary lines for this moment in time."""
         try:
-            with self.proc.oneshot():
-                for col_spec in write_summary_config.columns:
-                    value = col_spec.getter(self.proc)
-                    if sep:
-                        ostream.write(sep)
-                        ostream.write(format(value * col_spec.mult_factor, col_spec.width_and_format.format).strip())
-                    else:
-                        ostream.write(' ')
-                        ostream.write(format(value * col_spec.mult_factor, col_spec.width_and_format.format))
-                    # ostream.write(f' ({col_spec.units})')
-                    if col_spec.width_and_format_diff is not None:
-                        if type(value) == str:
-                            if value != self.previous_values.get(col_spec.name, ''):
-                                delta = value
-                            else:
-                                delta = ''
-                        else:
-                            delta = value - self.previous_values.get(col_spec.name, 0)
+            # Optional time and mandatory PID and name.
+            if depth == 0:
+                exec_time = self.get_exec_time(self.proc)
+                if sep:
+                    ostream.write(f'{exec_time:.1f}')
+                else:
+                    ostream.write(f'{exec_time:8.1f}')
+            else:
+                if not sep:
+                    ostream.write(f'{"":8s}')
+            if sep:
+                ostream.write(f'{sep}{self.proc.pid:d}')
+            else:
+                ostream.write(f' {self.DEPTH_INDENT_PREFIX * depth:s} {self.proc.pid:5d}')
+            proc_name = '"' + self.proc.name() + '"'
+            if sep:
+                ostream.write(f'{sep}{proc_name:s}')
+            else:
+                ostream.write(f' {proc_name:24}')
+            # Iterate through the required columns.
+            try:
+                with self.proc.oneshot():
+                    for col_spec in write_summary_config.columns:
+                        value = col_spec.getter(self.proc)
                         if sep:
                             ostream.write(sep)
-                            delta_str = format(
-                                delta * col_spec.mult_factor,
-                                col_spec.width_and_format_diff.format
-                            ).strip()
+                            ostream.write(format(value * col_spec.mult_factor, col_spec.width_and_format.format).strip())
                         else:
                             ostream.write(' ')
-                            delta_str = format(
-                                delta * col_spec.mult_factor,
-                                col_spec.width_and_format_diff.format
-                            )
-                        if type(value) == str:
-                            if delta:
-                                ostream.write(colorama.Fore.RED + delta_str)
-                            else:
-                                ostream.write(colorama.Fore.GREEN + delta_str)
-                        else:
-                            if delta > 0:
-                                ostream.write(colorama.Fore.RED + delta_str)
-                            elif delta < 0:
-                                ostream.write(colorama.Fore.GREEN + delta_str)
-                            else:
-                                ostream.write(delta_str)
+                            ostream.write(format(value * col_spec.mult_factor, col_spec.width_and_format.format))
                         # ostream.write(f' ({col_spec.units})')
-                        self.previous_values[col_spec.name] = value
-        except psutil.AccessDenied:
+                        if col_spec.width_and_format_diff is not None:
+                            if type(value) == str:
+                                if value != self.previous_values.get(col_spec.name, ''):
+                                    delta = value
+                                else:
+                                    delta = ''
+                            else:
+                                delta = value - self.previous_values.get(col_spec.name, 0)
+                            if sep:
+                                ostream.write(sep)
+                                delta_str = format(
+                                    delta * col_spec.mult_factor,
+                                    col_spec.width_and_format_diff.format
+                                ).strip()
+                            else:
+                                ostream.write(' ')
+                                delta_str = format(
+                                    delta * col_spec.mult_factor,
+                                    col_spec.width_and_format_diff.format
+                                )
+                            if type(value) == str:
+                                if delta:
+                                    ostream.write(colorama.Fore.RED + delta_str)
+                                else:
+                                    ostream.write(colorama.Fore.GREEN + delta_str)
+                            else:
+                                if delta > 0:
+                                    ostream.write(colorama.Fore.RED + delta_str)
+                                elif delta < 0:
+                                    ostream.write(colorama.Fore.GREEN + delta_str)
+                                else:
+                                    ostream.write(delta_str)
+                            # ostream.write(f' ({col_spec.units})')
+                            self.previous_values[col_spec.name] = value
+            except psutil.AccessDenied:
+                ostream.write(colorama.Back.YELLOW + colorama.Fore.BLACK + 'ACCESS DENIED')
+            # Done with self.
+            ostream.write('\n')
+            # Recurse through the children.
+            for child in self.children:
+                child.write_summary(depth + 1, write_summary_config, sep, ostream)
+        except psutil.NoSuchProcess:
             pass
-        # ostream.write(' '.join(self.proc.cmdline()))
-        ostream.write('\n')
-        # print(f'TRACE: {self.children}')
-        for child in self.children:
-            child.write_summary(depth + 1, write_summary_config, sep, ostream)
 
+    # Static functions that return data from a process.
+    # See: https://psutil.readthedocs.io/en/latest/#processes for the available data
     @staticmethod
     def get_exec_time(proc: psutil.Process) -> float:
         exec_time = time.time() - proc.create_time()
