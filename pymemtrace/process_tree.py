@@ -129,6 +129,19 @@ class ProcessTree:
                     ostream.write(f' {name_and_units:>{col_spec.width_and_format_diff.width}s}')
         ostream.write('\n')
 
+    def load_previous(self, write_summary_config: WriteSummaryConfig) -> None:
+        """This loads the "previous" cache values with the current values."""
+        try:
+            with self.proc.oneshot():
+                for col_spec in write_summary_config.columns:
+                    value = col_spec.getter(self.proc)
+                    if col_spec.width_and_format_diff is not None:
+                        self.previous_values[col_spec.name] = value
+        except psutil.AccessDenied:
+            pass
+        for child in self.children:
+            child.load_previous(write_summary_config)
+
     def write_summary(
             self,
             depth: int,
@@ -177,10 +190,16 @@ class ProcessTree:
                             delta = value - self.previous_values.get(col_spec.name, 0)
                         if sep:
                             ostream.write(sep)
-                            delta_str = format(delta * col_spec.mult_factor, col_spec.width_and_format_diff.format).strip()
+                            delta_str = format(
+                                delta * col_spec.mult_factor,
+                                col_spec.width_and_format_diff.format
+                            ).strip()
                         else:
                             ostream.write(' ')
-                            delta_str = format(delta * col_spec.mult_factor, col_spec.width_and_format_diff.format)
+                            delta_str = format(
+                                delta * col_spec.mult_factor,
+                                col_spec.width_and_format_diff.format
+                            )
                         if type(value) == str:
                             if delta:
                                 ostream.write(colorama.Fore.RED + delta_str)
@@ -252,16 +271,22 @@ class ProcessTree:
 def log_process(
         pid: int,
         interval: float,
+        omit_first: bool,
         write_summary_config: WriteSummaryConfig,
         sep: str,
         ostream: typing.TextIO = sys.stdout,
 ) -> None:
     proc_tree = ProcessTree(pid)
     proc_tree.write_header(write_summary_config, sep, ostream)
+    record_num = 0
     try:
         while True:
             proc_tree.update_children()
-            proc_tree.write_summary(0, write_summary_config, sep, ostream)
+            if omit_first and record_num == 0:
+                proc_tree.load_previous(write_summary_config)
+            else:
+                proc_tree.write_summary(0, write_summary_config, sep, ostream)
+            record_num += 1
             time.sleep(interval)
     except KeyboardInterrupt:
         print('KeyboardInterrupt!')
@@ -288,6 +313,8 @@ def main() -> int:
                             'Default is to format as a table [default: %(default)s]'
                         ),
                         default='')
+    parser.add_argument("-1", "--omit-first", action="store_true",
+                        help="Omit the first sample. This makes the diffs a bit cleaner. default: %(default)s")
 
     parser.add_argument("-c", "--context_switches", action="store_true",
                         help="Show number of contest switches. default: %(default)s")
@@ -299,12 +326,16 @@ def main() -> int:
                         help="Show the number of open files. default: %(default)s")
     parser.add_argument("-n", "--net-connections", action="store_true",
                         help="Show the number of network connections. default: %(default)s")
+    parser.add_argument("-a", "--all", action="store_true",
+                        help="Show typical data, equivalent to -ctsfn. default: %(default)s")
     parser.add_argument("--cmdline", action="store_true",
                         help="Show the command line for each process (verbose). default: %(default)s")
 
     # parser.add_argument('path_in', type=str, help='Input path.', nargs='?')
     # parser.add_argument('path_out', type=str, help='Output path.', nargs='?')
     args = parser.parse_args()
+    # print(args)
+    # return 0
     logging.basicConfig(
         level=args.log_level,
         format='%(asctime)s - %(filename)s#%(lineno)d - %(process)5d - (%(threadName)-10s) - %(levelname)-8s - %(message)s',
@@ -330,41 +361,42 @@ def main() -> int:
             ),
         ]
     )
-    if args.context_switches:
+    if args.context_switches or args.all:
         write_summary_config.columns.append(
             WriteSummaryColumn(
                 'Ctx', ProcessTree.get_num_context_switches, 1, '',
                 ColumnWidthFormat(24, '24,d'), ColumnWidthFormat(24, '24,d'),
             ),
         )
-    if args.threads:
+    if args.threads or args.all:
         write_summary_config.columns.append(
             WriteSummaryColumn(
                 'Threads', ProcessTree.get_num_threads, 1, '',
                 ColumnWidthFormat(10, '10,d'), ColumnWidthFormat(10, '+10,d'),
             ),
         )
-    if args.status:
+    if args.status or args.all:
         write_summary_config.columns.append(
             WriteSummaryColumn(
                 'Status', ProcessTree.get_status, 1, '',
                 ColumnWidthFormat(10, '>10s'), ColumnWidthFormat(10, '>10s'),
             ),
         )
-    if args.open_files:
+    if args.open_files or args.all:
         write_summary_config.columns.append(
             WriteSummaryColumn(
                 'Files', ProcessTree.get_num_open_files, 1, '',
                 ColumnWidthFormat(6, '>6d'), ColumnWidthFormat(6, '>6d'),
             ),
         )
-    if args.net_connections:
+    if args.net_connections or args.all:
         write_summary_config.columns.append(
             WriteSummaryColumn(
                 'Net', ProcessTree.get_num_net_connections, 1, '',
                 ColumnWidthFormat(6, '>6d'), ColumnWidthFormat(6, '>6d'),
             ),
         )
+    # Not or args.all
     if args.cmdline:
         write_summary_config.columns.append(
             WriteSummaryColumn(
@@ -372,7 +404,7 @@ def main() -> int:
                 ColumnWidthFormat(0, 's'), None,
             ),
         )
-    log_process(pid, args.interval, write_summary_config, args.sep)
+    log_process(pid, args.interval, args.omit_first, write_summary_config, args.sep)
     print('Bye, bye!')
     return 0
 
