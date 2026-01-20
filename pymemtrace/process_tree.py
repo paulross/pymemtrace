@@ -62,8 +62,15 @@ class ProcessTree:
         This preserves existing processes based on their ppid being the same as self.
         It adds new ones and discards old ones."""
         # self.clear_children()
-        # Remove orphans. TODO: Does this actually do anything?
-        self.children = [c for c in self.children if c.proc.ppid() == self.proc.pid]
+        # Remove orphans.
+        children = []
+        for c in self.children:
+            try:
+                if c.proc.ppid() == self.proc.pid:
+                    children.append(c)
+            except psutil.NoSuchProcess:
+                pass
+        self.children = children
         child_pids = set([c.proc.pid for c in self.children])
         # print(f'TRACE: {child_pids}')
         # Add any new processes.
@@ -275,13 +282,16 @@ def log_process(
     record_num = 0
     try:
         while True:
+            t_start = time.time()
             proc_tree.update_children()
             if omit_first and record_num == 0:
                 proc_tree.load_previous(write_summary_config)
             else:
                 proc_tree.write_summary(0, write_summary_config, sep, ostream)
             record_num += 1
-            time.sleep(interval)
+            t_exec = time.time() - t_start
+            if interval > t_exec:
+                time.sleep(interval - t_exec)
     except KeyboardInterrupt:
         print('KeyboardInterrupt!')
 
