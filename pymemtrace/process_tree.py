@@ -55,13 +55,7 @@ class ProcessTree:
             self.proc = proc
         self.children: typing.List[ProcessTree] = []
         # So that value differences can be computes between write_summary calls.
-        # TODO: There is a flaw here as update_children deletes all the previous child data.
         self.previous_values = {}
-
-    def clear_children(self) -> None:
-        for child in self.children:
-            child.clear_children()
-        self.children = []
 
     def update_children(self) -> None:
         """Update the children process list.
