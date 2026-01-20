@@ -85,48 +85,87 @@ class ProcessTree:
     @staticmethod
     def write_header(
             write_summary_config: WriteSummaryConfig,
+            sep: str,
             ostream: typing.TextIO = sys.stdout,
     ) -> None:
-        ostream.write(f'{"Time(s)":8s}')
-        ostream.write(f' ')
-        ostream.write(f' {"PID":>5s}')
-        ostream.write(f' {"Name(s)":24s}')
+        if sep:
+            ostream.write(f'{"Time(s)":s}')
+            ostream.write(f'{sep}{"PID":s}')
+            ostream.write(f'{sep}{"Name":s}')
+        else:
+            ostream.write(f'{"Time(s)":8s}')
+            ostream.write(f' ')
+            ostream.write(f' {"PID":>5s}')
+            ostream.write(f' {"Name":24s}')
         for col_spec in write_summary_config.columns:
-            if col_spec.units:
-                name_and_units = f'{col_spec.name}({col_spec.units})'
-            else:
-                name_and_units = f'{col_spec.name}'
-            ostream.write(f' {name_and_units:>{col_spec.width_and_format.width}s}')
-            if col_spec.width_and_format_diff is not None:
+            if sep:
                 if col_spec.units:
-                    name_and_units = f'd{col_spec.name}({col_spec.units})'
+                    name_and_units = f'{col_spec.name}({col_spec.units})'.strip()
                 else:
-                    name_and_units = f'd{col_spec.name}'
-                ostream.write(f' {name_and_units:>{col_spec.width_and_format_diff.width}s}')
+                    name_and_units = f'{col_spec.name}'.strip()
+            else:
+                if col_spec.units:
+                    name_and_units = f'{col_spec.name}({col_spec.units})'
+                else:
+                    name_and_units = f'{col_spec.name}'
+            if sep:
+                ostream.write(f'{sep}{name_and_units:s}')
+            else:
+                ostream.write(f' {name_and_units:>{col_spec.width_and_format.width}s}')
+            if col_spec.width_and_format_diff is not None:
+                if sep:
+                    if col_spec.units:
+                        name_and_units = f'd{col_spec.name}({col_spec.units})'.strip()
+                    else:
+                        name_and_units = f'd{col_spec.name}'.strip()
+                else:
+                    if col_spec.units:
+                        name_and_units = f'd{col_spec.name}({col_spec.units})'
+                    else:
+                        name_and_units = f'd{col_spec.name}'
+                if sep:
+                    ostream.write(f'{sep}{name_and_units:s}')
+                else:
+                    ostream.write(f' {name_and_units:>{col_spec.width_and_format_diff.width}s}')
         ostream.write('\n')
 
     def write_summary(
             self,
             depth: int,
             write_summary_config: WriteSummaryConfig,
+            sep: str,
             ostream: typing.TextIO = sys.stdout,
     ) -> None:
         if depth == 0:
             exec_time = self.get_exec_time(self.proc)
-            ostream.write(f'{exec_time:8.1f}')
+            if sep:
+                ostream.write(f'{exec_time:.1f}')
+            else:
+                ostream.write(f'{exec_time:8.1f}')
         else:
-            ostream.write(f'{"":8s}')
-        ostream.write(f' {self.DEPTH_INDENT_PREFIX * depth:s} {self.proc.pid:5d}')
+            if not sep:
+                ostream.write(f'{"":8s}')
+        if sep:
+            ostream.write(f'{sep}{self.proc.pid:d}')
+        else:
+            ostream.write(f' {self.DEPTH_INDENT_PREFIX * depth:s} {self.proc.pid:5d}')
         # See: https://psutil.readthedocs.io/en/latest/#processes for the available data
         proc_name = '"' + self.proc.name() + '"'
-        ostream.write(f' {proc_name:24}')
+        if sep:
+            ostream.write(f'{sep}{proc_name:s}')
+        else:
+            ostream.write(f' {proc_name:24}')
 
         try:
             with self.proc.oneshot():
                 for col_spec in write_summary_config.columns:
                     value = col_spec.getter(self.proc)
-                    ostream.write(' ')
-                    ostream.write(format(value * col_spec.mult_factor, col_spec.width_and_format.format))
+                    if sep:
+                        ostream.write(sep)
+                        ostream.write(format(value * col_spec.mult_factor, col_spec.width_and_format.format).strip())
+                    else:
+                        ostream.write(' ')
+                        ostream.write(format(value * col_spec.mult_factor, col_spec.width_and_format.format))
                     # ostream.write(f' ({col_spec.units})')
                     if col_spec.width_and_format_diff is not None:
                         if type(value) == str:
@@ -136,8 +175,12 @@ class ProcessTree:
                                 delta = ''
                         else:
                             delta = value - self.previous_values.get(col_spec.name, 0)
-                        ostream.write(' ')
-                        delta_str = format(delta * col_spec.mult_factor, col_spec.width_and_format_diff.format)
+                        if sep:
+                            ostream.write(sep)
+                            delta_str = format(delta * col_spec.mult_factor, col_spec.width_and_format_diff.format).strip()
+                        else:
+                            ostream.write(' ')
+                            delta_str = format(delta * col_spec.mult_factor, col_spec.width_and_format_diff.format)
                         if type(value) == str:
                             if delta:
                                 ostream.write(colorama.Fore.RED + delta_str)
@@ -158,7 +201,7 @@ class ProcessTree:
         ostream.write('\n')
         # print(f'TRACE: {self.children}')
         for child in self.children:
-            child.write_summary(depth + 1, write_summary_config, ostream)
+            child.write_summary(depth + 1, write_summary_config, sep, ostream)
 
     @staticmethod
     def get_exec_time(proc: psutil.Process) -> float:
@@ -201,19 +244,24 @@ class ProcessTree:
     def get_num_net_connections(proc: psutil.Process) -> int:
         return len(proc.net_connections())
 
+    @staticmethod
+    def get_cmdline(proc: psutil.Process) -> int:
+        return ' '.join(proc.cmdline())
+
 
 def log_process(
         pid: int,
         interval: float,
         write_summary_config: WriteSummaryConfig,
+        sep: str,
         ostream: typing.TextIO = sys.stdout,
 ) -> None:
     proc_tree = ProcessTree(pid)
-    proc_tree.write_header(write_summary_config, ostream)
+    proc_tree.write_header(write_summary_config, sep, ostream)
     try:
         while True:
             proc_tree.update_children()
-            proc_tree.write_summary(0, write_summary_config, ostream)
+            proc_tree.write_summary(0, write_summary_config, sep, ostream)
             time.sleep(interval)
     except KeyboardInterrupt:
         print('KeyboardInterrupt!')
@@ -227,12 +275,19 @@ def main() -> int:
     )
     parser.add_argument('-i', '--interval', type=float, help='Logging interval in seconds [default: %(default)s]',
                         default=1.0)
-    parser.add_argument('-p', '--pid', type=int, help='PID to monitor, -1 it this [default: %(default)s]',
+    parser.add_argument('-p', '--pid', type=int, help='PID to monitor, -1 it is this process [default: %(default)s]',
                         default=-1)
     parser.add_argument("-l", "--log_level", type=int, dest="log_level", default=20,
                         help="Log Level (debug=10, info=20, warning=30, error=40, critical=50)"
                              " [default: %(default)s]"
                         )
+
+    parser.add_argument('--sep', type=str,
+                        help=(
+                            'String to use as seperator such as "|".'
+                            'Default is to format as a table [default: %(default)s]'
+                        ),
+                        default='')
 
     parser.add_argument("-c", "--context_switches", action="store_true",
                         help="Show number of contest switches. default: %(default)s")
@@ -244,6 +299,8 @@ def main() -> int:
                         help="Show the number of open files. default: %(default)s")
     parser.add_argument("-n", "--net-connections", action="store_true",
                         help="Show the number of network connections. default: %(default)s")
+    parser.add_argument("--cmdline", action="store_true",
+                        help="Show the command line for each process (verbose). default: %(default)s")
 
     # parser.add_argument('path_in', type=str, help='Input path.', nargs='?')
     # parser.add_argument('path_out', type=str, help='Output path.', nargs='?')
@@ -308,7 +365,14 @@ def main() -> int:
                 ColumnWidthFormat(6, '>6d'), ColumnWidthFormat(6, '>6d'),
             ),
         )
-    log_process(pid, args.interval, write_summary_config)
+    if args.cmdline:
+        write_summary_config.columns.append(
+            WriteSummaryColumn(
+                'CmdLine', ProcessTree.get_cmdline, 1, '',
+                ColumnWidthFormat(0, 's'), None,
+            ),
+        )
+    log_process(pid, args.interval, write_summary_config, args.sep)
     print('Bye, bye!')
     return 0
 
