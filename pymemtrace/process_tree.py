@@ -45,7 +45,7 @@ class WriteSummaryConfig:
 
 class ProcessTree:
     """Creates a tree of psutil.Process objects"""
-    DEPTH_INDENT_PREFIX = ''
+    DEPTH_INDENT_PREFIX = '  '
 
     def __init__(self, proc: typing.Union[int, psutil.Process]):
         """Takes a PID and creates the tree of all child processes."""
