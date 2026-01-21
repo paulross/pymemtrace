@@ -144,14 +144,14 @@ class ProcessTree:
         for child in self.children:
             child.load_previous(write_summary_config)
 
-    def write_summary(
+    def _write_summary_time_pid_name(
             self,
             depth: int,
-            write_summary_config: WriteSummaryConfig,
             sep: str,
             ostream: typing.TextIO = sys.stdout,
-    ) -> None:
-        """Write the summary lines for this moment in time."""
+    ) -> int:
+        """Write the prefix for this moment in time.
+        Returns zero on success, non-zero on failure."""
         try:
             # Optional time and mandatory PID and name.
             if depth == 0:
@@ -172,61 +172,86 @@ class ProcessTree:
                 ostream.write(f'{sep}{proc_name:s}')
             else:
                 ostream.write(f' {proc_name:24}')
-            # Iterate through the required columns.
-            try:
-                with self.proc.oneshot():
-                    for col_spec in write_summary_config.columns:
-                        value = col_spec.getter(self.proc)
-                        if sep:
-                            ostream.write(sep)
-                            ostream.write(format(value * col_spec.mult_factor, col_spec.width_and_format.format).strip())
-                        else:
-                            ostream.write(' ')
-                            ostream.write(format(value * col_spec.mult_factor, col_spec.width_and_format.format))
-                        # ostream.write(f' ({col_spec.units})')
-                        if col_spec.width_and_format_diff is not None:
-                            if type(value) == str:
-                                if value != self.previous_values.get(col_spec.name, ''):
-                                    delta = value
-                                else:
-                                    delta = ''
-                            else:
-                                delta = value - self.previous_values.get(col_spec.name, 0)
-                            if sep:
-                                ostream.write(sep)
-                                delta_str = format(
-                                    delta * col_spec.mult_factor,
-                                    col_spec.width_and_format_diff.format
-                                ).strip()
-                            else:
-                                ostream.write(' ')
-                                delta_str = format(
-                                    delta * col_spec.mult_factor,
-                                    col_spec.width_and_format_diff.format
-                                )
-                            if type(value) == str:
-                                if delta:
-                                    ostream.write(colorama.Fore.RED + delta_str)
-                                else:
-                                    ostream.write(colorama.Fore.GREEN + delta_str)
-                            else:
-                                if delta > 0:
-                                    ostream.write(colorama.Fore.RED + delta_str)
-                                elif delta < 0:
-                                    ostream.write(colorama.Fore.GREEN + delta_str)
-                                else:
-                                    ostream.write(delta_str)
-                            # ostream.write(f' ({col_spec.units})')
-                            self.previous_values[col_spec.name] = value
-            except psutil.AccessDenied:
-                ostream.write(colorama.Back.YELLOW + colorama.Fore.BLACK + 'ACCESS DENIED')
-            # Done with self.
-            ostream.write('\n')
-            # Recurse through the children.
-            for child in self.children:
-                child.write_summary(depth + 1, write_summary_config, sep, ostream)
         except psutil.NoSuchProcess:
-            pass
+            return 1
+        return 0
+
+    def _write_diff(
+            self,
+            value: typing.Any,
+            col_spec: WriteSummaryColumn,
+            sep: str,
+            ostream: typing.TextIO = sys.stdout,
+    ) -> None:
+        assert col_spec.width_and_format_diff is not None
+        if type(value) == str:
+            if value != self.previous_values.get(col_spec.name, ''):
+                delta = value
+            else:
+                delta = ''
+        else:
+            delta = value - self.previous_values.get(col_spec.name, 0)
+        if sep:
+            ostream.write(sep)
+            delta_str = format(
+                delta * col_spec.mult_factor,
+                col_spec.width_and_format_diff.format
+            ).strip()
+        else:
+            ostream.write(' ')
+            delta_str = format(
+                delta * col_spec.mult_factor,
+                col_spec.width_and_format_diff.format
+            )
+        if type(value) == str:
+            if delta:
+                ostream.write(colorama.Fore.RED + delta_str)
+            else:
+                ostream.write(colorama.Fore.GREEN + delta_str)
+        else:
+            if delta > 0:
+                ostream.write(colorama.Fore.RED + delta_str)
+            elif delta < 0:
+                ostream.write(colorama.Fore.GREEN + delta_str)
+            else:
+                ostream.write(delta_str)
+        # ostream.write(f' ({col_spec.units})')
+        self.previous_values[col_spec.name] = value
+
+    def write_summary(
+            self,
+            depth: int,
+            write_summary_config: WriteSummaryConfig,
+            sep: str,
+            ostream: typing.TextIO = sys.stdout,
+    ) -> None:
+        """Write the summary lines for this moment in time."""
+        if self._write_summary_time_pid_name(depth, sep, ostream):
+            return
+        # Iterate through the required columns.
+        try:
+            with self.proc.oneshot():
+                for col_spec in write_summary_config.columns:
+                    value = col_spec.getter(self.proc)
+                    if sep:
+                        ostream.write(sep)
+                        ostream.write(
+                            format(value * col_spec.mult_factor, col_spec.width_and_format.format).strip(),
+                        )
+                    else:
+                        ostream.write(' ')
+                        ostream.write(
+                            format(value * col_spec.mult_factor, col_spec.width_and_format.format),
+                        )
+                    if col_spec.width_and_format_diff is not None:
+                        self._write_diff(value, col_spec, sep, ostream)
+        except psutil.AccessDenied:
+            ostream.write(colorama.Back.YELLOW + colorama.Fore.BLACK + 'ACCESS DENIED')
+        # Done with self.
+        ostream.write('\n')
+        # Recurse through the children.
+        for child in self.children:
+            child.write_summary(depth + 1, write_summary_config, sep, ostream)
 
     # Static functions that return data from a process.
     # See: https://psutil.readthedocs.io/en/latest/#processes for the available data
@@ -260,6 +285,8 @@ class ProcessTree:
 
     @staticmethod
     def get_num_context_switches(proc: psutil.Process) -> int:
+        # NOTE: This seems to be the total number of all processes???
+        # Also the numbers look very dodgy.
         ctx = proc.num_ctx_switches()
         return ctx.involuntary + ctx.voluntary
 
@@ -312,10 +339,10 @@ def log_process(
 
 
 def main() -> int:
-    """Main CLI entry point. For testing."""
+    """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        prog='process.py',
-        description="""Reads an annotated log of a process and writes a Gnuplot graph.""",
+        prog='process_tree.py',
+        description="""Tracks the resource usage of a process and all of it's child processes.""",
     )
     parser.add_argument('-i', '--interval', type=float, help='Logging interval in seconds [default: %(default)s]',
                         default=1.0)
@@ -329,12 +356,14 @@ def main() -> int:
     parser.add_argument('--sep', type=str,
                         help=(
                             'String to use as seperator such as "|".'
-                            'Default is to format as a table [default: %(default)s]'
+                            ' Default is to format as a table [default: "%(default)s"]'
                         ),
                         default='')
     parser.add_argument("-1", "--omit-first", action="store_true",
                         help="Omit the first sample. This makes the diffs a bit cleaner. default: %(default)s")
 
+    parser.add_argument("-g", "--page-faults", action="store_true",
+                        help="Number of page faults. default: %(default)s")
     parser.add_argument("-c", "--cpu-times", action="store_true",
                         help="user and system time. default: %(default)s")
     parser.add_argument("-x", "--context-switches", action="store_true",
@@ -347,10 +376,11 @@ def main() -> int:
                         help="Show the number of open files. default: %(default)s")
     parser.add_argument("-n", "--net-connections", action="store_true",
                         help="Show the number of network connections. default: %(default)s")
-    parser.add_argument("-a", "--all", action="store_true",
-                        help="Show typical data, equivalent to -ctsfn. default: %(default)s")
     parser.add_argument("--cmdline", action="store_true",
                         help="Show the command line for each process (verbose). default: %(default)s")
+
+    parser.add_argument("-a", "--all", action="store_true",
+                        help="Show typical data, equivalent to -cfgstn. default: %(default)s")
 
     # parser.add_argument('path_in', type=str, help='Input path.', nargs='?')
     # parser.add_argument('path_out', type=str, help='Output path.', nargs='?')
@@ -372,15 +402,20 @@ def main() -> int:
                 'RSS', ProcessTree.get_memory_rss, 1 / 1024 ** 2, 'MB',
                 ColumnWidthFormat(8, '8,.1f'), ColumnWidthFormat(8, '+8,.1f'),
             ),
+        ],
+    )
+    if args.page_faults or args.all:
+        write_summary_config.columns.append(
             WriteSummaryColumn(
                 'PFaults', ProcessTree.get_memory_page_faults, 1, '',
                 ColumnWidthFormat(12, '12,d'), ColumnWidthFormat(12, '+12,d'),
             ),
-            WriteSummaryColumn(
-                'CPU', ProcessTree.get_cpu_percent, 1, '%',
-                ColumnWidthFormat(8, '8.1f'), ColumnWidthFormat(8, '+8.1f'),
-            ),
-        ]
+        )
+    write_summary_config.columns.append(
+        WriteSummaryColumn(
+            'CPU', ProcessTree.get_cpu_percent, 1, '%',
+            ColumnWidthFormat(8, '8.1f'), ColumnWidthFormat(8, '+8.1f'),
+        ),
     )
     if args.cpu_times or args.all:
         write_summary_config.columns.append(
@@ -395,18 +430,18 @@ def main() -> int:
                 ColumnWidthFormat(8, '8,.3f'), None, #ColumnWidthFormat(8, '+8,.1f'),
             ),
         )
-    if args.context_switches or args.all:
+    if args.context_switches:
         write_summary_config.columns.append(
             WriteSummaryColumn(
-                'Ctx', ProcessTree.get_num_context_switches, 1, '',
-                ColumnWidthFormat(24, '24,d'), ColumnWidthFormat(24, '24,d'),
+                'Ctx', ProcessTree.get_num_context_switches, 1e-6, 'm',
+                ColumnWidthFormat(8, '8,.1f'), ColumnWidthFormat(8, '8,.1f'),
             ),
         )
     if args.threads or args.all:
         write_summary_config.columns.append(
             WriteSummaryColumn(
-                'Threads', ProcessTree.get_num_threads, 1, '',
-                ColumnWidthFormat(10, '10,d'), ColumnWidthFormat(10, '+10,d'),
+                'Thrds', ProcessTree.get_num_threads, 1, '',
+                ColumnWidthFormat(5, '5,d'), ColumnWidthFormat(5, '+5,d'),
             ),
         )
     if args.status or args.all:
