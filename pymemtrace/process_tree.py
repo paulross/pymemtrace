@@ -240,6 +240,14 @@ class ProcessTree:
         return proc.cpu_percent()
 
     @staticmethod
+    def get_cpu_time_user(proc: psutil.Process) -> float:
+        return proc.cpu_times().user
+
+    @staticmethod
+    def get_cpu_time_system(proc: psutil.Process) -> float:
+        return proc.cpu_times().system
+
+    @staticmethod
     def get_memory_rss(proc: psutil.Process) -> int:
         return proc.memory_info().rss
 
@@ -327,7 +335,9 @@ def main() -> int:
     parser.add_argument("-1", "--omit-first", action="store_true",
                         help="Omit the first sample. This makes the diffs a bit cleaner. default: %(default)s")
 
-    parser.add_argument("-c", "--context_switches", action="store_true",
+    parser.add_argument("-c", "--cpu-times", action="store_true",
+                        help="user and system time. default: %(default)s")
+    parser.add_argument("-x", "--context-switches", action="store_true",
                         help="Show number of contest switches. default: %(default)s")
     parser.add_argument("-t", "--threads", action="store_true",
                         help="Show number of threads. default: %(default)s")
@@ -359,10 +369,6 @@ def main() -> int:
     write_summary_config = WriteSummaryConfig(
         [
             WriteSummaryColumn(
-                'CPU', ProcessTree.get_cpu_percent, 1, '%',
-                ColumnWidthFormat(8, '8.1f'), ColumnWidthFormat(8, '+8.1f'),
-            ),
-            WriteSummaryColumn(
                 'RSS', ProcessTree.get_memory_rss, 1 / 1024 ** 2, 'MB',
                 ColumnWidthFormat(8, '8,.1f'), ColumnWidthFormat(8, '+8,.1f'),
             ),
@@ -370,8 +376,25 @@ def main() -> int:
                 'PFaults', ProcessTree.get_memory_page_faults, 1, '',
                 ColumnWidthFormat(12, '12,d'), ColumnWidthFormat(12, '+12,d'),
             ),
+            WriteSummaryColumn(
+                'CPU', ProcessTree.get_cpu_percent, 1, '%',
+                ColumnWidthFormat(8, '8.1f'), ColumnWidthFormat(8, '+8.1f'),
+            ),
         ]
     )
+    if args.cpu_times or args.all:
+        write_summary_config.columns.append(
+            WriteSummaryColumn(
+                'User', ProcessTree.get_cpu_time_user, 1, 's',
+                ColumnWidthFormat(8, '8,.3f'), None, #ColumnWidthFormat(8, '+8,.1f'),
+            )
+        )
+        write_summary_config.columns.append(
+            WriteSummaryColumn(
+                'Sys', ProcessTree.get_cpu_time_system, 1, 's',
+                ColumnWidthFormat(8, '8,.3f'), None, #ColumnWidthFormat(8, '+8,.1f'),
+            ),
+        )
     if args.context_switches or args.all:
         write_summary_config.columns.append(
             WriteSummaryColumn(
