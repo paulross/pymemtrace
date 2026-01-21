@@ -324,6 +324,9 @@ def log_process(
     record_num = 0
     try:
         while True:
+            if not proc_tree.proc.is_running():
+                print(f'Parent process {proc_tree.proc.pid} is not running.')
+                break
             t_start = time.time()
             proc_tree.update_children()
             if omit_first and record_num == 0:
