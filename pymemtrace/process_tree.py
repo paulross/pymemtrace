@@ -280,7 +280,7 @@ class ProcessTree:
         return len(proc.net_connections())
 
     @staticmethod
-    def get_cmdline(proc: psutil.Process) -> int:
+    def get_cmdline(proc: psutil.Process) -> str:
         return ' '.join(proc.cmdline())
 
 
