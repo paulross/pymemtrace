@@ -277,6 +277,15 @@ class ProcessTree:
         return proc.memory_info().rss
 
     @staticmethod
+    def get_memory_uss(proc: psutil.Process) -> int:
+        try:
+            mem_info = proc.memory_full_info()
+            return mem_info.uss
+        except psutil.AccessDenied:
+            # TODO: Why does this happen? Even with sudo.
+            return -1 * 1024**2
+
+    @staticmethod
     def get_memory_page_faults(proc: psutil.Process) -> int:
         mem_info = proc.memory_info()
         if hasattr(mem_info, 'pfaults'):
@@ -318,8 +327,19 @@ def log_process(
         write_summary_config: WriteSummaryConfig,
         sep: str,
         ostream: typing.TextIO = sys.stdout,
-) -> None:
-    proc_tree = ProcessTree(pid)
+) -> int:
+    try:
+        proc_tree = ProcessTree(pid)
+    except psutil.NoSuchProcess as err:
+        logger.error(err)
+        return -1
+    cmd_args = []
+    for cmd_arg in proc_tree.proc.cmdline():
+        if ' ' in cmd_arg:
+            cmd_args.append(f'"{cmd_arg}"')
+        else:
+            cmd_args.append(cmd_arg)
+    print(f'CMD: {" ".join(cmd_args)}')
     proc_tree.write_header(write_summary_config, sep, ostream)
     record_num = 0
     try:
@@ -339,6 +359,7 @@ def log_process(
                 time.sleep(interval - t_exec)
     except KeyboardInterrupt:
         print('KeyboardInterrupt!')
+    return 0
 
 
 def main() -> int:
@@ -365,6 +386,12 @@ def main() -> int:
     parser.add_argument("-1", "--omit-first", action="store_true",
                         help="Omit the first sample. This makes the diffs a bit cleaner. default: %(default)s")
 
+    parser.add_argument("-u", "--uss", action="store_true",
+                        help=(
+                            "The USS, this is the amount of memory that would be freed if the process was terminated right now."
+                            " default: %(default)s"
+                        )
+                        )
     parser.add_argument("-g", "--page-faults", action="store_true",
                         help="Number of page faults. default: %(default)s")
     parser.add_argument("-c", "--cpu-times", action="store_true",
@@ -407,6 +434,13 @@ def main() -> int:
             ),
         ],
     )
+    if args.uss:  # or args.all:
+        write_summary_config.columns.append(
+            WriteSummaryColumn(
+                'USS', ProcessTree.get_memory_uss, 1 / 1024 ** 2, 'MB',
+                ColumnWidthFormat(8, '8,.1f'), ColumnWidthFormat(8, '+8,.1f'),
+            ),
+        )
     if args.page_faults or args.all:
         write_summary_config.columns.append(
             WriteSummaryColumn(
@@ -424,13 +458,13 @@ def main() -> int:
         write_summary_config.columns.append(
             WriteSummaryColumn(
                 'User', ProcessTree.get_cpu_time_user, 1, 's',
-                ColumnWidthFormat(8, '8,.3f'), None, #ColumnWidthFormat(8, '+8,.1f'),
+                ColumnWidthFormat(8, '8,.3f'), None,  # ColumnWidthFormat(8, '+8,.1f'),
             )
         )
         write_summary_config.columns.append(
             WriteSummaryColumn(
                 'Sys', ProcessTree.get_cpu_time_system, 1, 's',
-                ColumnWidthFormat(8, '8,.3f'), None, #ColumnWidthFormat(8, '+8,.1f'),
+                ColumnWidthFormat(8, '8,.3f'), None,  # ColumnWidthFormat(8, '+8,.1f'),
             ),
         )
     if args.context_switches:
@@ -476,7 +510,9 @@ def main() -> int:
                 ColumnWidthFormat(0, 's'), None,
             ),
         )
-    log_process(pid, args.interval, args.omit_first, write_summary_config, args.sep)
+    result_code = log_process(pid, args.interval, args.omit_first, write_summary_config, args.sep)
+    if result_code:
+        print(f'Logging failed with results code {result_code}')
     print('Bye, bye!')
     return 0
 
