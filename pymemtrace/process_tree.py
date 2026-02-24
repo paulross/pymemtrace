@@ -247,6 +247,8 @@ class ProcessTree:
                         self._write_diff(value, col_spec, sep, ostream)
         except psutil.AccessDenied:
             ostream.write(colorama.Back.YELLOW + colorama.Fore.BLACK + 'ACCESS DENIED')
+        except psutil.NoSuchProcess:
+            return
         # Done with self.
         ostream.write('\n')
         # Recurse through the children.
