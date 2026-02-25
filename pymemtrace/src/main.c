@@ -10,6 +10,7 @@
 #include <libproc.h>
 
 #include "get_rss.h"
+#include "cpy/cPyMemTrace.h"
 
 void macosx_get_pid_info(void) {
     printf("macosx_get_pid_info()\n");
@@ -128,6 +129,11 @@ main (int argc, char **argv)
 
     printf("\n");
     macosx_get_just_rss_info();
+
+    printf("\n");
+    int debug_result;
+    debug_result = debug_cPyMemtrace(argc, argv);
+    printf("Debug result: %d", debug_result);
 
     return 0;
 }

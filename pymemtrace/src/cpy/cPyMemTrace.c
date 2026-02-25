@@ -995,10 +995,8 @@ PyInit_cPyMemTrace(void) {
     return m;
 }
 
-#if 0
-
 int
-main(int argc, char **argv) {
+debug_cPyMemtrace(int argc, char **argv) {
     printf("Testing cPyMemTrace. argc=%d\n", argc);
     for (int i = 0; i < argc; ++i) {
         printf("Arg[%d]: %s\n", i, argv[i]);
@@ -1019,42 +1017,83 @@ main(int argc, char **argv) {
     if (PyStatus_Exception(status)) {
         return -2;
     }
-//    int py_run_main = Py_RunMain();
-//    fprintf(stdout, "Py_RunMain() returned %d\n", py_run_main);
-//    if (py_run_main) {
-//        return py_run_main;
-//    }
 
+    /* Run the repl. exit() in the console to terminate, the rest of this code will not run. */
 #if 0
-    if (PyType_Ready(&cpyTraceFileWrapperType) < 0) {
-        return -8;
+    int py_run_main = Py_RunMain();
+    fprintf(stdout, "Py_RunMain() returned %d\n", py_run_main);
+    if (py_run_main) {
+        return py_run_main;
     }
-    Py_INCREF(&cpyTraceFileWrapperType);
-
-    cpyTraceFileWrapper *trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(&cpyTraceFileWrapperType, NULL, NULL);
-    fprintf(stdout, "cpyTraceFileWrapper *trace_wrapper:\n");
-    PyObject_Print((PyObject*)trace_wrapper, stdout, Py_PRINT_RAW);
-
-    Py_DECREF((PyObject*)trace_wrapper);
 #endif
 
+    /* Debug trace wrapper. */
+    {
+        if (PyType_Ready(&cpyTraceFileWrapperType) < 0) {
+            return -8;
+        }
+        Py_INCREF(&cpyTraceFileWrapperType);
+
+        cpyTraceFileWrapper *trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(
+                &cpyTraceFileWrapperType, NULL, NULL
+        );
+        fprintf(stdout, "cpyTraceFileWrapper *trace_wrapper:\n");
+        PyObject_Print((PyObject *) trace_wrapper, stdout, Py_PRINT_RAW);
+
+        PyFrameObject *frame_object = PyEval_GetFrame();
+        trace_wrapper_write_frame_data_to_event_text(trace_wrapper, frame_object, PyTrace_CALL, Py_None);
+
+        Py_DECREF((PyObject *) trace_wrapper);
+    }
+    /* END: Debug trace wrapper. */
+
+    /* Debug profile wrapper. */
     if (PyType_Ready(&cpyProfileObjectType) < 0) {
         return -16;
     }
     Py_INCREF(&cpyProfileObjectType);
 
-    cpyProfileOrTraceObject *profile_object = (cpyProfileOrTraceObject *) cpyProfileOrTraceObject_new(&cpyProfileObjectType, NULL, NULL);
-    PyObject *py_args = Py_BuildValue("()");
-    PyObject *py_kwargs = Py_BuildValue("{}");
-    int init = cpyProfileOrTraceObject_init(profile_object, py_args, py_kwargs);
-    fprintf(stdout, "cpyProfileOrTraceObject_init() returned %d\n", init);
-    PyObject_Print((PyObject *) profile_object, stdout, Py_PRINT_RAW);
-    fprintf(stdout, "\n");
+    cpyProfileOrTraceObject *profile_object = (cpyProfileOrTraceObject *) cpyProfileOrTraceObject_new(
+            &cpyProfileObjectType, NULL, NULL
+    );
+    {
+        PyObject *py_args = Py_BuildValue("()");
+        PyObject *py_kwargs = Py_BuildValue("{}");
+        int init = cpyProfileOrTraceObject_init(profile_object, py_args, py_kwargs);
+        Py_DECREF(py_args);
+        Py_DECREF(py_kwargs);
+        fprintf(stdout, "cpyProfileOrTraceObject_init() returned %d\n", init);
+        PyObject_Print((PyObject *) profile_object, stdout, Py_PRINT_RAW);
+        fprintf(stdout, "\n");
+    }
 
+    /* This attaches the profiler to the Python runtime. */
     PyObject *result_enter = ProfileObject_enter(profile_object);
     fprintf(stdout, "result_enter:\n");
     PyObject_Print(result_enter, stdout, Py_PRINT_RAW);
     fprintf(stdout, "\n");
+
+    /* TODO: Write to the profiler by calling a Python function. */
+    PyObject *code_object = Py_CompileStringObject(
+            "import os; os.getpid()\n" /* const char *str */,
+            NULL /*PyObject *filename */,
+            Py_eval_input /* int start */,
+            NULL /* PyCompilerFlags *flags */,
+            -1 /* int optimize */
+            );
+    fprintf(stdout, "Py_CompileStringObject: ");
+    PyObject_Print(code_object, stdout, Py_PRINT_RAW);
+    fprintf(stdout, "\n");
+    PyObject *eval_result = PyEval_EvalCode(
+            code_object /* PyObject *co */,
+            NULL /* PyObject *globals */,
+            NULL /* PyObject *locals */
+            );
+    fprintf(stdout, "Py_CompileStringObject: ");
+    PyObject_Print(eval_result, stdout, Py_PRINT_RAW);
+    fprintf(stdout, "\n");
+
+    /* This detaches the profiler from the Python runtime. */
     PyObject *result_exit = ProfileObject_exit(profile_object, NULL);
     fprintf(stdout, "result_exit: ");
     if (result_exit) {
@@ -1064,8 +1103,6 @@ main(int argc, char **argv) {
     }
     fprintf(stdout, "\n");
 
-    Py_DECREF(py_args);
-    Py_DECREF(py_kwargs);
     /* Context manager example:
      *  with cPyMemTrace.Profile(message=message) as profiler:
      *      # profiler will have refcount of 2, one from the ctor, one from __enter__.
@@ -1080,5 +1117,3 @@ main(int argc, char **argv) {
     PyConfig_Clear(&config);
     return Py_FinalizeEx();
 }
-
-#endif

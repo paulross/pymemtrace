@@ -39,7 +39,7 @@ add_executable(
     pymemtrace/src/cpy/cMemLeak.c
     pymemtrace/src/include/pymemtrace_util.h
     pymemtrace/src/c/pymemtrace_util.c
-)
+        pymemtrace/src/cpy/cPyMemTrace.h)
 
 include_directories(
     pymemtrace/src/include
