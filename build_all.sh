@@ -11,7 +11,8 @@ set -o errexit  # abort on nonzero exitstatus
 set -o nounset  # abort on unbound variable
 set -o pipefail # don't hide errors within pipes
 
-PYTHON_VERSIONS=('3.7' '3.8' '3.9' '3.10' '3.11' '3.12' '3.13' '3.14')
+# For current versions see https://devguide.python.org/versions/
+PYTHON_VERSIONS=('3.8' '3.9' '3.10' '3.11' '3.12' '3.13' '3.14')
 #PYTHON_VERSIONS=('3.14')
 PYTHON_VENV_ROOT="${HOME}/pyenvs"
 # Used for venvs
@@ -116,6 +117,19 @@ report_all_versions_and_setups() {
   done
 }
 
+create_documentation() {
+  echo "---> Python version:"
+  which python
+  python -VV
+  echo "---> pip list:"
+  pip list
+  echo "---> Building documentation:"
+  cd docs
+  make clean
+  make html latexpdf
+  cd ..
+}
+
 show_results_of_dist() {
   echo "---> dist/:"
   ls -l "dist"
@@ -138,6 +152,8 @@ create_virtual_environments
 create_bdist_wheel
 create_sdist
 report_all_versions_and_setups
+echo "===> Building documentation:"
+create_documentation
 pip install twine
 show_results_of_dist
 echo "===> All done"

@@ -6,6 +6,17 @@ History
 ---------------------
 
 * Add support for Python 3.14
+* Remove support for Python 3.7
+* Supported Python versions are: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14
+* Development Status :: 5 - Production/Stable
+* cPyMemTrace:
+    * Fix stacking pop() issue with trace/profile functions with linked list of tTraceFileWrapperLinkedList.
+    * Add an option to log to a specific file.
+    * Add an API write_message-to_log() to inject text into the log file.
+    * Better structure of the log file format.
+    * Define the log file format.
+    * add debug exploration code with debug_cPyMemtrace().
+* Add process-tree.py for logging a process and its children.
 
 0.2.0 (2024-11-17)
 ---------------------
