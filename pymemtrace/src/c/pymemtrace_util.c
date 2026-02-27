@@ -36,7 +36,14 @@ const char *create_filename(char trace_type, int trace_stack_depth) {
         return NULL;
     }
     pid_t pid = getpid();
-    if (snprintf(filename + len, PYMEMTRACE_FILE_NAME_MAX_LENGTH - len - 1, "_%d_%c_%d_PY%s.log", pid, trace_type, trace_stack_depth, PY_VERSION) == 0) {
+    int byte_len = snprintf(
+        filename + len,
+        PYMEMTRACE_FILE_NAME_MAX_LENGTH - len - 1,
+        "_%d_%c_%d_PY%s.log",
+        pid, trace_type, trace_stack_depth, PY_VERSION
+    );
+
+    if (byte_len == 0) {
         fprintf(stderr, "create_filename(): failed to add PID, stack depth and Python version.");
         return NULL;
     }

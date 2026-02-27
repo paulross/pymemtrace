@@ -55,7 +55,8 @@ def test_profile_basic_lt_310():
                                                     '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
                                                     '__repr__', '__setattr__', '__sizeof__', '__str__',
                                                     '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
-                                                    'log_file_path', 'previous_event_number', 'rss', 'write_to_log']
+                                                    'log_file_path', 'previous_event_number', 'rss',
+                                                    'write_message_to_log', 'write_to_log']
         assert os.path.isfile(profiler.trace_file_wrapper.log_file_path)
 
 
@@ -83,7 +84,8 @@ def test_profile_basic_gt_310():
                                                     '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
                                                     '__repr__', '__setattr__', '__sizeof__', '__str__',
                                                     '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
-                                                    'log_file_path', 'previous_event_number', 'rss', 'write_to_log']
+                                                    'log_file_path', 'previous_event_number', 'rss',
+                                                    'write_message_to_log', 'write_to_log']
         print(f'Profiler.trace_file_wrapper: {profiler.trace_file_wrapper}')
         assert os.path.isfile(profiler.trace_file_wrapper.log_file_path)
     print(f'Profiler: {profiler}')
@@ -116,7 +118,8 @@ def test_trace_basic_lt_310():
                                                   '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
                                                   '__repr__', '__setattr__', '__sizeof__', '__str__',
                                                   '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
-                                                  'log_file_path', 'previous_event_number', 'rss', 'write_to_log']
+                                                  'log_file_path', 'previous_event_number', 'rss',
+                                                  'write_message_to_log', 'write_to_log']
         assert os.path.isfile(tracer.trace_file_wrapper.log_file_path)
 
 
@@ -142,7 +145,8 @@ def test_trace_basic_gt_310():
                                                   '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
                                                   '__repr__', '__setattr__', '__sizeof__', '__str__',
                                                   '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
-                                                  'log_file_path', 'previous_event_number', 'rss', 'write_to_log']
+                                                  'log_file_path', 'previous_event_number', 'rss',
+                                                  'write_message_to_log', 'write_to_log']
         assert os.path.isfile(tracer.trace_file_wrapper.log_file_path)
 
 
@@ -168,7 +172,7 @@ def test_profile_inline_message_to_log_file():
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Profile() as profiler:
         b' ' * (1024 ** 2)
-        profiler.trace_file_wrapper.write_to_log(message)
+        profiler.trace_file_wrapper.write_message_to_log(message)
     with open(profiler.trace_file_wrapper.log_file_path) as file:
         file_data = file.read()
         print()
@@ -248,6 +252,71 @@ def test_trace_to_specific_log_file():
         # for line in file_data.split(b'\n'):
         #     print(line)
         assert file_data.startswith(bytes(message, 'ascii'))
+
+
+def test_trace_to_specific_log_file_nested():
+    """This tests that the nested context managers work properly.
+    In particular, when the inner one exists the outer one takes over."""
+    SLEEP = 1.0
+    d_rss_trigger = 0
+    message = 'test_trace_to_specific_log_file_nested():'
+    with tempfile.NamedTemporaryFile() as file_0:
+        # Create the outer context manager.
+        with cPyMemTrace.Trace(d_rss_trigger, message=message + '#level0', filepath=file_0.name) as trace_0:
+            trace_0.trace_file_wrapper.write_message_to_log('# Level 0 __enter__')
+            # Exercise the outer context manager *before* the inner context manager.
+            assert trace_0.trace_file_wrapper.log_file_path == file_0.name
+            for i in range(4):
+                populate_list()
+            trace_0.trace_file_wrapper.write_message_to_log('# Level 0 after populate_list()')
+
+            # Now the inner.
+            with tempfile.NamedTemporaryFile() as file_1:
+                trace_0.trace_file_wrapper.write_message_to_log('# Level 0 just prior to level 1 __enter__')
+
+                # Create the inner context manager.
+                with cPyMemTrace.Trace(d_rss_trigger, message=message + '#level1', filepath=file_1.name) as trace_1:
+
+                    trace_0.trace_file_wrapper.write_message_to_log('# Level 0 events should be suspended')
+
+                    trace_1.trace_file_wrapper.write_message_to_log('# Level 1 __enter__')
+                    # Exercise the inner context manager.
+                    assert trace_1.trace_file_wrapper.log_file_path == file_1.name
+                    for i in range(4):
+                        trace_0.trace_file_wrapper.write_message_to_log('# Level 0 events should be suspended')
+                        populate_list()
+
+                    trace_0.trace_file_wrapper.write_message_to_log('# Level 0 events should be suspended')
+
+                    trace_1.trace_file_wrapper.write_message_to_log('# Level 1 after populate_list()')
+
+                # Check the inner output
+                time.sleep(SLEEP)
+                file_1.flush()
+                file_1_data = file_1.read()
+                print()
+                print(' file_1_data '.center(75, '-'))
+                for line in file_1_data.split(b'\n'):
+                    print(line.decode('ascii'))
+                print(' file_1_data DONE '.center(75, '-'))
+                assert file_1_data.startswith(bytes(message + '#level1', 'ascii'))
+
+            trace_0.trace_file_wrapper.write_message_to_log('# Level 0 after level 1 exit')
+            # Exercise the outer context manager *before* the inner context manager.
+            assert trace_0.trace_file_wrapper.log_file_path == file_0.name
+            for i in range(4):
+                populate_list()
+            trace_0.trace_file_wrapper.write_message_to_log('# Level 0 after level 1 exit and populate_list()')
+
+        time.sleep(SLEEP)
+        file_0.flush()
+        file_0_data = file_0.read()
+        print()
+        print(' file_0_data '.center(75, '-'))
+        for line in file_0_data.split(b'\n'):
+            print(line.decode('ascii'))
+        print(' file_0_data DONE '.center(75, '-'))
+        assert file_0_data.startswith(bytes(message + '#level0', 'ascii'))
 
 
 def test_profile_depth():

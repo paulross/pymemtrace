@@ -59,6 +59,7 @@
 #define PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
 //#undef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
 
+// TODO: Remove this?
 #define PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
 //#undef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
 
@@ -203,6 +204,15 @@ typedef struct {
 #endif
 } cpyTraceFileWrapper;
 
+/**
+ * Composes an event into the event_text buffer for writing to the log file.
+ * No newline is appended.
+ *
+ * @param trace_wrapper The trace or profile wrapper.
+ * @param frame The Python Frame object.
+ * @param what The event type. See https://docs.python.org/3/c-api/profiling.html#c.Py_tracefunc
+ * @param arg The argument which depends upon \c what . See https://docs.python.org/3/c-api/profiling.html#c.Py_tracefunc
+ */
 static void
 trace_wrapper_write_frame_data_to_event_text(cpyTraceFileWrapper *trace_wrapper, PyFrameObject *frame,
                                              int what, PyObject *arg) {
@@ -212,13 +222,13 @@ trace_wrapper_write_frame_data_to_event_text(cpyTraceFileWrapper *trace_wrapper,
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
     double clock_time = (double) clock() / CLOCKS_PER_SEC;
     snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             "%-12zu +%-6ld %-12.6f %-8s %-80s %4d %-32s %12zu %12ld\n",
+             "%-12zu +%-6ld %-12.6f %-8s %-80s %4d %-32s %12zu %12ld",
              trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
              clock_time, WHAT_STRINGS[what], get_python_file_name(frame), py_frame_get_line_number(frame),
              get_python_function_name(frame, what, arg), getCurrentRSS_alternate(), d_rss);
 #else
     snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             "%-12zu +%-6ld %-8s %-80s %4d %-32s %12zu %12ld\n",
+             "%-12zu +%-6ld %-8s %-80s %4d %-32s %12zu %12ld",
              trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
              WHAT_STRINGS[what], get_python_file_name(frame), py_frame_get_line_number(frame),
              get_python_function_name(frame, what, arg), getCurrentRSS_alternate(), d_rss);
@@ -226,6 +236,54 @@ trace_wrapper_write_frame_data_to_event_text(cpyTraceFileWrapper *trace_wrapper,
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(trace_wrapper);
 }
 
+/**
+ * Composes an event and clock time into the event_text buffer for writing to the log file.
+ * No newline is appended.
+ *
+ * @param trace_wrapper The trace or profile wrapper.
+ */
+static void
+trace_wrapper_write_event_time_to_event_text(cpyTraceFileWrapper *trace_wrapper) {
+    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(trace_wrapper);
+#ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
+    double clock_time = (double) clock() / CLOCKS_PER_SEC;
+    snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+             "%-12zu +%-6ld %-12.6f",
+             trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
+             clock_time);
+#else
+    snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+             "%-12zu +%-6ld",
+             trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
+             );
+#endif // PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
+    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(trace_wrapper);
+}
+
+/**
+ * Writes a formatted message to the log file.
+ *
+ * The form is:
+ *
+ * @code
+ *  MESG: 3            +1      4.211822     message...
+ * @endcode
+ *
+ * @param trace_wrapper The trace or profile wrapper.
+ * @param message The message to write.
+ */
+static void
+trace_wrapper_write_message_to_log_file(cpyTraceFileWrapper *trace_wrapper, const char *message) {
+#ifdef PY_MEM_TRACE_WRITE_OUTPUT
+    assert(trace_wrapper->file);
+    fputs("MESG: ", trace_wrapper->file);
+    trace_wrapper_write_event_time_to_event_text(trace_wrapper);
+    fputs(trace_wrapper->event_text, trace_wrapper->file);
+    fputc(' ', trace_wrapper->file);
+    fputs(message, trace_wrapper->file);
+    fputc('\n', trace_wrapper->file);
+#endif // PY_MEM_TRACE_WRITE_OUTPUT
+}
 
 static void
 cpyTraceFileWrapper_close_file(cpyTraceFileWrapper *self) {
@@ -235,6 +293,7 @@ cpyTraceFileWrapper_close_file(cpyTraceFileWrapper *self) {
         fputs("LAST: ", self->file);
         trace_wrapper_write_frame_data_to_event_text(self, PyEval_GetFrame(), PyTrace_LINE, Py_None);
         fputs(self->event_text, self->file);
+        fputc('\n', self->file);
         // Write a final line
         fprintf(self->file, "%s\n", MARKER_LOG_FILE_END);
         fclose(self->file);
@@ -330,6 +389,9 @@ static PyMemberDef cpyTraceFileWrapper_members[] = {
 
 /**
  * Write any string to the existing logfile.
+ * Warning: This is not compatible with the log file format.
+ *
+ * TODO: Remove this in favour of write_message_to_log()?
  *
  * @param self The file wrapper.
  * @param op The Python unicode string.
@@ -353,9 +415,46 @@ cpyTraceFileWrapper_write_to_log(cpyTraceFileWrapper *self, PyObject *op) {
     Py_RETURN_NONE;
 }
 
+/**
+ * Write any string to the existing logfile.
+ * Note: This is compatible with the log file format.
+ *
+ * @param self The file wrapper.
+ * @param op The Python unicode string.
+ * @return None on success, NULL on failure (not a unicode argument).
+ */
+static PyObject *
+cpyTraceFileWrapper_write_message_to_log(cpyTraceFileWrapper *self, PyObject *op) {
+    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
+    assert(!PyErr_Occurred());
+    if (!PyUnicode_Check(op)) {
+        PyErr_Format(
+                PyExc_ValueError,
+                "write_message_to_log() requires a single string, not type %s",
+                Py_TYPE(op)->tp_name
+        );
+        return NULL;
+    }
+    Py_UCS1 *c_str = PyUnicode_1BYTE_DATA(op);
+    trace_wrapper_write_message_to_log_file(self, (const char *) c_str)
+            TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef cpyTraceFileWrapper_methods[] = {
-        {"write_to_log", (PyCFunction) cpyTraceFileWrapper_write_to_log, METH_O,
-                "Write a string to the existing log file  with a newline. Returns None."},
+        /* TODO: Remove this in favour of write_message_to_log()? */
+        {
+                "write_to_log", (PyCFunction) cpyTraceFileWrapper_write_to_log,
+                METH_O,
+                "Write any string to the existing log file with a newline. Returns None."
+                " Warning: This is not compatible with the log file format."
+        },
+        {
+                "write_message_to_log", (PyCFunction) cpyTraceFileWrapper_write_message_to_log,
+                METH_O,
+                "Write a string as a message to the existing log file with a newline. Returns None."
+                " Note: This is compatible with the log file format."
+        },
         {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
@@ -465,11 +564,14 @@ void wrapper_ll_clear(tcpyTraceFileWrapperLinkedList **h_linked_list) {
 
 /**
  * Create a trace function.
+ * This is of type \c Py_tracefunc https://docs.python.org/3/c-api/profiling.html#c.Py_tracefunc
+ * This is passed to \c PyEval_SetProfile https://docs.python.org/3/c-api/profiling.html#c.PyEval_SetProfile
+ * and \c PyEval_SetTrace https://docs.python.org/3/c-api/profiling.html#c.PyEval_SetTrace
  *
  * @param pobj The cpyTraceFileWrapper object.
  * @param frame The Python frame.
  * @param what The event type.
- * @param arg
+ * @param arg This depends on the value of \c what. See https://docs.python.org/3/c-api/profiling.html#c.Py_tracefunc
  * @return 0 on success, non-zero on failure.
  */
 static int
@@ -489,14 +591,17 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
         fputs("PREV: ", trace_wrapper->file);
 #endif
         fputs(trace_wrapper->event_text, trace_wrapper->file);
+        fputc('\n', trace_wrapper->file);
     }
     if (labs(d_rss) >= trace_wrapper->d_rss_trigger && trace_wrapper->event_number) {
         // NOTE: Ignore event number 0 as that is covered by "FRST:" below.
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
+        assert(trace_wrapper->file);
         fputs("NEXT: ", trace_wrapper->file);
 #endif
         trace_wrapper_write_frame_data_to_event_text(trace_wrapper, frame, what, arg);
         fputs(trace_wrapper->event_text, trace_wrapper->file);
+        fputc('\n', trace_wrapper->file);
         trace_wrapper->previous_event_number = trace_wrapper->event_number;
     }
 #endif // PY_MEM_TRACE_WRITE_OUTPUT
@@ -549,28 +654,29 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
                 fprintf(trace_wrapper->file, "%s\n", MARKER_LOG_FILE_START);
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
-                fprintf(trace_wrapper->file, "      %-12s %-6s  %-12s %-8s %-80s %4s %-32s %12s %12s\n",
-                        "Event", "dEvent", "Clock", "What", "File", "line", "Function", "RSS", "dRSS"
+                fprintf(trace_wrapper->file, "HEDR: %-12s %-6s  %-12s %-8s %-80s %4s %-32s %12s %12s\n",
+                        "Event", "dEvent", "Clock", "What", "File", "Line", "Function", "RSS", "dRSS"
                 );
 #else
                 fprintf(trace_wrapper->file, "%-12s %-6s  %-12s %-8s %-80s %4s %-32s %12s %12s\n",
-                        "Event", "dEvent", "Clock", "What", "File", "line", "Function", "RSS", "dRSS"
+                        "Event", "dEvent", "Clock", "What", "File", "Line", "Function", "RSS", "dRSS"
                 );
 #endif
 #else
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
-                fprintf(trace_wrapper->file, "      %-12s %-6s  %-8s %-80s %4s %-32s %12s %12s\n",
-                        "Event", "dEvent", "What", "File", "line", "Function", "RSS", "dRSS"
+                fprintf(trace_wrapper->file, "HEDR: %-12s %-6s  %-8s %-80s %4s %-32s %12s %12s\n",
+                        "Event", "dEvent", "What", "File", "Line", "Function", "RSS", "dRSS"
                 );
 #else
                 fprintf(trace_wrapper->file, "%-12s %-6s  %-8s %-80s %4s %-32s %12s %12s\n",
-                        "Event", "dEvent", "What", "File", "line", "Function", "RSS", "dRSS"
+                        "Event", "dEvent", "What", "File", "Line", "Function", "RSS", "dRSS"
                 );
 #endif
 #endif
                 fputs("FRST: ", trace_wrapper->file);
                 trace_wrapper_write_frame_data_to_event_text(trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
                 fputs(trace_wrapper->event_text, trace_wrapper->file);
+                fputc('\n', trace_wrapper->file);
                 trace_wrapper->event_number = 0;
                 trace_wrapper->rss = 0;
                 if (d_rss_trigger < 0) {
@@ -798,6 +904,16 @@ ProfileObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
          * This should **not** be decref'd here as CPython will do that on completion of a
          * with statement. */
         wrapper_ll_pop(&static_profile_wrappers);
+
+        /* Now set the Profile of the previous one if available. */
+        trace_file_wrapper = wrapper_ll_get(static_profile_wrappers);
+        if (trace_file_wrapper) {
+            PyEval_SetProfile(&trace_or_profile_function, (PyObject *) trace_file_wrapper);
+            /* Put a marker in the file. */
+            assert(trace_file_wrapper->file);
+            fprintf(trace_file_wrapper->file, "# Re-attaching previous profile file wrapper.\n");
+        }
+
         TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
         Py_RETURN_FALSE;
     }
@@ -898,6 +1014,20 @@ TraceObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
          * This should **not** be decref'd here as CPython will do that on completion of a
          * with statement. */
         wrapper_ll_pop(&static_trace_wrappers);
+
+        /* Now set the Profile of the previous one if available. */
+        trace_file_wrapper = wrapper_ll_get(static_trace_wrappers);
+        if (trace_file_wrapper) {
+            PyEval_SetTrace(&trace_or_profile_function, (PyObject *) trace_file_wrapper);
+            /* Put a marker in the file. */
+            assert(trace_file_wrapper->file);
+            trace_wrapper_write_message_to_log_file(
+                trace_file_wrapper,
+                "Re-attaching previous trace file wrapper."
+            );
+        }
+
+        TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
         Py_RETURN_FALSE;
     }
     PyErr_Format(PyExc_RuntimeError, "TraceObject.__exit__ has no cpyTraceFileWrapper");
@@ -1080,7 +1210,7 @@ debug_cPyMemtrace(int argc, char **argv) {
             Py_eval_input /* int start */,
             NULL /* PyCompilerFlags *flags */,
             -1 /* int optimize */
-            );
+    );
     fprintf(stdout, "Py_CompileStringObject: ");
     PyObject_Print(code_object, stdout, Py_PRINT_RAW);
     fprintf(stdout, "\n");
@@ -1088,7 +1218,7 @@ debug_cPyMemtrace(int argc, char **argv) {
             code_object /* PyObject *co */,
             NULL /* PyObject *globals */,
             NULL /* PyObject *locals */
-            );
+    );
     fprintf(stdout, "Py_CompileStringObject: ");
     PyObject_Print(eval_result, stdout, Py_PRINT_RAW);
     fprintf(stdout, "\n");
