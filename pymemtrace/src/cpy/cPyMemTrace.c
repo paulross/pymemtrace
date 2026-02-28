@@ -1203,6 +1203,7 @@ debug_cPyMemtrace(int argc, char **argv) {
     PyObject_Print(result_enter, stdout, Py_PRINT_RAW);
     fprintf(stdout, "\n");
 
+#if 0
     /* TODO: Write to the profiler by calling a Python function. */
     PyObject *code_object = Py_CompileStringObject(
             "import os; os.getpid()\n" /* const char *str */,
@@ -1222,6 +1223,7 @@ debug_cPyMemtrace(int argc, char **argv) {
     fprintf(stdout, "Py_CompileStringObject: ");
     PyObject_Print(eval_result, stdout, Py_PRINT_RAW);
     fprintf(stdout, "\n");
+#endif
 
     /* This detaches the profiler from the Python runtime. */
     PyObject *result_exit = ProfileObject_exit(profile_object, NULL);
