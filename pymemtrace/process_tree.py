@@ -183,6 +183,7 @@ class ProcessTree:
             sep: str,
             ostream: typing.TextIO = sys.stdout,
     ) -> None:
+        """Writes the difference between two values colourising it as appropriate."""
         assert col_spec.width_and_format_diff is not None
         if type(value) == str:
             if value != self.previous_values.get(col_spec.name, ''):
@@ -259,27 +260,33 @@ class ProcessTree:
     # See: https://psutil.readthedocs.io/en/latest/#processes for the available data
     @staticmethod
     def get_exec_time(proc: psutil.Process) -> float:
+        """Return the process time since start of process."""
         exec_time = time.time() - proc.create_time()
         return exec_time
 
     @staticmethod
     def get_cpu_percent(proc: psutil.Process) -> float:
+        """Returns the reported CPU percent usage for this process only."""
         return proc.cpu_percent()
 
     @staticmethod
     def get_cpu_time_user(proc: psutil.Process) -> float:
+        """Returns the reported CPU user time for this process only."""
         return proc.cpu_times().user
 
     @staticmethod
     def get_cpu_time_system(proc: psutil.Process) -> float:
+        """Returns the reported CPU system time for this process only."""
         return proc.cpu_times().system
 
     @staticmethod
     def get_memory_rss(proc: psutil.Process) -> int:
+        """Returns the reported Resident Set Size (RSS) for this process only."""
         return proc.memory_info().rss
 
     @staticmethod
     def get_memory_uss(proc: psutil.Process) -> int:
+        """Returns the reported USS for this process only."""
         try:
             mem_info = proc.memory_full_info()
             return mem_info.uss
@@ -289,6 +296,7 @@ class ProcessTree:
 
     @staticmethod
     def get_memory_page_faults(proc: psutil.Process) -> int:
+        """Returns the reported number of page faults for this process only."""
         mem_info = proc.memory_info()
         if hasattr(mem_info, 'pfaults'):
             return mem_info.pfaults
@@ -296,6 +304,7 @@ class ProcessTree:
 
     @staticmethod
     def get_num_context_switches(proc: psutil.Process) -> int:
+        """Returns the reported number of context switches for this process only."""
         # NOTE: This seems to be the total number of all processes???
         # Also the numbers look very dodgy.
         ctx = proc.num_ctx_switches()
@@ -303,22 +312,27 @@ class ProcessTree:
 
     @staticmethod
     def get_num_threads(proc: psutil.Process) -> int:
+        """Returns the reported number of threads for this process only."""
         return proc.num_threads()
 
     @staticmethod
     def get_status(proc: psutil.Process) -> str:
+        """Returns the reported process status as a string. For example 'running'."""
         return proc.status()
 
     @staticmethod
     def get_num_open_files(proc: psutil.Process) -> int:
+        """Returns the reported number of open files for this process only."""
         return len(proc.open_files())
 
     @staticmethod
     def get_num_net_connections(proc: psutil.Process) -> int:
+        """Returns the reported number of network connections for this process only."""
         return len(proc.net_connections())
 
     @staticmethod
     def get_cmdline(proc: psutil.Process) -> str:
+        """Returns the command line for this process."""
         return ' '.join(proc.cmdline())
 
 
@@ -330,6 +344,7 @@ def log_process(
         sep: str,
         ostream: typing.TextIO = sys.stdout,
 ) -> int:
+    """Log the process and all its child processes to the output stream."""
     try:
         proc_tree = ProcessTree(pid)
     except psutil.NoSuchProcess as err:

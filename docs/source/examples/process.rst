@@ -40,6 +40,16 @@ Here is an example:
 
 The output will be something like:
 
+.. raw:: latex
+
+    [Continued on the next page]
+
+    \pagebreak
+
+.. raw:: latex
+
+    \begin{landscape}
+
 .. code-block:: text
 
     $ python pymemtrace/examples/ex_process.py
@@ -50,6 +60,10 @@ The output will be something like:
     2020-11-16 10:36:40,397 - process.py#289 - 14052 - (ProcMon   ) - INFO     - ProcessLoggingThread-JSON {"timestamp": "2020-11-16 10:36:40.397231", "memory_info": {"rss": 11440128, "vms": 4376395776, "pfaults": 51811, "pageins": 0}, "cpu_times": {"user": 0.123984048, "system": 0.10224284, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 1.6074140071868896, "pid": 14052}
     2020-11-16 10:36:40,901 - process.py#293 - 14052 - (ProcMon   ) - INFO     - ProcessLoggingThread-JSON {"timestamp": "2020-11-16 10:36:40.901329", "memory_info": {"rss": 320774144, "vms": 4685729792, "pfaults": 127332, "pageins": 0}, "cpu_times": {"user": 0.194056, "system": 0.191915568, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 2.1114120483398438, "pid": 14052, "label": "String of 309,329,920 bytes"}
     ...
+
+.. raw:: latex
+
+    \end{landscape}
 
 Note the additions of ``"label": "String of 198,180,864 bytes"`` in two places.
 
@@ -68,13 +82,23 @@ You can specify an actual log level so:
     with process.log_process(interval=0.5, logging.INFO):
         # As before.
 
-And that will suppress any ``process`` output if you have teh logging level set at, say, ERROR.
+And that will suppress any ``process`` output if you have the logging level set at, say, ERROR.
 
 
 Monitoring Another Process
 -----------------------------------
 
 ``process`` can monitor another process from the command line:
+
+.. raw:: latex
+
+    [Continued on the next page]
+
+    \pagebreak
+
+.. raw:: latex
+
+    \begin{landscape}
 
 .. code-block:: bash
 
@@ -91,6 +115,10 @@ Monitoring Another Process
     2020-11-10 20:46:47,626 - process.py#289 - 71869 - (MainThread) - INFO     - ProcessLoggingThread-JSON-STOP {"timestamp": "2020-11-10 20:46:47.626020", "memory_info": {"rss": 12906496, "vms": 4359774208, "pfaults": 3310, "pageins": 960}, "cpu_times": {"user": 0.248923952, "system": 0.078601624, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 1402.3160009384155, "pid": 71519}
     Bye, bye!
 
+
+.. raw:: latex
+
+    \end{landscape}
 
 Using ``gnuplot`` on the Log File
 --------------------------------------

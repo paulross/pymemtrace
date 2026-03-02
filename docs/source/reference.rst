@@ -6,6 +6,7 @@ pymemtrace Reference
     :maxdepth: 3
 
     ref/process
+    ref/process_tree
     ref/c_py_mem_trace
     ref/debug_malloc_stats
     ref/trace_malloc
