@@ -225,13 +225,13 @@ trace_wrapper_write_frame_data_to_event_text(cpyTraceFileWrapper *trace_wrapper,
              "%-12zu +%-6ld %-12.6f %-8s %-80s %4d %-32s %12zu %12ld",
              trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
              clock_time, WHAT_STRINGS[what], get_python_file_name(frame), py_frame_get_line_number(frame),
-             get_python_function_name(frame, what, arg), getCurrentRSS_alternate(), d_rss);
+             get_python_function_name(frame, what, arg), rss, d_rss);
 #else
     snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
              "%-12zu +%-6ld %-8s %-80s %4d %-32s %12zu %12ld",
              trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
              WHAT_STRINGS[what], get_python_file_name(frame), py_frame_get_line_number(frame),
-             get_python_function_name(frame, what, arg), getCurrentRSS_alternate(), d_rss);
+             get_python_function_name(frame, what, arg), rss, d_rss);
 #endif // PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(trace_wrapper);
 }
