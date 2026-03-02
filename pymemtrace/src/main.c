@@ -115,9 +115,15 @@ void macosx_malloc_with_rss_and_page_faults(void) {
     printf("Malloc'd:   %12zu\n", size);
     printf("Before RSS: %12llu  Faults: %8d\n", proc_before.pti_resident_size, proc_before.pti_faults);
     printf("After  RSS: %12llu  Faults: %8d\n", proc_after.pti_resident_size, proc_after.pti_faults);
-    uint64_t d_rss = proc_after.pti_resident_size - proc_before.pti_resident_size;
-    int32_t d_faults = proc_after.pti_faults - proc_before.pti_faults;
-    double d_ratio = (double) d_rss / d_faults;
+
+    int64_t d_rss;
+    int32_t d_faults;
+    double d_ratio;
+
+    d_rss = proc_after.pti_resident_size;
+    d_rss -= proc_before.pti_resident_size;
+    d_faults = proc_after.pti_faults - proc_before.pti_faults;
+    d_ratio = (double) d_rss / d_faults;
     printf("Diff  dRSS: %12llu dFaults: %8d Ratio %f\n", d_rss, d_faults, d_ratio);
 
     free(buffer);
@@ -128,7 +134,8 @@ void macosx_malloc_with_rss_and_page_faults(void) {
         return;
     }
     printf("Free   RSS: %12llu  Faults: %8d\n", proc_after.pti_resident_size, proc_after.pti_faults);
-    d_rss = proc_after.pti_resident_size - proc_before.pti_resident_size;
+    d_rss = proc_after.pti_resident_size;
+    d_rss -= proc_before.pti_resident_size;
     d_faults = proc_after.pti_faults - proc_before.pti_faults;
     d_ratio = (double) d_rss / d_faults;
     printf("Free  dRSS: %12llu dFaults: %8d Ratio %f\n", d_rss, d_faults, d_ratio);
