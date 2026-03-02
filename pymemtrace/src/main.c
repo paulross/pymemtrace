@@ -66,10 +66,73 @@ void macosx_get_taskall_info(void) {
 void macosx_get_just_rss_info(void) {
     printf("STRT: %s\n", __PRETTY_FUNCTION__);
     pid_t pid = getpid();
-    struct proc_taskallinfo proc;
-    int st = proc_pidinfo(pid, PROC_PID_RUSAGE, 0, &proc, PROC_PID_RUSAGE_SIZE);
+
+    struct proc_taskinfo proc;
+    int st = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &proc, PROC_PIDTASKINFO_SIZE);
     printf("Result: %d %lu\n", st, sizeof(proc));
-    printf("name: %s\n", proc.pbsd.pbi_name);
+    printf("   RSS: %llu\n", proc.pti_resident_size);
+    printf("DONE: %s\n", __PRETTY_FUNCTION__);
+}
+
+void macosx_get_just_page_faults(void) {
+    printf("STRT: %s\n", __PRETTY_FUNCTION__);
+    pid_t pid = getpid();
+
+    struct proc_taskinfo proc;
+    int st = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &proc, PROC_PIDTASKINFO_SIZE);
+    printf("Result: %d %lu\n", st, sizeof(proc));
+    printf("Faults: %d\n", proc.pti_faults);
+    printf("DONE: %s\n", __PRETTY_FUNCTION__);
+}
+
+void macosx_malloc_with_rss_and_page_faults(void) {
+    printf("STRT: %s\n", __PRETTY_FUNCTION__);
+    pid_t pid = getpid();
+    int status;
+
+    struct proc_taskinfo proc_before;
+    status = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &proc_before, PROC_PIDTASKINFO_SIZE);
+//    printf("Result: %d %lu\n", st, sizeof(proc_before));
+    if (status != sizeof(proc_before)) {
+        printf("ERROR: st %d != sizeof(proc_before) %lu", status, sizeof(proc_before));
+        return;
+    }
+
+    size_t size = 1024 * 1024 * 1024;
+    char *buffer = malloc(size);
+    /* Need this a malloc is lazy w.r.t. malloc(). */
+    for (size_t i = 0; i < size; ++i) {
+        buffer[i] = (char)(i % 256);
+    }
+    struct proc_taskinfo proc_after;
+    status = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &proc_after, PROC_PIDTASKINFO_SIZE);
+//    printf("Result: %d %lu\n", st, sizeof(proc_before));
+    if (status != sizeof(proc_after)) {
+        printf("ERROR: st %d != sizeof(proc_after) %lu", status, sizeof(proc_after));
+        free(buffer);
+        return;
+    }
+    printf("Malloc'd:   %12zu\n", size);
+    printf("Before RSS: %12llu  Faults: %8d\n", proc_before.pti_resident_size, proc_before.pti_faults);
+    printf("After  RSS: %12llu  Faults: %8d\n", proc_after.pti_resident_size, proc_after.pti_faults);
+    uint64_t d_rss = proc_after.pti_resident_size - proc_before.pti_resident_size;
+    int32_t d_faults = proc_after.pti_faults - proc_before.pti_faults;
+    double d_ratio = (double) d_rss / d_faults;
+    printf("Diff  dRSS: %12llu dFaults: %8d Ratio %f\n", d_rss, d_faults, d_ratio);
+
+    free(buffer);
+
+    status = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &proc_after, PROC_PIDTASKINFO_SIZE);
+    if (status != sizeof(proc_after)) {
+        printf("ERROR: st %d != sizeof(proc_after) %lu", status, sizeof(proc_after));
+        return;
+    }
+    printf("Free   RSS: %12llu  Faults: %8d\n", proc_after.pti_resident_size, proc_after.pti_faults);
+    d_rss = proc_after.pti_resident_size - proc_before.pti_resident_size;
+    d_faults = proc_after.pti_faults - proc_before.pti_faults;
+    d_ratio = (double) d_rss / d_faults;
+    printf("Free  dRSS: %12llu dFaults: %8d Ratio %f\n", d_rss, d_faults, d_ratio);
+
     printf("DONE: %s\n", __PRETTY_FUNCTION__);
 }
 
@@ -135,6 +198,12 @@ main (int argc, char **argv) {
 
     printf("\n");
     macosx_get_just_rss_info();
+
+    printf("\n");
+    macosx_get_just_page_faults();
+
+    printf("\n");
+    macosx_malloc_with_rss_and_page_faults();
 
     printf("\n");
     int debug_result;
