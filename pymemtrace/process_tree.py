@@ -3,6 +3,7 @@ This monitors a process **and** all its child processes.
 """
 import argparse
 import dataclasses
+import json
 import logging
 import os
 import sys
@@ -36,11 +37,17 @@ class WriteSummaryColumn:
     width_and_format: ColumnWidthFormat
     width_and_format_diff: typing.Optional[ColumnWidthFormat]
 
+    def name_and_units(self) -> str:
+        if self.units:
+            return f'{self.name}({self.units})'
+        return self.name
+
 
 @dataclasses.dataclass
 class WriteSummaryConfig:
     """What to write out in the summary."""
     columns: typing.List[WriteSummaryColumn]
+    json_file_path: str
 
 
 class ProcessTree:
@@ -222,6 +229,7 @@ class ProcessTree:
     def write_summary(
             self,
             depth: int,
+            record_number: int,
             write_summary_config: WriteSummaryConfig,
             sep: str,
             ostream: typing.TextIO = sys.stdout,
@@ -252,9 +260,44 @@ class ProcessTree:
             return
         # Done with self.
         ostream.write('\n')
+        if write_summary_config.json_file_path and depth == 0:
+            self._write_summary_json(record_number, write_summary_config)
         # Recurse through the children.
         for child in self.children:
-            child.write_summary(depth + 1, write_summary_config, sep, ostream)
+            child.write_summary(depth + 1, record_number, write_summary_config, sep, ostream)
+
+    def _write_summary_json(self, record_number: int, write_summary_config: WriteSummaryConfig):
+        """Writes the summary as a JSON file controlled by write_summary_config."""
+        assert write_summary_config.json_file_path
+        json_output = self._get_data_as_dict_for_json(write_summary_config)
+        with open(write_summary_config.json_file_path, 'a') as file:
+            # JSON does not like trailing commas so we write the comma lazily.
+            if record_number:
+                file.write(',\n')
+            file.write(json.dumps(json_output, indent=2))
+            # file.write(',\n')
+
+    def _get_data_as_dict_for_json(self, write_summary_config: WriteSummaryConfig) -> typing.Dict[str, typing.Any]:
+        """Recursive call to get all the tree as a dict suitable for writing to JSON."""
+        json_output = {
+            'process_time': self.get_exec_time(self.proc),
+            'pid': self.proc.pid,
+            'name': self.proc.name(),
+        }
+        for col_spec in write_summary_config.columns:
+            value = col_spec.getter(self.proc)
+            # json_output[col_spec.name_and_units()] = value
+            json_output[col_spec.name] = value
+        child_json = []
+        for child in self.children:
+            try:
+                child_json.append(child._get_data_as_dict_for_json(write_summary_config))
+            except psutil.AccessDenied:
+                pass
+            except psutil.NoSuchProcess:
+                pass
+        json_output['children'] = child_json
+        return json_output
 
     # Static functions that return data from a process.
     # See: https://psutil.readthedocs.io/en/latest/#processes for the available data
@@ -292,7 +335,7 @@ class ProcessTree:
             return mem_info.uss
         except psutil.AccessDenied:
             # TODO: Why does this happen? Even with sudo.
-            return -1 * 1024**2
+            return -1  # * 1024**2
 
     @staticmethod
     def get_memory_page_faults(proc: psutil.Process) -> int:
@@ -358,7 +401,10 @@ def log_process(
             cmd_args.append(cmd_arg)
     print(f'CMD: {" ".join(cmd_args)}')
     proc_tree.write_header(write_summary_config, sep, ostream)
-    record_num = 0
+    record_number = 0
+    if write_summary_config.json_file_path:
+        with open(write_summary_config.json_file_path, 'w') as json_file:
+            json_file.write('[\n')
     try:
         while True:
             if not proc_tree.proc.is_running():
@@ -366,16 +412,22 @@ def log_process(
                 break
             t_start = time.time()
             proc_tree.update_children()
-            if omit_first and record_num == 0:
+            if omit_first and record_number == 0:
                 proc_tree.load_previous(write_summary_config)
             else:
-                proc_tree.write_summary(0, write_summary_config, sep, ostream)
-            record_num += 1
+                proc_tree.write_summary(0, record_number, write_summary_config, sep, ostream)
+            record_number += 1
             t_exec = time.time() - t_start
             if interval > t_exec:
                 time.sleep(interval - t_exec)
+        # if write_summary_config.json_file_path:
+        #     with open(write_summary_config.json_file_path, 'a') as json_file:
+        #         json_file.write('\n]\n')
     except KeyboardInterrupt:
         print('KeyboardInterrupt!')
+    if write_summary_config.json_file_path and record_number > 0:
+        with open(write_summary_config.json_file_path, 'a') as json_file:
+            json_file.write('\n]\n')
     return 0
 
 
@@ -429,6 +481,13 @@ def main() -> int:
     parser.add_argument("-a", "--all", action="store_true",
                         help="Show typical data, equivalent to -cfgstn. default: %(default)s")
 
+    parser.add_argument('--json', type=str,
+                        help=(
+                            'Path to a JSON file to also write the data to.'
+                            ' [default: "%(default)s"]'
+                        ),
+                        default='')
+
     # parser.add_argument('path_in', type=str, help='Input path.', nargs='?')
     # parser.add_argument('path_out', type=str, help='Output path.', nargs='?')
     args = parser.parse_args()
@@ -450,6 +509,7 @@ def main() -> int:
                 ColumnWidthFormat(8, '8,.1f'), ColumnWidthFormat(8, '+8,.1f'),
             ),
         ],
+        args.json,
     )
     if args.uss:  # or args.all:
         write_summary_config.columns.append(
