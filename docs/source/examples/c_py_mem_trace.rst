@@ -5,7 +5,7 @@
 
 ``cPyMemTrace`` is a Python profiler written in 'C' that records the `Resident Set Size <https://en.wikipedia.org/wiki/Resident_set_size>`_
 for every Python and C call and return.
-It writes this data to a log file with a name of the form ``YYMMDD_HHMMSS_PID.log``.
+It writes this data to a log file with a name of the form ``"20241107_195847_62264_P_0_PY3.13.0b3.log"``.
 
 Logging Changes in RSS
 --------------------------------
@@ -90,3 +90,31 @@ And the log file looks like this:
     NEXT: 65           +1      0.084568     C_RETURN test.py #  65 len           17526784            0
 
 There is some discussion about the performance of ``cPyMemTrace`` here :ref:`tech_notes-cpymemtrace`
+
+Stacking Context Managers
+-------------------------------
+
+The ``cPyMemTrace`` profile and trace context managers can be stacked.
+In that case a new log file is started and the previous one is temporarily suspended.
+``cPyMemTrace`` only writes to one log file at a time.
+The log file has the stack depth in its name.
+For example:
+
+.. code-block:: python
+
+    from pymemtrace import cPyMemTrace
+
+    with cPyMemTrace.Profile():
+        # Now writing to, say, "20241107_195847_62264_P_0_PY3.13.0b3.log"
+        # Note the "_0_" in the file name.
+        with cPyMemTrace.Profile():
+            # Writing to "20241107_195847_62264_P_0_PY3.13.0b3.log" is suspended.
+            # Now writing to, say, "20241107_195847_62264_P_1_PY3.13.0b3.log"
+            # Note the "_1_" in the file name.
+            pass
+        # The log file "20241107_195847_62264_P_1_PY3.13.0b3.log" is closed.
+        # Writing to "20241107_195847_62264_P_0_PY3.13.0b3.log" is resumed.
+        pass
+    # The log file "20241107_195847_62264_P_0_PY3.13.0b3.log" is closed.
+
+When running all the tests example log files will be generated in the ``tests`` directory.
