@@ -432,7 +432,37 @@ def log_process(
 
 
 def main() -> int:
-    """Main CLI entry point."""
+    """Main CLI entry point.
+
+    .. code-block:: text
+
+        usage: process_tree.py [-h] [-i INTERVAL] [-p PID] [-l LOG_LEVEL] [--sep SEP] [-1] [-u] [-g] [-c] [-x] [-t] [-s] [-f] [-n] [--cmdline] [-a] [--json JSON]
+
+        Tracks the resource usage of a process and all of it's child processes.
+
+        options:
+          -h, --help            show this help message and exit
+          -i INTERVAL, --interval INTERVAL
+                                Logging interval in seconds [default: 1.0]
+          -p PID, --pid PID     PID to monitor, -1 it is this process [default: -1]
+          -l LOG_LEVEL, --log_level LOG_LEVEL
+                                Log Level (debug=10, info=20, warning=30, error=40, critical=50) [default: 20]
+          --sep SEP             String to use as seperator such as "|". Default is to format as a table [default: ""]
+          -1, --omit-first      Omit the first sample. This makes the diffs a bit cleaner. [default: False]
+          -u, --uss             The USS, this is the amount of memory that would be freed if the process was terminated right now. [default: False]
+          -g, --page-faults     Number of page faults. [default: False]
+          -c, --cpu-times       user and system time. [default: False]
+          -x, --context-switches
+                                Show number of contest switches. [default: False]
+          -t, --threads         Show number of threads. [default: False]
+          -s, --status          Show the status. [default: False]
+          -f, --open-files      Show the number of open files. [default: False]
+          -n, --net-connections
+                                Show the number of network connections. [default: False]
+          --cmdline             Show the command line for each process (verbose). [default: False]
+          -a, --all             Show typical data, equivalent to -cfgstn. [default: False]
+          --json JSON           Path to a JSON file to also write the data to. [default: "]"]
+    """
     parser = argparse.ArgumentParser(
         prog='process_tree.py',
         description="""Tracks the resource usage of a process and all of it's child processes.""",
@@ -453,38 +483,39 @@ def main() -> int:
                         ),
                         default='')
     parser.add_argument("-1", "--omit-first", action="store_true",
-                        help="Omit the first sample. This makes the diffs a bit cleaner. default: %(default)s")
+                        help="Omit the first sample. This makes the diffs a bit cleaner. [default: %(default)s]")
 
     parser.add_argument("-u", "--uss", action="store_true",
                         help=(
-                            "The USS, this is the amount of memory that would be freed if the process was terminated right now."
-                            " default: %(default)s"
+                            "The USS, this is the amount of memory that would be"
+                            " freed if the process was terminated right now."
+                            " [default: %(default)s]"
                         )
                         )
     parser.add_argument("-g", "--page-faults", action="store_true",
-                        help="Number of page faults. default: %(default)s")
+                        help="Number of page faults. [default: %(default)s]")
     parser.add_argument("-c", "--cpu-times", action="store_true",
-                        help="user and system time. default: %(default)s")
+                        help="user and system time. [default: %(default)s]")
     parser.add_argument("-x", "--context-switches", action="store_true",
-                        help="Show number of contest switches. default: %(default)s")
+                        help="Show number of contest switches. [default: %(default)s]")
     parser.add_argument("-t", "--threads", action="store_true",
-                        help="Show number of threads. default: %(default)s")
+                        help="Show number of threads. [default: %(default)s]")
     parser.add_argument("-s", "--status", action="store_true",
-                        help="Show the status. default: %(default)s")
+                        help="Show the status. [default: %(default)s]")
     parser.add_argument("-f", "--open-files", action="store_true",
-                        help="Show the number of open files. default: %(default)s")
+                        help="Show the number of open files. [default: %(default)s]")
     parser.add_argument("-n", "--net-connections", action="store_true",
-                        help="Show the number of network connections. default: %(default)s")
+                        help="Show the number of network connections. [default: %(default)s]")
     parser.add_argument("--cmdline", action="store_true",
-                        help="Show the command line for each process (verbose). default: %(default)s")
+                        help="Show the command line for each process (verbose). [default: %(default)s]")
 
     parser.add_argument("-a", "--all", action="store_true",
-                        help="Show typical data, equivalent to -cfgstn. default: %(default)s")
+                        help="Show typical data, equivalent to -cfgstn. [default: %(default)s]")
 
     parser.add_argument('--json', type=str,
                         help=(
                             'Path to a JSON file to also write the data to.'
-                            ' [default: "%(default)s"]'
+                            ' [default: "%(default)s]"]'
                         ),
                         default='')
 
@@ -555,7 +586,7 @@ def main() -> int:
         write_summary_config.columns.append(
             WriteSummaryColumn(
                 'Thrds', ProcessTree.get_num_threads, 1, '',
-                ColumnWidthFormat(5, '5,d'), ColumnWidthFormat(5, '+5,d'),
+                ColumnWidthFormat(6, '6,d'), ColumnWidthFormat(6, '+6,d'),
             ),
         )
     if args.status or args.all:

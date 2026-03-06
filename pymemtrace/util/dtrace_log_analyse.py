@@ -1,50 +1,55 @@
 """
+This attempts to reconcile all the memory and free allocations reported by DTrace.
 
-Example:
+For example given the DTrace log like this:
 
-dtrace:::BEGIN
- 77633  cmn_cmd_opts.py:141  -> set_log_level malloc(560) pntr 0x7fca83ef4240
- 77633      __init__.py:422  -> validate malloc(1114) pntr 0x7fca858e4200
- 77633      __init__.py:422  -> validate free(0x7fca858e4200)
- 77633     threading.py:817  -> __init__ malloc(576) pntr 0x7fca83ef4470
- 77633      __init__.py:471  -> _init malloc(576) pntr 0x7fca83ef46b0
- 77633     threading.py:870  -> start malloc(264) pntr 0x7fca83ef21e0
- 77633     threading.py:870  -> start malloc(16) pntr 0x7fca83d48a30
- 77633     threading.py:574  -> wait malloc(536) pntr 0x7fca83d54be0
- 77633     threading.py:364  -> notify malloc(528) pntr 0x7fca83c47e80
- 77633       process.py:268  -> _get_process_data free(0x0)
- 77633       process.py:268  -> _get_process_data malloc(4096) pntr 0x7fca8408d200
- 77633       process.py:268  -> _get_process_data malloc(25) pntr 0x7fca83c00620
- 77633       process.py:268  -> _get_process_data malloc(4096) pntr 0x7fca8408e200
- 77633       process.py:268  -> _get_process_data free(0x0)
- 77633       process.py:268  -> _get_process_data free(0x0)
- 77633       process.py:268  -> _get_process_data free(0x0)
- 77633       process.py:268  -> _get_process_data free(0x0)
- 77633       process.py:268  -> _get_process_data free(0x0)
- 77633       process.py:268  -> _get_process_data free(0x0)
- 77633       process.py:268  -> _get_process_data free(0x0)
- 77633       process.py:268  -> _get_process_data free(0x7fca83c00620)
- 77633       process.py:268  -> _get_process_data free(0x7fca8408e200)
- 77633       process.py:268  -> _get_process_data free(0x7fca8408d200)
-dtrace::END
+.. code-block:: text
 
+    dtrace:::BEGIN
+     77633  cmn_cmd_opts.py:141  -> set_log_level malloc(560) pntr 0x7fca83ef4240
+     77633      __init__.py:422  -> validate malloc(1114) pntr 0x7fca858e4200
+     77633      __init__.py:422  -> validate free(0x7fca858e4200)
+     77633     threading.py:817  -> __init__ malloc(576) pntr 0x7fca83ef4470
+     77633      __init__.py:471  -> _init malloc(576) pntr 0x7fca83ef46b0
+     77633     threading.py:870  -> start malloc(264) pntr 0x7fca83ef21e0
+     77633     threading.py:870  -> start malloc(16) pntr 0x7fca83d48a30
+     77633     threading.py:574  -> wait malloc(536) pntr 0x7fca83d54be0
+     77633     threading.py:364  -> notify malloc(528) pntr 0x7fca83c47e80
+     77633       process.py:268  -> _get_process_data free(0x0)
+     77633       process.py:268  -> _get_process_data malloc(4096) pntr 0x7fca8408d200
+     77633       process.py:268  -> _get_process_data malloc(25) pntr 0x7fca83c00620
+     77633       process.py:268  -> _get_process_data malloc(4096) pntr 0x7fca8408e200
+     77633       process.py:268  -> _get_process_data free(0x0)
+     77633       process.py:268  -> _get_process_data free(0x0)
+     77633       process.py:268  -> _get_process_data free(0x0)
+     77633       process.py:268  -> _get_process_data free(0x0)
+     77633       process.py:268  -> _get_process_data free(0x0)
+     77633       process.py:268  -> _get_process_data free(0x0)
+     77633       process.py:268  -> _get_process_data free(0x0)
+     77633       process.py:268  -> _get_process_data free(0x7fca83c00620)
+     77633       process.py:268  -> _get_process_data free(0x7fca8408e200)
+     77633       process.py:268  -> _get_process_data free(0x7fca8408d200)
+    dtrace::END
 
-2025-08-26 13:35:50,956 - dtrace_log_analyse.py#201 - INFO     - Ending DTrace block at line 16261386
-DTraceMallocs:
-malloc count outstanding:      926,784
- Total bytes outstanding:  122,456,515
-   Max bytes outstanding:  220,487,009
-    Total bytes malloc'd:  837,846,488
-      Total bytes free'd:  715,389,973
-          Maximum malloc:      589,880
-         Max allocations:    2,314,384
-           Count mallocs:    7,197,954
-    Count frees non-null:    6,271,170
-        Count frees null:       39,119
-Total lines: 16,261,304 Failed parse lines: 36,526 Failed malloc: 931,407 Failed free: 1,785,128
-Process time: 602.995 (s)
-(pymemtrace_3.12_A)
-engun@Pauls-MBP-2  ~/Documents/workspace/pymemtrace (develop)
+This produces the following summary output:
+
+.. code-block:: text
+
+    2025-08-26 13:35:50,956 - dtrace_log_analyse.py#201 - INFO     - Ending DTrace block at line 16261386
+    DTraceMallocs:
+    malloc count outstanding:      926,784
+     Total bytes outstanding:  122,456,515
+       Max bytes outstanding:  220,487,009
+        Total bytes malloc'd:  837,846,488
+          Total bytes free'd:  715,389,973
+              Maximum malloc:      589,880
+             Max allocations:    2,314,384
+               Count mallocs:    7,197,954
+        Count frees non-null:    6,271,170
+            Count frees null:       39,119
+    Total lines: 16,261,304 Failed parse lines: 36,526 Failed malloc: 931,407 Failed free: 1,785,128
+    Process time: 602.995 (s)
+    (pymemtrace_3.12_A)
 
 """
 import argparse
@@ -281,9 +286,9 @@ def pprint_mallocs(dtm: DTraceMallocs, st=sys.stdout) -> None:
     st.write(dtm.str_failures() + '\n')
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(
-        prog='process.py',
+        prog='dtrace_log_analyse.py',
         description="""Reads an DTrace log of a process and analyses it.""",
     )
     parser.add_argument("-l", "--log_level", type=int, dest="log_level", default=20,
@@ -302,6 +307,7 @@ def main():
     result = read_dtrace_log(args.path_in)
     pprint_mallocs(result)
     print(f'Process time: {time.perf_counter() - time_start:.3f} (s)')
+    return 0
 
 
 if __name__ == '__main__':

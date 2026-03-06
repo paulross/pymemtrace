@@ -10,28 +10,28 @@ History
 * Supported Python versions are: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14
 * Development Status :: 5 - Production/Stable
 * cPyMemTrace:
-    * Fix stacking pop() issue with trace/profile functions with linked list of tTraceFileWrapperLinkedList.
+    * Fix stacking ``pop()`` issue with trace/profile functions with linked list of ``tTraceFileWrapperLinkedList``.
     * Add an option to log to a specific file.
-    * Add an API write_message-to_log() to inject text into the log file.
+    * Add an API ``write_message_to_log()`` to inject text into the log file.
     * Better structure of the log file format.
     * Define the log file format.
-    * add debug exploration code with debug_cPyMemtrace().
-* Add process-tree.py for logging a process and its children.
+    * Add debug exploration code with ``debug_cPyMemtrace()``.
+* Add ``process-tree.py`` for logging a process and its children.
 
 0.2.0 (2024-11-17)
 ---------------------
 
 * cPyMemTrace:
     * Add P/T, stack depth and python version to log file name, example:
-      "20241107_195847_62264_P_0_PY3.13.0b3.log"
-    * Add stacking of trace/profile functions with linked list of tTraceFileWrapperLinkedList.
+      ``"20241107_195847_62264_P_0_PY3.13.0b3.log"``
+    * Add stacking of trace/profile functions with linked list of ``tTraceFileWrapperLinkedList``.
     * Add an option to log to a specific file.
-    * Add an API write_to_log() to inject text into the log file.
-    * Add an optional message to the log file in cPyMemTrace.
-    * Add Python API to get log file being written to by cPyMemTrace.
-    * Bug fixes in cPyMemTrace.c
+    * Add an API ``write_to_log()`` to inject text into the log file.
+    * Add an optional message to the log file in ``cPyMemTrace``.
+    * Add Python API to get log file being written to by ``cPyMemTrace``.
+    * Bug fixes in ``cPyMemTrace.c``
     * Safety fix for file path name lengths.
-    * Fix for log files where '#' was being concatenated.
+    * Fix for log files where ``'#'`` was being concatenated.
 
 0.1.7 (2024-09-12)
 ------------------
@@ -66,12 +66,12 @@ History
 0.1.1 (2020-11-17)
 ------------------
 
-* Add cPyMemTrace the C level profiler.
+* Add ``cPyMemTrace`` the C level profiler.
 * Add DTrace scripts for low level tracing.
-* Add debug_malloc_stats the wrapper around sys._debugmallocstats.
-* Add process from the TotalDepth project.
-* Add redirect_stdout for debug_malloc_stats.
-* Add trace_malloc, a wrapper around the tracemalloc module.
+* Add ``debug_malloc_stats`` the wrapper around ``sys._debugmallocstats``.
+* Add ``process.py`` from the TotalDepth project.
+* Add redirect_stdout for ``debug_malloc_stats``.
+* Add ``trace_malloc``, a wrapper around the ``tracemalloc`` module.
 * Includes extensive documentation and performance measurement.
 * First release on PyPI.
 

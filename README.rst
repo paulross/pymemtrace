@@ -13,7 +13,11 @@ pymemtrace Tools
 
 The tools provided by ``pymemtrace``:
 
-* ``process`` is a very lightweight way of logging the total memory usage at regular time intervals.
+* ``process_tree`` is a command line tool that shows the total memory usage of a process *and* its child processes
+  at regular time intervals.
+  It can log this data to a JSON file for later analysis.
+  See `some process_tree examples <https://pymemtrace.readthedocs.io/en/latest/examples/process_tree.html>`_
+* ``process`` is a very lightweight way of logging the total memory usage of a single process at regular time intervals.
   It can plot memory over time with plotting programs such as ``gnuplot``.
   See `some process examples <https://pymemtrace.readthedocs.io/en/latest/examples/process.html>`_
 * ``cPyMemTrace`` is a memory tracer written in C that can report total memory usage for every function call/return for
@@ -51,7 +55,7 @@ Each tool can be characterised by:
 Clearly there are trade-offs between these depending on the problem you are trying to solve.
 
 .. list-table:: **Tool Characteristics**
-   :widths: 15 30 30 30 30
+   :widths: 30 30 30 30 30
    :header-rows: 1
 
    * - Tool
@@ -59,6 +63,11 @@ Clearly there are trade-offs between these depending on the problem you are tryi
      - Execution Granularity
      - Memory Cost
      - Execution Cost
+   * - ``process_tree``
+     - RSS (total Python and C memory).
+     - Regular time intervals.
+     - Near zero.
+     - Near zero.
    * - ``process``
      - RSS (total Python and C memory).
      - Regular time intervals.
