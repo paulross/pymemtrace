@@ -924,7 +924,7 @@ ProfileObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
     return NULL;
 }
 
-static PyMethodDef cpyProfileOrTraceObject_methods[] = {
+static PyMethodDef cpyProfileObject_methods[] = {
         {"__enter__", (PyCFunction) ProfileObject_enter, METH_NOARGS,
                 "Attach a Profile object to the C runtime."},
         {"__exit__",  (PyCFunction) ProfileObject_exit,  METH_VARARGS,
@@ -951,7 +951,7 @@ static PyTypeObject cpyProfileObjectType = {
         .tp_new = cpyProfileOrTraceObject_new,
         .tp_init = (initproc) cpyProfileOrTraceObject_init,
         .tp_dealloc = (destructor) cpyProfileOrTraceObject_dealloc,
-        .tp_methods = cpyProfileOrTraceObject_methods,
+        .tp_methods = cpyProfileObject_methods,
         .tp_members = cpyProfileOrTraceObject_members,
 };
 /**** END: Context manager for attach_profile_function() and detach_profile_function() ****/
@@ -1035,7 +1035,7 @@ TraceObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
     return NULL;
 }
 
-static PyMethodDef TraceObject_methods[] = {
+static PyMethodDef cpyTraceObject_methods[] = {
         {"__enter__", (PyCFunction) TraceObject_enter, METH_NOARGS,
                 "Attach a Trace object to the C runtime."},
         {"__exit__",  (PyCFunction) TraceObject_exit,  METH_VARARGS,
@@ -1062,7 +1062,7 @@ static PyTypeObject cpyTraceObjectType = {
         .tp_new = cpyProfileOrTraceObject_new,
         .tp_init = (initproc) cpyProfileOrTraceObject_init,
         .tp_dealloc = (destructor) cpyProfileOrTraceObject_dealloc,
-        .tp_methods = TraceObject_methods,
+        .tp_methods = cpyTraceObject_methods,
         .tp_members = cpyProfileOrTraceObject_members,
 };
 /**** END: Context manager for attach_trace_function() and detach_trace_function() ****/
