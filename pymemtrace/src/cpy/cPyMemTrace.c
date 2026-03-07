@@ -337,6 +337,24 @@ cpyTraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
     return (PyObject *) self;
 }
 
+/**
+ * Prevent initialisation of the cpyTraceFileWrapper from Python.
+ *
+ * @param type The cpyTraceFileWrapper type.
+ * @param _unused_args
+ * @param _unused_kwds
+ * @return -1 with error set.
+ */
+static int
+cpyTraceFileWrapper_init(PyTypeObject *Py_UNUSED(type), PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
+    assert(!PyErr_Occurred());
+    PyErr_SetString(
+            PyExc_TypeError,
+            "A TraceFileWrapper can not be constructed directly but only internally with new_trace_file_wrapper()")
+            ;
+    return -1;
+}
+
 // MARK: - cpyTraceFileWrapper members
 
 static PyMemberDef cpyTraceFileWrapper_members[] = {
@@ -468,6 +486,7 @@ static PyTypeObject cpyTraceFileWrapperType = {
         .tp_itemsize = 0,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
         .tp_new = cpyTraceFileWrapper_new,
+        .tp_init = (initproc) cpyTraceFileWrapper_init,
         .tp_alloc = PyType_GenericAlloc,
         .tp_dealloc = (destructor) cpyTraceFileWrapper_dealloc,
         .tp_members = cpyTraceFileWrapper_members,
@@ -1098,6 +1117,10 @@ PyInit_cPyMemTrace(void) {
         return NULL;
     }
     Py_INCREF(&cpyTraceFileWrapperType);
+    if (PyModule_AddObject(m, "TraceFileWrapper", (PyObject *) &cpyTraceFileWrapperType) < 0) {
+        Py_DECREF(m);
+        return NULL;
+    }
 
     /* Add the Profile object. */
     if (PyType_Ready(&cpyProfileObjectType) < 0) {
