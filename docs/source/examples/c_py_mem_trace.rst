@@ -118,3 +118,48 @@ For example:
     # The log file "20241107_195847_62264_P_0_PY3.13.0b3.log" is closed.
 
 When running all the tests example log files will be generated in the ``tests`` directory.
+
+The module level function will give you the stack depth:
+
+.. code-block:: python
+
+    assert cPyMemTrace.profile_wrapper_depth() == 0
+    with cPyMemTrace.Profile():
+        assert cPyMemTrace.profile_wrapper_depth() == 1
+        with cPyMemTrace.Profile():
+            assert cPyMemTrace.profile_wrapper_depth() == 2
+            with cPyMemTrace.Profile():
+                assert cPyMemTrace.profile_wrapper_depth() == 3
+            assert cPyMemTrace.profile_wrapper_depth() == 2
+        assert cPyMemTrace.profile_wrapper_depth() == 1
+    assert cPyMemTrace.profile_wrapper_depth() == 0
+
+Logging to a Temporary File
+------------------------------
+
+By default the log is written to a file in the current working directory.
+To write to a specific file, and then read it follow this pattern:
+
+.. code-block:: python
+
+    import tempfile
+
+    with tempfile.NamedTemporaryFile() as file:
+        with cPyMemTrace.Trace(0, message='# Trace level0', filepath=file.name) as trace:
+            trace.trace_file_wrapper.write_message_to_log('# Level 0 __enter__')
+            temp_list = []
+            for i in range(16):
+                temp_list.append(b' ' * (1024 ** 2))
+            trace.trace_file_wrapper.write_message_to_log('# Level 0 after populating list.')
+            while len(temp_list):
+                temp_list.pop()
+            trace.trace_file_wrapper.write_message_to_log('# Level 0 after deleting the list.')
+        file.flush()
+        file_data = file.read()
+        print()
+        print(' filedata '.center(75, '-'))
+        for line in file_data.split(b'\n'):
+            print(line.decode('ascii'))
+        print(' file_data DONE '.center(75, '-'))
+
+See ``tests.test_cpymemtrace.test_trace_to_specific_log_file_nested()`` for a more complicated example.
