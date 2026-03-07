@@ -754,18 +754,18 @@ trace_wrapper_depth(void) {
 static PyMethodDef cPyMemTraceMethods[] = {
         {"rss",                   (PyCFunction) py_rss,                METH_NOARGS, "Return the current RSS in bytes."},
         {"rss_peak",              (PyCFunction) py_rss_peak,           METH_NOARGS, "Return the peak RSS in bytes."},
-        {
-         "get_log_file_path_profile",
-                                  (PyCFunction) get_log_file_path_profile,
-                                                                       METH_NOARGS,
-                                                                                    "Return the current log file path for profiling."
-        },
-        {
-         "get_log_file_path_trace",
-                                  (PyCFunction) get_log_file_path_trace,
-                                                                       METH_NOARGS,
-                                                                                    "Return the current log file path for tracing."
-        },
+//        {
+//         "get_log_file_path_profile",
+//                                  (PyCFunction) get_log_file_path_profile,
+//                                                                       METH_NOARGS,
+//                                                                                    "Return the current log file path for profiling."
+//        },
+//        {
+//         "get_log_file_path_trace",
+//                                  (PyCFunction) get_log_file_path_trace,
+//                                                                       METH_NOARGS,
+//                                                                                    "Return the current log file path for tracing."
+//        },
         {"profile_wrapper_depth", (PyCFunction) profile_wrapper_depth, METH_NOARGS, "Return the depth of the profile wrapper stack."},
         {"trace_wrapper_depth",   (PyCFunction) trace_wrapper_depth,   METH_NOARGS, "Return the depth of the trace wrapper stack."},
         {NULL, NULL, 0, NULL}        /* Sentinel */
@@ -837,9 +837,9 @@ cpyProfileOrTraceObject_init(cpyProfileOrTraceObject *self, PyObject *args, PyOb
 
 static PyMemberDef cpyProfileOrTraceObject_members[] = {
         {
-                "trace_file_wrapper", Py_T_OBJECT_EX, offsetof(cpyProfileOrTraceObject,
+                "_trace_file_wrapper", Py_T_OBJECT_EX, offsetof(cpyProfileOrTraceObject,
                                                                trace_file_wrapper), Py_READONLY,
-                "The trace file wrapper."
+                "The trace file wrapper. This an opaque object with an unpublished API."
         },
         {NULL, 0, 0, 0, NULL} /* Sentinel */
 };
@@ -924,11 +924,54 @@ ProfileObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
     return NULL;
 }
 
+/**
+ * Simple wrapper that dispatches to the internal \c self->trace_file_wrapper.
+ *
+ * @param self
+ * @param op
+ * @return None
+ */
+static PyObject *
+cpyProfileOrTraceObject_write_to_log(cpyProfileOrTraceObject *self, PyObject *op) {
+    return cpyTraceFileWrapper_write_to_log(self->trace_file_wrapper, op);
+}
+
+/**
+ * Simple wrapper that dispatches to the internal \c self->trace_file_wrapper.
+ *
+ * @param self
+ * @param op
+ * @return None
+ */
+static PyObject *
+cpyProfileOrTraceObject_write_message_to_log(cpyProfileOrTraceObject *self, PyObject *op) {
+    return cpyTraceFileWrapper_write_message_to_log(self->trace_file_wrapper, op);
+}
+
 static PyMethodDef cpyProfileObject_methods[] = {
         {"__enter__", (PyCFunction) ProfileObject_enter, METH_NOARGS,
                 "Attach a Profile object to the C runtime."},
         {"__exit__",  (PyCFunction) ProfileObject_exit,  METH_VARARGS,
                 "Detach a Profile object from the C runtime."},
+        /* TODO: Remove this in favour of write_message_to_log()? */
+        {
+                "write_to_log", (PyCFunction) cpyProfileOrTraceObject_write_to_log,
+                METH_O,
+                "Write any string to the existing log file with a newline. Returns None."
+                " Warning: This is not compatible with the log file format."
+        },
+        {
+                "write_message_to_log", (PyCFunction) cpyProfileOrTraceObject_write_message_to_log,
+                METH_O,
+                "Write a string as a message to the existing log file with a newline. Returns None."
+                " Note: This is compatible with the log file format."
+        },
+        {
+                "log_file_path",
+                (PyCFunction) get_log_file_path_profile,
+                METH_NOARGS,
+                "Return the current log file path for profiling."
+        },
         {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
@@ -936,14 +979,19 @@ static PyTypeObject cpyProfileObjectType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.Profile",
         .tp_doc = "A context manager to attach a C profile function to the interpreter.\n"
-                  "This takes one optional argument, ``d_rss_trigger``, that decides when a trace event gets recorded."
+                  "This takes the following optional arguments:\n\n"
+                  "``d_rss_trigger``: this decides when a trace event gets recorded."
                   " Suitable values:\n\n-1 : whenever an RSS change >= page size (usually 4096 bytes) is noticed."
                   "\n\n0 : every event.\n\nn: whenever an RSS change >= n is noticed."
                   "\n\nDefault is -1."
+                  "\n\n``message``: An optional message to write to the begining of the log file."
+                  "\n\n``filepath``: An optional specific path to the log file."
+                  "\nBy default this writes to a file in the current working directory named"
+                  " \"YYYYMMDD_HHMMMSS_<PID>_P_<depth>_PY<Python Version>.log\""
+                  " For example \"20241107_195847_62264_P_0_PY3.13.0b3.log\""
                   "\n\nThis is slightly less invasive profiling than ``cPyMemTrace.Trace`` as the profile function is"
                   " called for all monitored events except the Python ``PyTrace_LINE PyTrace_OPCODE`` and"
-                  " ``PyTrace_EXCEPTION`` events."
-                  "\n\nThis writes to a file in the current working directory named \"YYYYmmdd_HHMMSS_<PID>.log\"",
+                  " ``PyTrace_EXCEPTION`` events.",
         .tp_basicsize = sizeof(cpyProfileOrTraceObject),
         .tp_itemsize = 0,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
@@ -1040,21 +1088,45 @@ static PyMethodDef cpyTraceObject_methods[] = {
                 "Attach a Trace object to the C runtime."},
         {"__exit__",  (PyCFunction) TraceObject_exit,  METH_VARARGS,
                 "Detach a Trace object from the C runtime."},
+        /* TODO: Remove this in favour of write_message_to_log()? */
+        {
+                "write_to_log", (PyCFunction) cpyProfileOrTraceObject_write_to_log,
+                METH_O,
+                "Write any string to the existing log file with a newline. Returns None."
+                " Warning: This is not compatible with the log file format."
+        },
+        {
+                "write_message_to_log", (PyCFunction) cpyProfileOrTraceObject_write_message_to_log,
+                METH_O,
+                "Write a string as a message to the existing log file with a newline. Returns None."
+                " Note: This is compatible with the log file format."
+        },
+        {
+                "log_file_path",
+                (PyCFunction) get_log_file_path_trace,
+                METH_NOARGS,
+                "Return the current log file path for tracing."
+        },
         {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
 static PyTypeObject cpyTraceObjectType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.Trace",
-        .tp_doc = "A context manager to attach a C profile function to the interpreter.\n"
-                  "This takes one optional argument, ``d_rss_trigger``, that decides when a trace event gets recorded."
+        .tp_doc = "A context manager to attach a C trace function to the interpreter.\n"
+                  "This takes the following optional arguments:\n\n"
+                  "``d_rss_trigger``: this decides when a trace event gets recorded."
                   " Suitable values:\n\n-1 : whenever an RSS change >= page size (usually 4096 bytes) is noticed."
                   "\n\n0 : every event.\n\nn: whenever an RSS change >= n is noticed."
                   "\n\nDefault is -1."
+                  "\n\n``message``: An optional message to write to the begining of the log file."
+                  "\n\n``filepath``: An optional specific path to the log file."
+                  "\nBy default this writes to a file in the current working directory named"
+                  " \"YYYYMMDD_HHMMMSS_<PID>_P_<depth>_PY<Python Version>.log\""
+                  " For example \"20241107_195847_62264_P_0_PY3.13.0b3.log\""
                   "\n\nThe tracing function does receive Python line-number events and per-opcode events"
                   " but does not receive any event related to C functionss being called."
-                  " For that use ``cPyMemTrace.Profile``"
-                  "\n\nThis writes to a file in the current working directory named \"YYYYmmdd_HHMMSS_<PID>.log\"",
+                  " For that use ``cPyMemTrace.Profile``",
         .tp_basicsize = sizeof(cpyProfileOrTraceObject),
         .tp_itemsize = 0,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
