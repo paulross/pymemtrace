@@ -212,7 +212,7 @@ def test_messaging_for_documentation():
         file_data = file.read()
         print()
         print(f'File data [{len(file_data)}]:\n{file_data}')
-        assert 0
+        # assert 0
 
 def test_profile_inline_message_to_log_file_after_exit():
     message = 'test_profile_inline_message_to_log_file():'
