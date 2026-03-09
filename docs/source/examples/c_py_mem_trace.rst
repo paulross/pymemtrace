@@ -336,3 +336,4 @@ See ``tests.test_cpymemtrace.test_trace_to_specific_log_file_nested()`` for a mo
 
     Support `Reference Tracing <https://docs.python.org/3/c-api/profiling.html#reference-tracing>`_
     from Python 3.13 onwards.
+    See an example here: `<https://github.com/python/cpython/pull/115945/changes>`_
