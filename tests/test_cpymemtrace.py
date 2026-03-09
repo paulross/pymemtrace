@@ -53,13 +53,13 @@ def test_profile_basic_lt_310():
         print(profiler._trace_file_wrapper)
         print(dir(profiler._trace_file_wrapper))
         assert dir(profiler._trace_file_wrapper) == ['__class__', '__delattr__', '__dir__', '__doc__', '__eq__',
-                                                    '__format__', '__ge__', '__getattribute__',
-                                                    '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
-                                                    '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
-                                                    '__repr__', '__setattr__', '__sizeof__', '__str__',
-                                                    '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
-                                                    'log_file_path', 'previous_event_number', 'rss',
-                                                    'write_message_to_log', 'write_to_log']
+                                                     '__format__', '__ge__', '__getattribute__',
+                                                     '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
+                                                     '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
+                                                     '__repr__', '__setattr__', '__sizeof__', '__str__',
+                                                     '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
+                                                     'log_file_path', 'previous_event_number', 'rss',
+                                                     'write_message_to_log', 'write_to_log']
         assert os.path.isfile(profiler._trace_file_wrapper.log_file_path)
 
 
@@ -86,13 +86,13 @@ def test_profile_basic_gt_310():
         print(profiler._trace_file_wrapper)
         print(dir(profiler._trace_file_wrapper))
         assert dir(profiler._trace_file_wrapper) == ['__class__', '__delattr__', '__dir__', '__doc__', '__eq__',
-                                                    '__format__', '__ge__', '__getattribute__', '__getstate__',
-                                                    '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
-                                                    '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
-                                                    '__repr__', '__setattr__', '__sizeof__', '__str__',
-                                                    '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
-                                                    'log_file_path', 'previous_event_number', 'rss',
-                                                    'write_message_to_log', 'write_to_log']
+                                                     '__format__', '__ge__', '__getattribute__', '__getstate__',
+                                                     '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
+                                                     '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
+                                                     '__repr__', '__setattr__', '__sizeof__', '__str__',
+                                                     '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
+                                                     'log_file_path', 'previous_event_number', 'rss',
+                                                     'write_message_to_log', 'write_to_log']
         print(f'Profiler._trace_file_wrapper: {profiler._trace_file_wrapper}')
         assert os.path.isfile(profiler._trace_file_wrapper.log_file_path)
     print(f'Profiler: {profiler}')
@@ -124,13 +124,13 @@ def test_trace_basic_lt_310():
         print(tracer._trace_file_wrapper)
         print(dir(tracer._trace_file_wrapper))
         assert dir(tracer._trace_file_wrapper) == ['__class__', '__delattr__', '__dir__', '__doc__', '__eq__',
-                                                  '__format__', '__ge__', '__getattribute__',
-                                                  '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
-                                                  '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
-                                                  '__repr__', '__setattr__', '__sizeof__', '__str__',
-                                                  '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
-                                                  'log_file_path', 'previous_event_number', 'rss',
-                                                  'write_message_to_log', 'write_to_log']
+                                                   '__format__', '__ge__', '__getattribute__',
+                                                   '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
+                                                   '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
+                                                   '__repr__', '__setattr__', '__sizeof__', '__str__',
+                                                   '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
+                                                   'log_file_path', 'previous_event_number', 'rss',
+                                                   'write_message_to_log', 'write_to_log']
         assert os.path.isfile(tracer._trace_file_wrapper.log_file_path)
 
 
@@ -155,20 +155,27 @@ def test_trace_basic_gt_310():
         print(tracer._trace_file_wrapper)
         print(dir(tracer._trace_file_wrapper))
         assert dir(tracer._trace_file_wrapper) == ['__class__', '__delattr__', '__dir__', '__doc__', '__eq__',
-                                                  '__format__', '__ge__', '__getattribute__', '__getstate__',
-                                                  '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
-                                                  '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
-                                                  '__repr__', '__setattr__', '__sizeof__', '__str__',
-                                                  '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
-                                                  'log_file_path', 'previous_event_number', 'rss',
-                                                  'write_message_to_log', 'write_to_log']
+                                                   '__format__', '__ge__', '__getattribute__', '__getstate__',
+                                                   '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
+                                                   '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
+                                                   '__repr__', '__setattr__', '__sizeof__', '__str__',
+                                                   '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
+                                                   'log_file_path', 'previous_event_number', 'rss',
+                                                   'write_message_to_log', 'write_to_log']
         assert os.path.isfile(tracer._trace_file_wrapper.log_file_path)
 
 
-def test_profile_start_message_to_log_file():
+@pytest.mark.parametrize(
+    'cls',
+    (
+            cPyMemTrace.Profile,
+            cPyMemTrace.Trace,
+    )
+)
+def test_profile_start_message_to_log_file(cls):
     message = 'test_profile_start_message_to_log_file():'
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
-    with cPyMemTrace.Profile(message=message) as profiler:
+    with cls(message=message) as profiler:
         log_path = profiler.log_file_path()
         print(f'Log file Profile: {log_path}')
         b' ' * (1024 ** 2)
@@ -184,10 +191,17 @@ def test_profile_start_message_to_log_file():
     assert profiler.log_file_path() is None
 
 
-def test_profile_inline_message_to_log_file():
+@pytest.mark.parametrize(
+    'cls',
+    (
+            cPyMemTrace.Profile,
+            cPyMemTrace.Trace,
+    )
+)
+def test_profile_inline_message_to_log_file(cls):
     message = 'test_profile_inline_message_to_log_file():'
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
-    with cPyMemTrace.Profile() as profiler:
+    with cls() as profiler:
         b' ' * (1024 ** 2)
         profiler.write_message_to_log(message)
     with open(profiler._trace_file_wrapper.log_file_path) as file:
@@ -197,10 +211,17 @@ def test_profile_inline_message_to_log_file():
         assert message in file_data
 
 
-def test_messaging_for_documentation():
-    with cPyMemTrace.Profile(d_rss_trigger=-1, message="Start message") as profiler:
+@pytest.mark.parametrize(
+    'cls',
+    (
+            cPyMemTrace.Profile,
+            cPyMemTrace.Trace,
+    )
+)
+def test_messaging_for_documentation(cls):
+    with cls(d_rss_trigger=-1, message="Start message") as profiler:
         for i in range(8):
-            str_len = random.randint(100 * 1024**2, 500 * 1024**2)
+            str_len = random.randint(100 * 1024 ** 2, 500 * 1024 ** 2)
             profiler.write_message_to_log(f'Before allocation of {str_len} bytes.')
             s = ' ' * str_len
             time.sleep(0.5)
@@ -214,9 +235,17 @@ def test_messaging_for_documentation():
         print(f'File data [{len(file_data)}]:\n{file_data}')
         # assert 0
 
-def test_profile_inline_message_to_log_file_after_exit():
+
+@pytest.mark.parametrize(
+    'cls',
+    (
+            cPyMemTrace.Profile,
+            cPyMemTrace.Trace
+    )
+)
+def test_profile_inline_message_to_log_file_after_exit(cls):
     message = 'test_profile_inline_message_to_log_file():'
-    with cPyMemTrace.Profile() as profiler:
+    with cls() as profiler:
         b' ' * (1024 ** 2)
         profiler.write_message_to_log(message)
     with pytest.raises(IOError) as err:
@@ -232,42 +261,47 @@ def populate_list():
         temp_list.pop()
 
 
-def test_profile_0_populate_list():
+@pytest.mark.parametrize(
+    'cls',
+    (
+            cPyMemTrace.Profile,
+            cPyMemTrace.Trace,
+    )
+)
+def test_profile_trace_0_populate_list(cls):
     message = 'test_profile_0_populate_list()'
-    with cPyMemTrace.Profile(0, message=message):
+    with cls(0, message=message):
         for i in range(4):
             populate_list()
         time.sleep(1.0)
 
 
-def test_trace_0_populate_list():
-    message = 'test_trace_0_populate_list()'
-    with cPyMemTrace.Trace(0, message=message):
+@pytest.mark.parametrize(
+    'cls',
+    (
+            cPyMemTrace.Profile,
+            cPyMemTrace.Trace,
+    )
+)
+def test_profile_trace_populate_list(cls):
+    message = 'test_profile_trace_populate_list()'
+    with cls(message=message):
         for i in range(4):
             populate_list()
         time.sleep(1.0)
 
 
-def test_profile_populate_list():
-    message = 'test_profile_populate_list()'
-    with cPyMemTrace.Profile(message=message):
-        for i in range(4):
-            populate_list()
-        time.sleep(1.0)
-
-
-def test_trace_populate_list():
-    message = 'test_trace_populate_list()'
-    with cPyMemTrace.Trace(message=message):
-        for i in range(4):
-            populate_list()
-        time.sleep(1.0)
-
-
-def test_profile_to_specific_log_file():
+@pytest.mark.parametrize(
+    'cls',
+    (
+            cPyMemTrace.Profile,
+            cPyMemTrace.Trace,
+    )
+)
+def test_profile_trace_to_specific_log_file(cls):
     message = 'test_profile_to_specific_log_file():'
     with tempfile.NamedTemporaryFile() as file:
-        with cPyMemTrace.Profile(0, message=message, filepath=file.name) as profiler:
+        with cls(0, message=message, filepath=file.name) as profiler:
             assert profiler._trace_file_wrapper.log_file_path == file.name
             for i in range(4):
                 populate_list()
@@ -281,24 +315,14 @@ def test_profile_to_specific_log_file():
         assert file_data.startswith(bytes(message, 'ascii'))
 
 
-def test_trace_to_specific_log_file():
-    message = 'test_trace_to_specific_log_file():'
-    with tempfile.NamedTemporaryFile() as file:
-        with cPyMemTrace.Trace(0, message=message, filepath=file.name) as profiler:
-            assert profiler._trace_file_wrapper.log_file_path == file.name
-            for i in range(4):
-                populate_list()
-        time.sleep(1.0)
-        file.flush()
-        file_data = file.read()
-        # print()
-        # print('file_data:')
-        # for line in file_data.split(b'\n'):
-        #     print(line)
-        assert file_data.startswith(bytes(message, 'ascii'))
-
-
-def test_trace_to_specific_log_file_nested():
+@pytest.mark.parametrize(
+    'cls',
+    (
+            cPyMemTrace.Profile,
+            cPyMemTrace.Trace,
+    )
+)
+def test_profile_trace_to_specific_log_file_nested(cls):
     """This tests that the nested context managers work properly.
     In particular, when the inner one exists the outer one takes over."""
     SLEEP = 1.0
@@ -306,7 +330,7 @@ def test_trace_to_specific_log_file_nested():
     message = 'test_trace_to_specific_log_file_nested():'
     with tempfile.NamedTemporaryFile() as file_0:
         # Create the outer context manager.
-        with cPyMemTrace.Trace(d_rss_trigger, message=message + '#level0', filepath=file_0.name) as trace_0:
+        with cls(d_rss_trigger, message=message + '#level0', filepath=file_0.name) as trace_0:
             trace_0.write_message_to_log('# Level 0 __enter__')
             # Exercise the outer context manager *before* the inner context manager.
             assert trace_0._trace_file_wrapper.log_file_path == file_0.name
@@ -319,7 +343,7 @@ def test_trace_to_specific_log_file_nested():
                 trace_0.write_message_to_log('# Level 0 just prior to level 1 __enter__')
 
                 # Create the inner context manager.
-                with cPyMemTrace.Trace(d_rss_trigger, message=message + '#level1', filepath=file_1.name) as trace_1:
+                with cls(d_rss_trigger, message=message + '#level1', filepath=file_1.name) as trace_1:
 
                     trace_0.write_message_to_log('# Level 0 events should be suspended')
 
