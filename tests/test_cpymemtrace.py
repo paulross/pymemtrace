@@ -3,6 +3,7 @@ At the moment these produce a log file per test.
 """
 import faulthandler
 import os
+import random
 import sys
 import tempfile
 import time
@@ -165,7 +166,7 @@ def test_trace_basic_gt_310():
 
 
 def test_profile_start_message_to_log_file():
-    message = 'test_profile_start_message_to_log_file():\n'
+    message = 'test_profile_start_message_to_log_file():'
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Profile(message=message) as profiler:
         log_path = profiler.log_file_path()
@@ -182,17 +183,45 @@ def test_profile_start_message_to_log_file():
     # Clean up on exit removes log file path
     assert profiler.log_file_path() is None
 
+
 def test_profile_inline_message_to_log_file():
-    message = 'test_profile_inline_message_to_log_file():\n'
+    message = 'test_profile_inline_message_to_log_file():'
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Profile() as profiler:
         b' ' * (1024 ** 2)
-        profiler._trace_file_wrapper.write_message_to_log(message)
+        profiler.write_message_to_log(message)
     with open(profiler._trace_file_wrapper.log_file_path) as file:
         file_data = file.read()
         print()
         print(f'File data [{len(file_data)}]: {file_data}')
         assert message in file_data
+
+
+def test_messaging_for_documentation():
+    with cPyMemTrace.Profile(d_rss_trigger=-1, message="Start message") as profiler:
+        for i in range(8):
+            str_len = random.randint(100 * 1024**2, 500 * 1024**2)
+            profiler.write_message_to_log(f'Before allocation of {str_len} bytes.')
+            s = ' ' * str_len
+            time.sleep(0.5)
+            del s
+            profiler.write_message_to_log(f'After de-allocation of {str_len} bytes.')
+            time.sleep(0.5)
+        time.sleep(0.5)
+    with open(profiler._trace_file_wrapper.log_file_path) as file:
+        file_data = file.read()
+        print()
+        print(f'File data [{len(file_data)}]:\n{file_data}')
+        assert 0
+
+def test_profile_inline_message_to_log_file_after_exit():
+    message = 'test_profile_inline_message_to_log_file():'
+    with cPyMemTrace.Profile() as profiler:
+        b' ' * (1024 ** 2)
+        profiler.write_message_to_log(message)
+    with pytest.raises(IOError) as err:
+        profiler.write_message_to_log(message)
+    assert err.value.args[0] == 'Log file is closed.'
 
 
 def populate_list():
@@ -278,32 +307,32 @@ def test_trace_to_specific_log_file_nested():
     with tempfile.NamedTemporaryFile() as file_0:
         # Create the outer context manager.
         with cPyMemTrace.Trace(d_rss_trigger, message=message + '#level0', filepath=file_0.name) as trace_0:
-            trace_0._trace_file_wrapper.write_message_to_log('# Level 0 __enter__')
+            trace_0.write_message_to_log('# Level 0 __enter__')
             # Exercise the outer context manager *before* the inner context manager.
             assert trace_0._trace_file_wrapper.log_file_path == file_0.name
             for i in range(4):
                 populate_list()
-            trace_0._trace_file_wrapper.write_message_to_log('# Level 0 after populate_list()')
+            trace_0.write_message_to_log('# Level 0 after populate_list()')
 
             # Now the inner.
             with tempfile.NamedTemporaryFile() as file_1:
-                trace_0._trace_file_wrapper.write_message_to_log('# Level 0 just prior to level 1 __enter__')
+                trace_0.write_message_to_log('# Level 0 just prior to level 1 __enter__')
 
                 # Create the inner context manager.
                 with cPyMemTrace.Trace(d_rss_trigger, message=message + '#level1', filepath=file_1.name) as trace_1:
 
-                    trace_0._trace_file_wrapper.write_message_to_log('# Level 0 events should be suspended')
+                    trace_0.write_message_to_log('# Level 0 events should be suspended')
 
-                    trace_1._trace_file_wrapper.write_message_to_log('# Level 1 __enter__')
+                    trace_1.write_message_to_log('# Level 1 __enter__')
                     # Exercise the inner context manager.
                     assert trace_1._trace_file_wrapper.log_file_path == file_1.name
                     for i in range(4):
-                        trace_0._trace_file_wrapper.write_message_to_log('# Level 0 events should be suspended')
+                        trace_0.write_message_to_log('# Level 0 events should be suspended')
                         populate_list()
 
-                    trace_0._trace_file_wrapper.write_message_to_log('# Level 0 events should be suspended')
+                    trace_0.write_message_to_log('# Level 0 events should be suspended')
 
-                    trace_1._trace_file_wrapper.write_message_to_log('# Level 1 after populate_list()')
+                    trace_1.write_message_to_log('# Level 1 after populate_list()')
 
                 # Check the inner output
                 time.sleep(SLEEP)
@@ -316,12 +345,12 @@ def test_trace_to_specific_log_file_nested():
                 print(' file_1_data DONE '.center(75, '-'))
                 assert file_1_data.startswith(bytes(message + '#level1', 'ascii'))
 
-            trace_0._trace_file_wrapper.write_message_to_log('# Level 0 after level 1 exit')
+            trace_0.write_message_to_log('# Level 0 after level 1 exit')
             # Exercise the outer context manager *before* the inner context manager.
             assert trace_0._trace_file_wrapper.log_file_path == file_0.name
             for i in range(4):
                 populate_list()
-            trace_0._trace_file_wrapper.write_message_to_log('# Level 0 after level 1 exit and populate_list()')
+            trace_0.write_message_to_log('# Level 0 after level 1 exit and populate_list()')
 
         time.sleep(SLEEP)
         file_0.flush()

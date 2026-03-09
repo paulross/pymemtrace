@@ -57,12 +57,17 @@ The log file has the following format.
 Firstly each line starts with text that describes the row type:
 
 .. list-table:: **cPyMemTrace Logfile Line Types**
-   :widths: 10 25 50
+   :widths: 10 30 50
    :header-rows: 1
 
    * - Row Type
      - Format
      - Notes
+   * - Opening message.
+     - Optional, user defined.
+     - This will appear verbatim if the ``message`` argument is provided to the constructor.
+       For example ``with cPyMemTrace.Profile(message="Hello World") as profiler: ...``.
+       The message can be any string and will automatically be followed with a newline.
    * - ``SOF``
      - None
      - There will be only one of these at the start of the data.
@@ -94,7 +99,7 @@ Firstly each line starts with text that describes the row type:
 The lines that contain space seperated columns are described here:
 
 .. list-table:: **cPyMemTrace Logfile Line Format**
-   :widths: 10 25 50
+   :widths: 20 40 50
    :header-rows: 1
 
    * - Column
@@ -114,7 +119,7 @@ The lines that contain space seperated columns are described here:
      - Floating point.
    * - What
      - Event type.
-     - See ``WHAT_STRINGS`` in ``pymemtrace/src/cpy/cPyMemTrace.c``
+     - See the table below and ``WHAT_STRINGS`` in ``pymemtrace/src/cpy/cPyMemTrace.c``
    * - File
      - Executing file.
      - With a production Python executable these will be Python paths or, if C code` something like ``<frozen posixpath>``.
@@ -130,6 +135,32 @@ The lines that contain space seperated columns are described here:
    * - dRSS
      - Delta RSS.
      - Compared to the previous event.
+
+The event types that are reported in the log file are:
+
+.. list-table:: **Logfile Event Types**
+   :widths: 50 50
+   :header-rows: 1
+
+   * - Event
+     - Text in the Log
+   * - `PyTrace_CALL <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_CALL>`_
+     - ``CALL``
+   * - `PyTrace_EXCEPTION <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_EXCEPTION>`_
+     - ``EXCEPT``
+   * - `PyTrace_LINE <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_LINE>`_
+     - ``LINE``
+   * - `PyTrace_RETURN <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_RETURN>`_
+     - ``RETURN``
+   * - `PyTrace_C_CALL <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_C_CALL>`_
+     - ``C_CALL``
+   * - `PyTrace_C_EXCEPTION <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_C_EXCEPTION>`_
+     - ``C_EXCEPT``
+   * - `PyTrace_C_RETURN <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_C_RETURN>`_
+     - ``C_RETURN``
+   * - `PyTrace_OPCODE <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_OPCODE>`_
+     - ``OPCODE``
+
 
 Example
 -------
@@ -151,14 +182,14 @@ Here is an example log file (with event skipping), lightly edited:
 .. code-block:: text
 
     SOF
-    HEDR: Event  dEvent  Clock        What     File                                  Line Function                               RSS       dRSS
-    FRST: 0      +0      3.090020     LINE     pymemtrace/tests/test_cpymemtrace.py  265 test_trace_to_specific_log_file_nested  41463808  41463808
-    NEXT: 1      +1      3.090202     LINE     pymemtrace/tests/test_cpymemtrace.py  266 test_trace_to_specific_log_file_nested  41472000  4096
+    HEDR: Event  dEvent  Clock        What     File                Line Function        RSS       dRSS
+    FRST: 0      +0      3.090020     LINE     test_cpymemtrace.py  265 test_trace      41463808  41463808
+    NEXT: 1      +1      3.090202     LINE     test_cpymemtrace.py  266 test_trace      41472000  4096
     MESG: 2      +1      3.090208     # Level 0 __enter__
     PREV: 2      +1      3.090208
-    NEXT: 9      +8      3.090725     LINE     pymemtrace/tests/test_cpymemtrace.py  185 populate_list                        42524672      1052672
-    PREV: 9      +8      3.090725     LINE     pymemtrace/tests/test_cpymemtrace.py  185 populate_list                        42524672      1052672
-    NEXT: 11     +2      3.091224     LINE     pymemtrace/tests/test_cpymemtrace.py  185 populate_list                        43577344      1052672
+    NEXT: 9      +8      3.090725     LINE     test_cpymemtrace.py  185 populate_list   42524672  1052672
+    PREV: 9      +8      3.090725     LINE     test_cpymemtrace.py  185 populate_list   42524672  1052672
+    NEXT: 11     +2      3.091224     LINE     test_cpymemtrace.py  185 populate_list   43577344  1052672
     8<---- Snip ---->8
     MESG: 97     +82     3.092802     # Level 0 after populate_list()
     MESG: 255    +240    3.093373     # Level 0 just prior to level 1 __enter__
@@ -166,10 +197,10 @@ Here is an example log file (with event skipping), lightly edited:
     8<---- Snip ---->8
     MESG: 256    +241    3.094199     Re-attaching previous trace file wrapper.
     PREV: 256    +241    3.094199
-    NEXT: 401    +386    3.094896     LINE     pymemtrace/tests/test_cpymemtrace.py  300 test_trace_to_specific_log_file_nested     45686784  4096
+    NEXT: 401    +386    3.094896     LINE     test_cpymemtrace.py  300 test_trace      45686784  4096
     MESG: 579    +178    3.095950     # Level 0 after level 1 exit
     MESG: 674    +273    3.097299     # Level 0 after level 1 exit and populate_list()
-    LAST: 675    +274    3.097455     LINE     pymemtrace/tests/test_cpymemtrace.py  265 test_trace_to_specific_log_file_nested     45686784  0
+    LAST: 675    +274    3.097455     LINE     test_cpymemtrace.py  265 test_trace      45686784  0
     EOF
 
 .. raw:: latex

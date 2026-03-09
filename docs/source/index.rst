@@ -17,6 +17,7 @@ Contents:
 
     contributing
     authors
+    todo
     history
 
 

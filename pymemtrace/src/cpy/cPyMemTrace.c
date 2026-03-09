@@ -399,8 +399,11 @@ static PyMemberDef cpyTraceFileWrapper_members[] = {
  */
 static PyObject *
 cpyTraceFileWrapper_write_to_log(cpyTraceFileWrapper *self, PyObject *op) {
-    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     assert(!PyErr_Occurred());
+    if (!self->file) {
+        PyErr_SetString(PyExc_IOError, "Log file is closed.");
+        return NULL;
+    }
     if (!PyUnicode_Check(op)) {
         PyErr_Format(
                 PyExc_ValueError,
@@ -409,6 +412,7 @@ cpyTraceFileWrapper_write_to_log(cpyTraceFileWrapper *self, PyObject *op) {
         );
         return NULL;
     }
+    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     Py_UCS1 *c_str = PyUnicode_1BYTE_DATA(op);
     fprintf(self->file, "%s\n", c_str);
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
@@ -425,8 +429,11 @@ cpyTraceFileWrapper_write_to_log(cpyTraceFileWrapper *self, PyObject *op) {
  */
 static PyObject *
 cpyTraceFileWrapper_write_message_to_log(cpyTraceFileWrapper *self, PyObject *op) {
-    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     assert(!PyErr_Occurred());
+    if (!self->file) {
+        PyErr_SetString(PyExc_IOError, "Log file is closed.");
+        return NULL;
+    }
     if (!PyUnicode_Check(op)) {
         PyErr_Format(
                 PyExc_ValueError,
@@ -435,6 +442,7 @@ cpyTraceFileWrapper_write_message_to_log(cpyTraceFileWrapper *self, PyObject *op
         );
         return NULL;
     }
+    TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     Py_UCS1 *c_str = PyUnicode_1BYTE_DATA(op);
     trace_wrapper_write_message_to_log_file(self, (const char *) c_str)
             TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
@@ -640,7 +648,9 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
         }
         trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(&cpyTraceFileWrapperType, NULL, NULL);
         if (trace_wrapper) {
-            fprintf(stdout, "Opening log file %s\n", file_path_buffer);
+#if DEBUG
+            fprintf(stdout, "DEBUG: Opening log file %s\n", file_path_buffer);
+#endif
             trace_wrapper->file = fopen(filename, "w");
             if (trace_wrapper->file) {
                 // Copy the filename
@@ -980,15 +990,16 @@ static PyTypeObject cpyProfileObjectType = {
         .tp_name = "cPyMemTrace.Profile",
         .tp_doc = "A context manager to attach a C profile function to the interpreter.\n"
                   "This takes the following optional arguments:\n\n"
-                  "``d_rss_trigger``: this decides when a trace event gets recorded."
-                  " Suitable values:\n\n-1 : whenever an RSS change >= page size (usually 4096 bytes) is noticed."
-                  "\n\n0 : every event.\n\nn: whenever an RSS change >= n is noticed."
-                  "\n\nDefault is -1."
-                  "\n\n``message``: An optional message to write to the begining of the log file."
-                  "\n\n``filepath``: An optional specific path to the log file."
-                  "\nBy default this writes to a file in the current working directory named"
-                  " \"YYYYMMDD_HHMMMSS_<PID>_P_<depth>_PY<Python Version>.log\""
-                  " For example \"20241107_195847_62264_P_0_PY3.13.0b3.log\""
+                  "- ``d_rss_trigger``: this decides when a trace event gets recorded."
+                  " Suitable values:\n\n  - '-1' : whenever an RSS change >= page size (usually 4096 bytes) is noticed."
+                  "\n\n  - '0' : every event."
+                  "\n\n  - n: whenever an RSS change >= n is noticed."
+                  "\n\n  Default is -1."
+                  "\n\n- ``message``: An optional message to write to the begining of the log file."
+                  "\n\n- ``filepath``: An optional specific path to the log file."
+                  "\n  By default this writes to a file in the current working directory named"
+                  " ``\"YYYYMMDD_HHMMMSS_<PID>_P_<depth>_PY<Python Version>.log\"``"
+                  " For example ``\"20241107_195847_62264_P_0_PY3.13.0b3.log\"``"
                   "\n\nThis is slightly less invasive profiling than ``cPyMemTrace.Trace`` as the profile function is"
                   " called for all monitored events except the Python ``PyTrace_LINE PyTrace_OPCODE`` and"
                   " ``PyTrace_EXCEPTION`` events.",
@@ -1115,15 +1126,16 @@ static PyTypeObject cpyTraceObjectType = {
         .tp_name = "cPyMemTrace.Trace",
         .tp_doc = "A context manager to attach a C trace function to the interpreter.\n"
                   "This takes the following optional arguments:\n\n"
-                  "``d_rss_trigger``: this decides when a trace event gets recorded."
-                  " Suitable values:\n\n-1 : whenever an RSS change >= page size (usually 4096 bytes) is noticed."
-                  "\n\n0 : every event.\n\nn: whenever an RSS change >= n is noticed."
-                  "\n\nDefault is -1."
-                  "\n\n``message``: An optional message to write to the begining of the log file."
-                  "\n\n``filepath``: An optional specific path to the log file."
-                  "\nBy default this writes to a file in the current working directory named"
-                  " \"YYYYMMDD_HHMMMSS_<PID>_P_<depth>_PY<Python Version>.log\""
-                  " For example \"20241107_195847_62264_P_0_PY3.13.0b3.log\""
+                  "- ``d_rss_trigger``: this decides when a trace event gets recorded."
+                  " Suitable values:\n\n  - '-1' : whenever an RSS change >= page size (usually 4096 bytes) is noticed."
+                  "\n\n  - '0' : every event."
+                  "\n\n  - n: whenever an RSS change >= n is noticed."
+                  "\n\n  Default is -1."
+                  "\n\n- ``message``: An optional message to write to the begining of the log file."
+                  "\n\n- ``filepath``: An optional specific path to the log file."
+                  "\n  By default this writes to a file in the current working directory named"
+                  " ``\"YYYYMMDD_HHMMMSS_<PID>_P_<depth>_PY<Python Version>.log\"``"
+                  " For example ``\"20241107_195847_62264_P_0_PY3.13.0b3.log\"``"
                   "\n\nThe tracing function does receive Python line-number events and per-opcode events"
                   " but does not receive any event related to C functionss being called."
                   " For that use ``cPyMemTrace.Profile``",
