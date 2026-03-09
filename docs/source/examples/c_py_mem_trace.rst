@@ -3,9 +3,76 @@
 ``cPyMemTrace`` Examples
 ===============================================
 
-``cPyMemTrace`` is a Python profiler written in 'C' that records the `Resident Set Size <https://en.wikipedia.org/wiki/Resident_set_size>`_
-for every Python and C call and return.
+Introduction
+--------------------------------
+
+``cPyMemTrace`` is a Python profiler written in 'C' that records the
+`Resident Set Size <https://en.wikipedia.org/wiki/Resident_set_size>`_ for every Python and C call and return.
 It writes this data to a log file with a name of the form ``"20241107_195847_62264_P_0_PY3.13.0b3.log"``.
+See :ref:`tech_notes-cpymemtrace_log_file` for the format.
+
+Python supports two similar ways of tracking code:
+
+- A *Profiler* that ignores Python line, opcode and exception events.
+  This is more suitable for logging C code.
+  This is supported by the :py:class:`pymemtrace.cPyMemTrace.Profile` class.
+- A *Tracer* that ignores C call, exception and return events.
+  This is more suitable for logging pure Python code.
+  This is supported by the :py:class:`pymemtrace.cPyMemTrace.Trace` class.
+
+.. note::
+
+    `Reference Tracing`_ (Python 3.13+) is not supported by the current version of pymemtrace.
+
+.. list-table:: **Python Events**
+   :widths: 40 60 15 15 15
+   :header-rows: 1
+
+   * - Event
+     - Description
+     - Profile?
+     - Trace?
+     - Log
+   * - `PyTrace_CALL <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_CALL>`_
+     - Call to a Python function.
+     - Yes
+     - Yes
+     - ``CALL``
+   * - `PyTrace_EXCEPTION <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_EXCEPTION>`_
+     - When raising a Python exception.
+     - No
+     - Yes
+     - ``EXCEPT``
+   * - `PyTrace_LINE <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_LINE>`_
+     - When processing a Python line.
+     - No
+     - Yes
+     - ``LINE``
+   * - `PyTrace_RETURN <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_RETURN>`_
+     - When the code is about to return from a Python function.
+     - Yes
+     - Yes
+     - ``RETURN``
+   * - `PyTrace_C_CALL <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_C_CALL>`_
+     - Call to a C function.
+     - Yes
+     - No
+     - ``C_CALL``
+   * - `PyTrace_C_EXCEPTION <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_C_EXCEPTION>`_
+     - When raising a Python exception from C code.
+     - Yes
+     - No
+     - ``C_EXCEPT``
+   * - `PyTrace_C_RETURN <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_C_RETURN>`_
+     - When the code is about to return from a C function.
+     - Yes
+     - No
+     - ``C_RETURN``
+   * - `PyTrace_OPCODE <https://docs.python.org/3/c-api/profiling.html#c.PyTrace_OPCODE>`_
+     - When a new opcode is about to be executed.
+     - No
+     - Yes
+     - ``OPCODE``
 
 Logging Changes in RSS
 --------------------------------
@@ -16,13 +83,13 @@ Here is a simple example:
 
     from pymemtrace import cPyMemTrace
 
-    def create_string(l: int) -> str:
+    def new_str(l: int) -> str:
         return ' ' * l
 
     with cPyMemTrace.Profile():
         l = []
         for i in range(8):
-            l.append(create_string(1024**2))
+            l.append(new_str(1024**2))
         while len(l):
             l.pop()
 
@@ -30,23 +97,23 @@ This produces a log file in the current working directory:
 
 .. code-block:: text
 
-          Event        dEvent  Clock        What     File    #line Function      RSS           dRSS
-    NEXT: 0            +0      0.066718     CALL     test.py #   9 create_string  9101312      9101312
-    NEXT: 1            +1      0.067265     RETURN   test.py #  10 create_string 10153984      1052672
-    PREV: 4            +3      0.067285     CALL     test.py #   9 create_string 10153984            0
-    NEXT: 5            +4      0.067777     RETURN   test.py #  10 create_string 11206656      1052672
-    PREV: 8            +3      0.067787     CALL     test.py #   9 create_string 11206656            0
-    NEXT: 9            +4      0.068356     RETURN   test.py #  10 create_string 12259328      1052672
-    PREV: 12           +3      0.068367     CALL     test.py #   9 create_string 12259328            0
-    NEXT: 13           +4      0.068944     RETURN   test.py #  10 create_string 13312000      1052672
-    PREV: 16           +3      0.068954     CALL     test.py #   9 create_string 13312000            0
-    NEXT: 17           +4      0.069518     RETURN   test.py #  10 create_string 14364672      1052672
-    PREV: 20           +3      0.069534     CALL     test.py #   9 create_string 14364672            0
-    NEXT: 21           +4      0.070101     RETURN   test.py #  10 create_string 15417344      1052672
-    PREV: 24           +3      0.070120     CALL     test.py #   9 create_string 15417344            0
-    NEXT: 25           +4      0.070663     RETURN   test.py #  10 create_string 16470016      1052672
-    PREV: 28           +3      0.070677     CALL     test.py #   9 create_string 16470016            0
-    NEXT: 29           +4      0.071211     RETURN   test.py #  10 create_string 17522688      1052672
+          Event dEvent  Clock        What     File    #line Function     RSS         dRSS
+    NEXT: 0     +0      0.066718     CALL     test.py #   9 new_str  9101312      9101312
+    NEXT: 1     +1      0.067265     RETURN   test.py #  10 new_str 10153984      1052672
+    PREV: 4     +3      0.067285     CALL     test.py #   9 new_str 10153984            0
+    NEXT: 5     +4      0.067777     RETURN   test.py #  10 new_str 11206656      1052672
+    PREV: 8     +3      0.067787     CALL     test.py #   9 new_str 11206656            0
+    NEXT: 9     +4      0.068356     RETURN   test.py #  10 new_str 12259328      1052672
+    PREV: 12    +3      0.068367     CALL     test.py #   9 new_str 12259328            0
+    NEXT: 13    +4      0.068944     RETURN   test.py #  10 new_str 13312000      1052672
+    PREV: 16    +3      0.068954     CALL     test.py #   9 new_str 13312000            0
+    NEXT: 17    +4      0.069518     RETURN   test.py #  10 new_str 14364672      1052672
+    PREV: 20    +3      0.069534     CALL     test.py #   9 new_str 14364672            0
+    NEXT: 21    +4      0.070101     RETURN   test.py #  10 new_str 15417344      1052672
+    PREV: 24    +3      0.070120     CALL     test.py #   9 new_str 15417344            0
+    NEXT: 25    +4      0.070663     RETURN   test.py #  10 new_str 16470016      1052672
+    PREV: 28    +3      0.070677     CALL     test.py #   9 new_str 16470016            0
+    NEXT: 29    +4      0.071211     RETURN   test.py #  10 new_str 17522688      1052672
 
 By default not all events are recorded just any that increase the RSS by one page along with the immediately preceding event.
 
@@ -64,30 +131,30 @@ And the log file looks like this:
 
 .. code-block:: text
 
-          Event        dEvent  Clock        What     File    #line Function      RSS           dRSS
-    NEXT: 0            +0      0.079408     CALL     test.py #   9 create_string  9105408      9105408
-    NEXT: 1            +1      0.079987     RETURN   test.py #  10 create_string 10158080      1052672
-    NEXT: 2            +1      0.079994     C_CALL   test.py #  64 append        10158080            0
-    NEXT: 3            +1      0.079998     C_RETURN test.py #  64 append        10158080            0
-    NEXT: 4            +1      0.080003     CALL     test.py #   9 create_string 10158080            0
-    NEXT: 5            +1      0.080682     RETURN   test.py #  10 create_string 11210752      1052672
-    NEXT: 6            +1      0.080693     C_CALL   test.py #  64 append        11210752            0
-    NEXT: 7            +1      0.080698     C_RETURN test.py #  64 append        11210752            0
-    NEXT: 8            +1      0.080704     CALL     test.py #   9 create_string 11210752            0
-    NEXT: 9            +1      0.081414     RETURN   test.py #  10 create_string 12263424      1052672
-    NEXT: 10           +1      0.081424     C_CALL   test.py #  64 append        12263424            0
-    NEXT: 11           +1      0.081429     C_RETURN test.py #  64 append        12263424            0
-    NEXT: 12           +1      0.081434     CALL     test.py #   9 create_string 12263424            0
-    NEXT: 13           +1      0.081993     RETURN   test.py #  10 create_string 13316096      1052672
-    NEXT: 14           +1      0.081998     C_CALL   test.py #  64 append        13316096            0
+          Event dEvent  Clock        What     File    #line Function     RSS         dRSS
+    NEXT: 0     +0      0.079408     CALL     test.py #   9 new_str  9105408      9105408
+    NEXT: 1     +1      0.079987     RETURN   test.py #  10 new_str 10158080      1052672
+    NEXT: 2     +1      0.079994     C_CALL   test.py #  64 append  10158080            0
+    NEXT: 3     +1      0.079998     C_RETURN test.py #  64 append  10158080            0
+    NEXT: 4     +1      0.080003     CALL     test.py #   9 new_str 10158080            0
+    NEXT: 5     +1      0.080682     RETURN   test.py #  10 new_str 11210752      1052672
+    NEXT: 6     +1      0.080693     C_CALL   test.py #  64 append  11210752            0
+    NEXT: 7     +1      0.080698     C_RETURN test.py #  64 append  11210752            0
+    NEXT: 8     +1      0.080704     CALL     test.py #   9 new_str 11210752            0
+    NEXT: 9     +1      0.081414     RETURN   test.py #  10 new_str 12263424      1052672
+    NEXT: 10    +1      0.081424     C_CALL   test.py #  64 append  12263424            0
+    NEXT: 11    +1      0.081429     C_RETURN test.py #  64 append  12263424            0
+    NEXT: 12    +1      0.081434     CALL     test.py #   9 new_str 12263424            0
+    NEXT: 13    +1      0.081993     RETURN   test.py #  10 new_str 13316096      1052672
+    NEXT: 14    +1      0.081998     C_CALL   test.py #  64 append  13316096            0
     ...
-    NEXT: 59           +1      0.084531     C_RETURN test.py #  66 pop           17526784            0
-    NEXT: 60           +1      0.084535     C_CALL   test.py #  65 len           17526784            0
-    NEXT: 61           +1      0.084539     C_RETURN test.py #  65 len           17526784            0
-    NEXT: 62           +1      0.084541     C_CALL   test.py #  66 pop           17526784            0
-    NEXT: 63           +1      0.084561     C_RETURN test.py #  66 pop           17526784            0
-    NEXT: 64           +1      0.084566     C_CALL   test.py #  65 len           17526784            0
-    NEXT: 65           +1      0.084568     C_RETURN test.py #  65 len           17526784            0
+    NEXT: 59    +1      0.084531     C_RETURN test.py #  66 pop     17526784            0
+    NEXT: 60    +1      0.084535     C_CALL   test.py #  65 len     17526784            0
+    NEXT: 61    +1      0.084539     C_RETURN test.py #  65 len     17526784            0
+    NEXT: 62    +1      0.084541     C_CALL   test.py #  66 pop     17526784            0
+    NEXT: 63    +1      0.084561     C_RETURN test.py #  66 pop     17526784            0
+    NEXT: 64    +1      0.084566     C_CALL   test.py #  65 len     17526784            0
+    NEXT: 65    +1      0.084568     C_RETURN test.py #  65 len     17526784            0
 
 There is some discussion about the performance of ``cPyMemTrace`` here :ref:`tech_notes-cpymemtrace`
 
@@ -119,7 +186,7 @@ For example:
 
 When running all the tests example log files will be generated in the ``tests`` directory.
 
-The module level function will give you the stack depth:
+The module level functions ``profile_wrapper_depth()`` (and ``trace_wrapper_depth()``) will give you the stack depth:
 
 .. code-block:: python
 
@@ -133,6 +200,107 @@ The module level function will give you the stack depth:
             assert cPyMemTrace.profile_wrapper_depth() == 2
         assert cPyMemTrace.profile_wrapper_depth() == 1
     assert cPyMemTrace.profile_wrapper_depth() == 0
+
+Writing Messages to a Log File
+------------------------------
+
+To make log files more useful the user can inject messages into the log file in two ways:
+
+- On construction of the Trace/Profile object using the ``message=<message>`` argument.
+  This message will be reproduced verbatim and will be followed by a newline.
+- At any time during the running of Trace/Profile object with the ``write_message_to_log_file()`` API.
+  This message will be preceded with a ``MESG:`` string, then the message is reproduced verbatim and
+  will be followed by a newline.
+
+.. note::
+
+    New lines *within* messages will be respected.
+    This may affect your parsing of the log file.
+
+This example illustrates both techniques.
+Firstly the code (slightly edited), here we create a profiler with a start message then allocate, then delete, a
+randomly sized string of between 100 Mb and 500 Mb.
+Before the allocation and after deletion we write an appropriate message to the log file.
+
+.. code-block:: python
+
+    with cPyMemTrace.Profile(d_rss_trigger=-1, message="Start message") as profiler:
+        for i in range(8):
+            str_len = random.randint(100 * 1024**2, 500 * 1024**2)
+            profiler.write_message_to_log(f'Before allocation of {str_len} bytes.')
+            s = ' ' * str_len
+            time.sleep(0.5)
+            del s
+            profiler.write_message_to_log(f'After de-allocation of {str_len} bytes.')
+            time.sleep(0.5)
+        time.sleep(0.5)
+
+Here is a typical log file:
+
+.. raw:: latex
+
+    \begin{landscape}
+
+.. code-block:: text
+
+    Start message
+    SOF
+    HEDR: Event  dEvent  Clock        What     File                           Line Function                  RSS         dRSS
+    FRST: 0      +0      3.153048     LINE     test_cpymemtrace.py             201 test_messaging       41754624     41754624
+    MESG: 18     +17     3.153134     Before allocation of 179379131 bytes.
+    PREV: 18     +17     3.153134    
+    NEXT: 19     +18     3.232753     C_CALL   test_cpymemtrace.py             206 sleep                221143040    179380224
+    PREV: 19     +18     3.232753     C_CALL   test_cpymemtrace.py             206 sleep                221143040    179380224
+    NEXT: 21     +2      3.249982     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -179380224
+    MESG: 22     +1      3.250007     After de-allocation of 179379131 bytes.
+    MESG: 42     +21     3.250190     Before allocation of 198138484 bytes.
+    PREV: 42     +21     3.250190    
+    NEXT: 43     +22     3.344885     C_CALL   test_cpymemtrace.py             206 sleep                239902720    198139904
+    PREV: 43     +22     3.344885     C_CALL   test_cpymemtrace.py             206 sleep                239902720    198139904
+    NEXT: 45     +2      3.362191     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -198139904
+    MESG: 46     +1      3.362201     After de-allocation of 198138484 bytes.
+    MESG: 66     +21     3.362277     Before allocation of 392320729 bytes.
+    PREV: 66     +21     3.362277    
+    NEXT: 67     +22     3.541612     C_CALL   test_cpymemtrace.py             206 sleep                434085888    392323072
+    PREV: 67     +22     3.541612     C_CALL   test_cpymemtrace.py             206 sleep                434085888    392323072
+    NEXT: 69     +2      3.573907     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -392323072
+    MESG: 70     +1      3.573918     After de-allocation of 392320729 bytes.
+    MESG: 90     +21     3.574011     Before allocation of 504746338 bytes.
+    PREV: 90     +21     3.574011    
+    NEXT: 91     +22     3.803951     C_CALL   test_cpymemtrace.py             206 sleep                546512896    504750080
+    PREV: 91     +22     3.803951     C_CALL   test_cpymemtrace.py             206 sleep                546512896    504750080
+    NEXT: 93     +2      3.845491     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -504750080
+    MESG: 94     +1      3.845500     After de-allocation of 504746338 bytes.
+    MESG: 114    +21     3.845611     Before allocation of 312965383 bytes.
+    PREV: 114    +21     3.845611
+    NEXT: 115    +22     3.993233     C_CALL   test_cpymemtrace.py             206 sleep                354729984    312967168
+    PREV: 115    +22     3.993233     C_CALL   test_cpymemtrace.py             206 sleep                354729984    312967168
+    NEXT: 117    +2      4.018102     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -312967168
+    MESG: 118    +1      4.018114     After de-allocation of 312965383 bytes.
+    MESG: 138    +21     4.018275     Before allocation of 438944001 bytes.
+    PREV: 138    +21     4.018275
+    NEXT: 139    +22     4.231798     C_CALL   test_cpymemtrace.py             206 sleep                480710656    438947840
+    PREV: 139    +22     4.231798     C_CALL   test_cpymemtrace.py             206 sleep                480710656    438947840
+    NEXT: 141    +2      4.275196     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -438947840
+    MESG: 142    +1      4.275208     After de-allocation of 438944001 bytes.
+    MESG: 162    +21     4.275367     Before allocation of 279020117 bytes.
+    PREV: 162    +21     4.275367
+    NEXT: 163    +22     4.424839     C_CALL   test_cpymemtrace.py             206 sleep                320786432    279023616
+    PREV: 163    +22     4.424839     C_CALL   test_cpymemtrace.py             206 sleep                320786432    279023616
+    NEXT: 165    +2      4.446285     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -279023616
+    MESG: 166    +1      4.446297     After de-allocation of 279020117 bytes.
+    MESG: 186    +21     4.446371     Before allocation of 442963008 bytes.
+    PREV: 186    +21     4.446371
+    NEXT: 187    +22     4.643456     C_CALL   test_cpymemtrace.py             206 sleep                484728832    442966016
+    PREV: 187    +22     4.643456     C_CALL   test_cpymemtrace.py             206 sleep                484728832    442966016
+    NEXT: 189    +2      4.678978     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -442966016
+    MESG: 190    +1      4.678990     After de-allocation of 442963008 bytes.
+    LAST: 196    +7      4.679326     LINE     test_cpymemtrace.py             201 test_messaging        41762816            0
+    EOF
+
+.. raw:: latex
+
+    \end{landscape}
 
 Logging to a Temporary File
 ------------------------------
@@ -163,3 +331,9 @@ To write to a specific file, and then read it follow this pattern:
         print(' file_data DONE '.center(75, '-'))
 
 See ``tests.test_cpymemtrace.test_trace_to_specific_log_file_nested()`` for a more complicated example.
+
+.. todo::
+
+    Support `Reference Tracing <https://docs.python.org/3/c-api/profiling.html#reference-tracing>`_
+    from Python 3.13 onwards.
+    See an example here: `<https://github.com/python/cpython/pull/115945/changes>`_
