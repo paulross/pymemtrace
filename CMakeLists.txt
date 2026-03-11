@@ -34,18 +34,20 @@ add_executable(
     pymemtrace/src/main.c
     pymemtrace/src/include/get_rss.h
     pymemtrace/src/c/get_rss.c
-    pymemtrace/src/cpy/cPyMemTrace.c
     pymemtrace/src/cpy/cCustom.c
     pymemtrace/src/cpy/cMemLeak.c
     pymemtrace/src/include/pymemtrace_util.h
     pymemtrace/src/c/pymemtrace_util.c
-        pymemtrace/src/cpy/cPyMemTrace.h)
+    pymemtrace/src/cpy/cPyMemTrace.h
+    pymemtrace/src/cpy/cPyMemTrace.c
+#    pymemtrace/src/cpy/cPyRefTrace.c
+)
 
 include_directories(
     pymemtrace/src/include
 )
 
-FIND_PACKAGE (Python3 3.11 EXACT REQUIRED COMPONENTS Interpreter Development)
+FIND_PACKAGE (Python3 3.13 EXACT REQUIRED COMPONENTS Interpreter Development)
 #FIND_PACKAGE(PythonLibs 3.11 EXACT REQUIRED)
 #SET(PythonLibs_DIR "/Library/Frameworks/Python.framework/Versions/3.8")
 #FIND_PACKAGE(PythonLibs 3.8 REQUIRED PATHS ("/Library/Frameworks/Python.framework/Versions/3.8"))
