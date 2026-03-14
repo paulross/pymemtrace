@@ -18,6 +18,7 @@ faulthandler.enable()
 def test_module_dir():
     assert dir(cPyMemTrace) == [
         'Profile',
+        'ReferenceTrace',
         'Trace',
         '__doc__',
         '__file__',
@@ -191,6 +192,8 @@ def test_profile_start_message_to_log_file(cls):
     assert profiler.log_file_path() is None
 
 
+
+@pytest.mark.skipif(not (sys.version_info.minor < 13), reason='Python < 3.13')
 @pytest.mark.parametrize(
     'cls',
     (
@@ -198,16 +201,65 @@ def test_profile_start_message_to_log_file(cls):
             cPyMemTrace.Trace,
     )
 )
-def test_profile_inline_message_to_log_file(cls):
+def test_profile_inline_message_to_log_file_pre_313(cls):
     message = 'test_profile_inline_message_to_log_file():'
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cls() as profiler:
         b' ' * (1024 ** 2)
         profiler.write_message_to_log(message)
-    with open(profiler._trace_file_wrapper.log_file_path) as file:
+        log_file_path = profiler.log_file_path()
+    with open(log_file_path) as file:
         file_data = file.read()
         print()
         print(f'File data [{len(file_data)}]: {file_data}')
+        assert message in file_data
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+@pytest.mark.parametrize(
+    'cls',
+    (
+            cPyMemTrace.Profile,
+            # cPyMemTrace.ReferenceTrace,
+            cPyMemTrace.Trace,
+    )
+)
+def test_profile_inline_message_to_log_file_post_313(cls):
+    message = 'test_profile_inline_message_to_log_file():'
+    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
+    with cls() as profiler:
+        b' ' * (1024 ** 2)
+        profiler.write_message_to_log(message)
+        log_file_path = profiler.log_file_path()
+    with open(log_file_path) as file:
+        file_data = file.read()
+        print()
+        print(f'File data [{len(file_data)}]: {file_data}')
+        assert message in file_data
+
+
+def create_bytes(length: int) -> bytes:
+    return b' ' * length
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_trace_basic_post_313():
+    message = 'test_profile_inline_message_to_log_file():'
+    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
+    with cPyMemTrace.ReferenceTrace() as profiler:
+        l = []
+        for i in range(4):
+            b = create_bytes(random.randint(512, 1024) + 1024 ** 2)
+            print(f'TRACE: 0x{id(b):x}')
+            l.append(b)
+            time.sleep(0.25)
+        while len(l):
+            l.pop()
+        log_file_path = profiler.log_file_path()
+    with open(log_file_path) as file:
+        file_data = file.read()
+        print()
+        print(f'File data [{len(file_data)}]:\n{file_data}')
         assert message in file_data
 
 

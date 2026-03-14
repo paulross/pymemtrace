@@ -24,7 +24,7 @@
  *  This discriminates log files when there is nested tracing.
  * @return The log file name or NULL on failure. For example "20241107_195847_62264_P_0_PY3.13.0b3.log".
  */
-const char *create_filename(char trace_type, int trace_stack_depth) {
+char *create_filename(char trace_type, int trace_stack_depth) {
     /* Not thread safe. */
     static char filename[PYMEMTRACE_FILE_NAME_MAX_LENGTH];
     static struct tm now;

@@ -53,7 +53,7 @@ if sys.platform.startswith('linux'):
     )
 
 DEBUG = False
-# DEBUG = True
+DEBUG = True
 
 if DEBUG:
     extra_compile_args.extend(['-g3', '-O0', '-DDEBUG=1', '-UNDEBUG'])
