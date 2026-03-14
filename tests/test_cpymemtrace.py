@@ -2,6 +2,7 @@
 At the moment these produce a log file per test.
 """
 import faulthandler
+import gc
 import os
 import random
 import sys
@@ -250,7 +251,7 @@ def test_reference_trace_basic_post_313():
         l = []
         for i in range(4):
             b = create_bytes(random.randint(512, 1024) + 1024 ** 2)
-            print(f'TRACE test_reference_trace_basic_post_313(): 0x{id(b):x}')
+            # print(f'TRACE test_reference_trace_basic_post_313(): 0x{id(b):x}')
             l.append(b)
             time.sleep(0.25)
         while len(l):
@@ -261,6 +262,38 @@ def test_reference_trace_basic_post_313():
         print()
         print(f'File data [{len(file_data)}]:\n{file_data}')
         assert message in file_data
+
+
+class BytesWrapper:
+    def __init__(self, length: int):
+        self.bytes = b' ' * length
+
+
+def foo() -> str:
+    with cPyMemTrace.ReferenceTrace() as profiler:
+        l = []
+        for i in range(4):
+            length = random.randint(512, 1024) + 1024 ** 2
+            l.append(BytesWrapper(length))
+            time.sleep(0.25)
+        while len(l):
+            p = l.pop()
+            del p
+            time.sleep(0.25)
+        # gc.collect()
+        # BytesWrapper(length)
+        return profiler.log_file_path()
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_trace_special_class_post_313():
+    for i in range(1):
+        log_file_path = foo()
+    with open(log_file_path) as file:
+        file_data = file.read()
+        print()
+        print(f'File data [{len(file_data)}]:\n{file_data}')
+        assert 'message foo' in file_data
 
 
 @pytest.mark.parametrize(
