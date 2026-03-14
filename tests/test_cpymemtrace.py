@@ -250,7 +250,7 @@ def test_reference_trace_basic_post_313():
         l = []
         for i in range(4):
             b = create_bytes(random.randint(512, 1024) + 1024 ** 2)
-            print(f'TRACE: 0x{id(b):x}')
+            print(f'TRACE test_reference_trace_basic_post_313(): 0x{id(b):x}')
             l.append(b)
             time.sleep(0.25)
         while len(l):

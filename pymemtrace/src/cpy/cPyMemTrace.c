@@ -1257,29 +1257,51 @@ reference_tracing_ll_length(struct cReferenceTracingLinkedListNode *p_linked_lis
 }
 
 static const char NO_FUNCTION_NAME[] = "<no function name>";
+#if 0
 static const char NO_FILE_NAME[] = "<no file name>";
+#endif
 
 #if 0
 /**
- * Returns the size of a Python object.
+ * Returns the size of a Python object by calling \c sys.getsizeof().
+ * This is currently segfaulting for reasons unknown.
  *
- * @param obj
- * @return
+ * @param obj The Python object.
+ * @return The result of \c sys.getsizeof() or 0 on failure.
  */
-static size_t
-sys_getsizeof(PyObject* obj) {
+static long
+sys_getsizeof(PyObject* Py_UNUSED(obj)) {
+    long ret = -1;
+#if 0
     assert(obj);
-    size_t ret = 0;
-    PyObject* result = NULL;
-    PyObject* sys_module = PyImport_ImportModule("sys");
+    printf("TRACE: sys_getsizeof() %p type: %s refcnt %zd\n", (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj));
+    if (Py_REFCNT(obj) == 0) {
+        return ret;
+    }
+    Py_INCREF(obj);
+    printf("TRACE: sys_getsizeof() %p type: %s refcnt %zd XXXX\n", (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj));
+    printf("TRACE: sys_getsizeof() type: %s\n", Py_TYPE(obj)->tp_name);
+//    if (strcmp(Py_TYPE(obj)->tp_name, "frame") == 0) {
+//        return -1;
+//    }
+//    if (strcmp(Py_TYPE(obj)->tp_name, "builtin_function_or_method") == 0) {
+//        return -1;
+//    }
+    PyObject *sys_module = PyImport_ImportModule("sys");
     if (sys_module) {
-        result = PyObject_CallMethod(sys_module, "getsizeof", "O", obj);
+        PyObject *result = PyObject_CallMethod(sys_module, "getsizeof", "O", obj);
+        printf("TRACE: sys_getsizeof() result type: %s\n", Py_TYPE(result)->tp_name);
         if (result) {
             ret = PyLong_AsLong(result);
+            Py_DECREF(result);
         }
+        Py_DECREF(sys_module);
     }
-    Py_XDECREF(result);
-    Py_XDECREF(sys_module);
+    printf("TRACE: sys_getsizeof() returns: %ld\n", ret);
+    printf("TRACE: sys_getsizeof() %p type: %s refcnt %zd YYYY\n", (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj));
+    Py_DECREF(obj);
+    printf("TRACE: sys_getsizeof() %p type: %s refcnt %zd ZZZZ\n", (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj));
+#endif
     return ret;
 }
 #endif
@@ -1297,22 +1319,25 @@ static int
 reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void *data) {
     assert(obj);
     assert(data);
-    struct reference_tracing_data *the_data = (struct reference_tracing_data *) data;
-    assert(the_data->log_file);
+    struct reference_tracing_data *data_alias = (struct reference_tracing_data *) data;
+    assert(data_alias->log_file);
 
+    int err_code = -1;
     /* Write the event type. */
     if (event == PyRefTracer_CREATE) {
         // Write the creation of an object.
-        fputs("NEW:", the_data->log_file);
-        the_data->count_new++;
+        fputs("NEW:", data_alias->log_file);
+        data_alias->count_new++;
     } else if (event == PyRefTracer_DESTROY) {
         // Write the destruction of an object.
-        fputs("DEL:", the_data->log_file);
-        the_data->count_del++;
+        fputs("DEL:", data_alias->log_file);
+        data_alias->count_del++;
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 14
         } else if (event == PyRefTracer_TRACKER_REMOVED) {
-            // TODO
-            fputs("REM", the_data->log_file);
+            // Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
+            // call (below) will trigger a call to this callback function.
+            // fputs("REM", the_data->log_file);
+            return 0;
 #endif // #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 14
     } else {
         Py_UNREACHABLE();
@@ -1320,9 +1345,26 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     /* Write the rest of the event line. */
     static char event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
     double clock_time = (double) clock() / CLOCKS_PER_SEC;
-    size_t object_size = 0;
-#if 0
+#if 1
+    /* NOTE: We need to disable tracing at this point as PyEval_GetFrame() and
+     * sys_getsizeof() create arbitrary Python objects and that will
+     * recursively call this callback function causing a SIGABRT. */
+    void *data_old = NULL;
+    /* Call PyRefTracer PyRefTracer_GetTracer(void **data) */
+    PyRefTracer tracer_old = PyRefTracer_GetTracer(&data_old);
+    /* Sanity check. */
+    assert(data_old);
+    assert(data_old == data_alias);
+    assert(tracer_old);
+    assert(tracer_old == &reference_trace_allocations_callback);
+    if (PyRefTracer_SetTracer(NULL, NULL)) {
+        PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(NULL, NULL) failed.");
+        return err_code;
+    }
+    err_code--;
+    /* Now we can call into Python code. */
     PyFrameObject *frame = PyEval_GetFrame();
+    Py_INCREF(frame);
     /* Get the function name. This does not use get_python_function_name(). */
     const char *func_name = NULL;
     if (frame) {
@@ -1335,14 +1377,23 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     } else {
         func_name = NO_FUNCTION_NAME;
     }
-    object_size = sys_getsizeof(obj);
+#if 0
+    long object_size = sys_getsizeof(obj);
+#endif
+    // Should match:
+    //     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-32s\n",
+    //            "Clock", "Address", "Type", "File", "Line", "Function"
+    //    );
     snprintf(event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             " %-12.6f %-40s %-80s %4d %-32s",
+             " %12.6f %16p %-32s %-80s %4d %-32s",
              clock_time,
+             (void *)obj,
              Py_TYPE(obj)->tp_name,
              get_python_file_name(frame),
              py_frame_get_line_number(frame),
-             func_name);
+             func_name
+             );
+    Py_DECREF(frame);
 #else
     // Should match:
     //     fprintf(self->data->log_file, "HDR: %-12s %-32s %-80s %4s %-32s\n",
@@ -1358,8 +1409,16 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
              0,
              NO_FUNCTION_NAME);
 #endif
-    fputs(event_text, the_data->log_file);
-    fputc('\n', the_data->log_file);
+    assert(data_alias);
+    assert(data_alias->log_file);
+    fputs(event_text, data_alias->log_file);
+    fputc('\n', data_alias->log_file);
+    fflush(data_alias->log_file);
+    /* Restore the Reference Tracer. */
+    if (PyRefTracer_SetTracer(tracer_old, data_old)) {
+        PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(tracer_old, data_old) failed.");
+        return err_code;
+    }
     return 0;
 }
 
