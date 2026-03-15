@@ -53,7 +53,7 @@ FIND_PACKAGE (Python3 3.13 EXACT REQUIRED COMPONENTS Interpreter Development)
 #FindPythonLibs()
 IF (Python3_FOUND)
     INCLUDE_DIRECTORIES("${Python3_INCLUDE_DIRS}")
-    get_filename_component(PYTHON_LINK_DIRECTORY ${PYTHON_LIBRARY} DIRECTORY)
+#    get_filename_component(PYTHON_LINK_DIRECTORY ${PYTHON_LIBRARY} DIRECTORY)
     # See: https://cmake.org/cmake/help/latest/module/FindPython3.html#module:FindPython3
     message("Python3_VERSION:           ${Python3_VERSION}")
     message("Python3_EXECUTABLE:        ${Python3_EXECUTABLE}")
@@ -63,6 +63,7 @@ IF (Python3_FOUND)
     message("Python3_STDARCH:           ${Python3_STDARCH}")
     message("Python3_LINK_OPTIONS:      ${Python3_LINK_OPTIONS}")
     message("Python3_LIBRARIES:         ${Python3_LIBRARIES}")
+    message("PYTHON3_LIBRARY:           ${PYTHON3_LIBRARY}")
 ELSE ()
     MESSAGE(FATAL_ERROR "Unable to find Python libraries.")
 ENDIF ()
@@ -77,7 +78,8 @@ ENDIF ()
 
 link_directories(${PYTHON_LINK_LIBRARY})
 
-target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARY})
+#target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARY})
+target_link_libraries(${PROJECT_NAME} ${Python3_LIBRARIES})
 
 #target_link_libraries(cPyMemTrace python3.8)
 
