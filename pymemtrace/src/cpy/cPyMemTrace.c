@@ -1263,7 +1263,7 @@ static const char NO_FUNCTION_NAME[] = "<no function name>";
 static const char NO_FILE_NAME[] = "<no file name>";
 #endif
 
-#if 0
+#if 1
 /**
  * Returns the size of a Python object by calling \c sys.getsizeof().
  * This is currently segfaulting for reasons unknown.
@@ -1272,38 +1272,62 @@ static const char NO_FILE_NAME[] = "<no file name>";
  * @return The result of \c sys.getsizeof() or 0 on failure.
  */
 static long
-sys_getsizeof(PyObject* Py_UNUSED(obj)) {
+sys_getsizeof(PyObject* obj) {
     long ret = -1;
-#if 0
+#if 1
     assert(obj);
-    printf("TRACE: sys_getsizeof() %p type: %s refcnt %zd\n", (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj));
+    printf(
+        "TRACE: %s()#%d %p type: %s refcnt %zd\n",
+        __FUNCTION__, __LINE__, (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj)
+    );
     if (Py_REFCNT(obj) == 0) {
         return ret;
     }
     Py_INCREF(obj);
-    printf("TRACE: sys_getsizeof() %p type: %s refcnt %zd XXXX\n", (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj));
-    printf("TRACE: sys_getsizeof() type: %s\n", Py_TYPE(obj)->tp_name);
+    printf(
+            "TRACE: %s()#%d %p type: %s refcnt %zd\n",
+            __FUNCTION__, __LINE__, (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj)
+    );
 //    if (strcmp(Py_TYPE(obj)->tp_name, "frame") == 0) {
 //        return -1;
 //    }
 //    if (strcmp(Py_TYPE(obj)->tp_name, "builtin_function_or_method") == 0) {
-//        return -1;
+//        return -2;
 //    }
+    if (strcmp(Py_TYPE(obj)->tp_name, "bytes") == 0) {
+        return -3;
+    }
     PyObject *sys_module = PyImport_ImportModule("sys");
+    printf(
+            "TRACE: %s()#%d %p type: %s refcnt %zd\n",
+            __FUNCTION__, __LINE__, (void *)sys_module, Py_TYPE(sys_module)->tp_name, Py_REFCNT(sys_module)
+    );
     if (sys_module) {
+        printf("WTF\n");
         PyObject *result = PyObject_CallMethod(sys_module, "getsizeof", "O", obj);
-        printf("TRACE: sys_getsizeof() result type: %s\n", Py_TYPE(result)->tp_name);
+        printf(
+                "TRACE: %s()#%d %p type: %s refcnt %zd\n",
+                __FUNCTION__, __LINE__, (void *)result, Py_TYPE(result)->tp_name, Py_REFCNT(result)
+        );
         if (result) {
             ret = PyLong_AsLong(result);
             Py_DECREF(result);
         }
         Py_DECREF(sys_module);
     }
-    printf("TRACE: sys_getsizeof() returns: %ld\n", ret);
-    printf("TRACE: sys_getsizeof() %p type: %s refcnt %zd YYYY\n", (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj));
+//    printf("TRACE: sys_getsizeof() %p type: %s refcnt %zd YYYY\n", (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj));
+    printf(
+            "TRACE: %s()#%d %p type: %s refcnt %zd\n",
+            __FUNCTION__, __LINE__, (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj)
+    );
     Py_DECREF(obj);
-    printf("TRACE: sys_getsizeof() %p type: %s refcnt %zd ZZZZ\n", (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj));
+//    printf("TRACE: sys_getsizeof() %p type: %s refcnt %zd ZZZZ\n", (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj));
 #endif
+//    printf("TRACE: sys_getsizeof() returns: %ld\n", ret);
+    printf(
+            "TRACE: %s()#%d returns %ld\n",
+            __FUNCTION__, __LINE__, ret
+    );
     return ret;
 }
 #endif
@@ -1383,17 +1407,21 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     } else {
         func_name = NO_FUNCTION_NAME;
     }
-#if 0
-    long object_size = sys_getsizeof(obj);
+#if 1
+    long object_size = -1;
+    if (event == PyRefTracer_CREATE) {
+        object_size = sys_getsizeof(obj);
+    }
 #endif
     // Should match:
     //     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
     //            "Clock", "Address", "Type", "File", "Line", "Function", "RSS", "dRSS"
     //    );
     snprintf(event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             " %12.6f %16p %-32s %-80s %4d %-40s %16zd %16ld",
+             " %12.6f %16p %ld %-32s %-80s %4d %-40s %16zd %16ld",
              clock_time,
              (void *)obj,
+             object_size,
              Py_TYPE(obj)->tp_name,
              get_python_file_name(frame),
              py_frame_get_line_number(frame),
