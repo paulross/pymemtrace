@@ -269,7 +269,7 @@ class BytesWrapper:
         self.bytes = b' ' * length
 
 
-def foo() -> str:
+def make_bytes_wrappers() -> str:
     with cPyMemTrace.ReferenceTrace() as profiler:
         l = []
         for i in range(4):
@@ -288,7 +288,7 @@ def foo() -> str:
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_reference_trace_special_class_post_313():
     for i in range(1):
-        log_file_path = foo()
+        log_file_path = make_bytes_wrappers()
     with open(log_file_path) as file:
         file_data = file.read()
         print()

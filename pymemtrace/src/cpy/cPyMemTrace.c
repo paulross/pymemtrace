@@ -1162,6 +1162,8 @@ struct reference_tracing_data {
      * On __exit__ these will be reported to the log file. */
     size_t count_new;
     size_t count_del;
+    /* Allow computation of dRSS. */
+    size_t rss;
 };
 
 /**
@@ -1345,6 +1347,10 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     /* Write the rest of the event line. */
     static char event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
     double clock_time = (double) clock() / CLOCKS_PER_SEC;
+    /* RSS stuff. */
+    size_t rss = getCurrentRSS_alternate();
+    long d_rss = (long)rss - (long)data_alias->rss;
+    data_alias->rss = rss;
 #if 1
     /* NOTE: We need to disable tracing at this point as PyEval_GetFrame() and
      * sys_getsizeof() create arbitrary Python objects and that will
@@ -1381,23 +1387,25 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     long object_size = sys_getsizeof(obj);
 #endif
     // Should match:
-    //     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-32s\n",
-    //            "Clock", "Address", "Type", "File", "Line", "Function"
+    //     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
+    //            "Clock", "Address", "Type", "File", "Line", "Function", "RSS", "dRSS"
     //    );
     snprintf(event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             " %12.6f %16p %-32s %-80s %4d %-32s",
+             " %12.6f %16p %-32s %-80s %4d %-40s %16zd %16ld",
              clock_time,
              (void *)obj,
              Py_TYPE(obj)->tp_name,
              get_python_file_name(frame),
              py_frame_get_line_number(frame),
-             func_name
+             func_name,
+             rss,
+             d_rss
              );
     Py_DECREF(frame);
 #else
     // Should match:
-    //     fprintf(self->data->log_file, "HDR: %-12s %-32s %-80s %4s %-32s\n",
-    //            "Clock", "Address", "Type", "File", "Line", "Function"
+    //     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-32s %16s %16s\n",
+    //            "Clock", "Address", "Type", "File", "Line", "Function", "RSS", "dRSS"
     //    );
     snprintf(event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
              " %12.6f %16p %16zu %-32s %-80s %4d %-32s",
@@ -1513,7 +1521,7 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
     self->log_file_path = malloc(strlen(log_file_path) + 1);
     strcpy(self->log_file_path, log_file_path);
 #if DEBUG
-    fprintf(stdout, "DEBUG: Reference Tracing Opening log file %s\n", self->log_file_path);
+    fprintf(stdout, "DEBUG: Reference Tracing opening log file %s\n", self->log_file_path);
 #endif
     self->data->log_file = fopen(self->log_file_path, "w");
     /* Write the opening message. */
@@ -1524,8 +1532,11 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
     /* Write the header. */
     fputs(MARKER_LOG_FILE_START, self->data->log_file);
     fputc('\n', self->data->log_file);
-    fprintf(self->data->log_file, "HDR: %12s %16s %-32s %-80s %4s %-32s\n",
-            "Clock", "Address", "Type", "File", "Line", "Function"
+//    fprintf(self->data->log_file, "HDR: %12s %16s %-32s %-80s %4s %-40s\n",
+//            "Clock", "Address", "Type", "File", "Line", "Function"
+//    );
+    fprintf(self->data->log_file, "HDR: %12s %16s %-32s %-80s %4s %-40s %16s %16s\n",
+        "Clock", "Address", "Type", "File", "Line", "Function", "RSS", "dRSS"
     );
     assert(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
