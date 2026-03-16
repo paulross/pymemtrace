@@ -56,7 +56,7 @@ DEBUG = False
 DEBUG = True
 
 if DEBUG:
-    extra_compile_args.extend(['-g', '-O0', '-DDEBUG=1', '-UNDEBUG'])
+    extra_compile_args.extend(['-g3', '-O0', '-DDEBUG=1', '-UNDEBUG'])
 else:
     extra_compile_args.extend(['-O3', '-UDEBUG', '-DNDEBUG'])
 

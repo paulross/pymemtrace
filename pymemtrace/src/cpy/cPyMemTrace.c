@@ -1263,7 +1263,9 @@ static const char NO_FUNCTION_NAME[] = "<no function name>";
 static const char NO_FILE_NAME[] = "<no file name>";
 #endif
 
-#if 1
+#define REFERENCE_TRACING_GET_SIZEOF 1
+#define REFERENCE_TRACING_GET_SIZEOF_TRACE 1
+
 /**
  * Returns the size of a Python object by calling \c sys.getsizeof().
  * This is currently segfaulting for reasons unknown.
@@ -1274,63 +1276,70 @@ static const char NO_FILE_NAME[] = "<no file name>";
 static long
 sys_getsizeof(PyObject* obj) {
     long ret = -1;
-#if 1
+#if REFERENCE_TRACING_GET_SIZEOF
     assert(obj);
+#if REFERENCE_TRACING_GET_SIZEOF_TRACE
     printf(
         "TRACE: %s()#%d %p type: %s refcnt %zd\n",
         __FUNCTION__, __LINE__, (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj)
     );
+#endif // REFERENCE_TRACING_GET_SIZEOF_TRACE
     if (Py_REFCNT(obj) == 0) {
-        return ret;
+        return -2;
     }
     Py_INCREF(obj);
+#if REFERENCE_TRACING_GET_SIZEOF_TRACE
     printf(
             "TRACE: %s()#%d %p type: %s refcnt %zd\n",
             __FUNCTION__, __LINE__, (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj)
     );
+#endif // REFERENCE_TRACING_GET_SIZEOF_TRACE
 //    if (strcmp(Py_TYPE(obj)->tp_name, "frame") == 0) {
 //        return -1;
 //    }
 //    if (strcmp(Py_TYPE(obj)->tp_name, "builtin_function_or_method") == 0) {
 //        return -2;
 //    }
-    if (strcmp(Py_TYPE(obj)->tp_name, "bytes") == 0) {
-        return -3;
-    }
+//    if (strcmp(Py_TYPE(obj)->tp_name, "bytes") == 0) {
+//        return -3;
+//    }
     PyObject *sys_module = PyImport_ImportModule("sys");
+#if REFERENCE_TRACING_GET_SIZEOF_TRACE
     printf(
             "TRACE: %s()#%d %p type: %s refcnt %zd\n",
             __FUNCTION__, __LINE__, (void *)sys_module, Py_TYPE(sys_module)->tp_name, Py_REFCNT(sys_module)
     );
+#endif // REFERENCE_TRACING_GET_SIZEOF_TRACE
     if (sys_module) {
+#if REFERENCE_TRACING_GET_SIZEOF_TRACE
         printf("WTF\n");
+#endif // REFERENCE_TRACING_GET_SIZEOF_TRACE
         PyObject *result = PyObject_CallMethod(sys_module, "getsizeof", "O", obj);
-        printf(
-                "TRACE: %s()#%d %p type: %s refcnt %zd\n",
-                __FUNCTION__, __LINE__, (void *)result, Py_TYPE(result)->tp_name, Py_REFCNT(result)
-        );
         if (result) {
             ret = PyLong_AsLong(result);
+#if REFERENCE_TRACING_GET_SIZEOF_TRACE
+            printf(
+                    "TRACE: %s()#%d %p ret: %ld\n",
+                    __FUNCTION__, __LINE__, (void *)result, ret
+            );
+#endif // REFERENCE_TRACING_GET_SIZEOF_TRACE
             Py_DECREF(result);
         }
         Py_DECREF(sys_module);
     }
-//    printf("TRACE: sys_getsizeof() %p type: %s refcnt %zd YYYY\n", (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj));
+#if REFERENCE_TRACING_GET_SIZEOF_TRACE
     printf(
             "TRACE: %s()#%d %p type: %s refcnt %zd\n",
             __FUNCTION__, __LINE__, (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj)
     );
+#endif // REFERENCE_TRACING_GET_SIZEOF_TRACE
     Py_DECREF(obj);
-//    printf("TRACE: sys_getsizeof() %p type: %s refcnt %zd ZZZZ\n", (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj));
-#endif
-//    printf("TRACE: sys_getsizeof() returns: %ld\n", ret);
-    printf(
-            "TRACE: %s()#%d returns %ld\n",
-            __FUNCTION__, __LINE__, ret
-    );
+#if REFERENCE_TRACING_GET_SIZEOF_TRACE
+    printf("TRACE: %s()#%d returns %ld\n", __FUNCTION__, __LINE__, ret);
+#endif // REFERENCE_TRACING_GET_SIZEOF_TRACE
+#endif // REFERENCE_TRACING_GET_SIZEOF
     return ret;
 }
-#endif
 
 /**
  * The callback function that is passed to \c PyRefTracer_SetTracer.
@@ -1375,7 +1384,6 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     size_t rss = getCurrentRSS_alternate();
     long d_rss = (long)rss - (long)data_alias->rss;
     data_alias->rss = rss;
-#if 1
     /* NOTE: We need to disable tracing at this point as PyEval_GetFrame() and
      * sys_getsizeof() create arbitrary Python objects and that will
      * recursively call this callback function causing a SIGABRT. */
@@ -1407,20 +1415,19 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     } else {
         func_name = NO_FUNCTION_NAME;
     }
-#if 1
     long object_size = -1;
-    if (event == PyRefTracer_CREATE) {
-        object_size = sys_getsizeof(obj);
-    }
-#endif
+#if REFERENCE_TRACING_GET_SIZEOF
+    object_size = sys_getsizeof(obj);
+#endif // REFERENCE_TRACING_GET_SIZEOF
     // Should match:
     //     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-    //            "Clock", "Address", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    //            "Clock", "Address", "RefCnt", "Sizeof", "Type", "File", "Line", "Function", "RSS", "dRSS"
     //    );
     snprintf(event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             " %12.6f %16p %ld %-32s %-80s %4d %-40s %16zd %16ld",
+             " %12.6f %16p %16ld %16ld %-32s %-80s %4d %-40s %16zd %16ld",
              clock_time,
              (void *)obj,
+             Py_REFCNT(obj),
              object_size,
              Py_TYPE(obj)->tp_name,
              get_python_file_name(frame),
@@ -1430,21 +1437,6 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
              d_rss
              );
     Py_DECREF(frame);
-#else
-    // Should match:
-    //     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-32s %16s %16s\n",
-    //            "Clock", "Address", "Type", "File", "Line", "Function", "RSS", "dRSS"
-    //    );
-    snprintf(event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             " %12.6f %16p %16zu %-32s %-80s %4d %-32s",
-             clock_time,
-             (void *)obj,
-             object_size,
-             Py_TYPE(obj)->tp_name,
-             NO_FILE_NAME,
-             0,
-             NO_FUNCTION_NAME);
-#endif
     assert(data_alias);
     assert(data_alias->log_file);
     fputs(event_text, data_alias->log_file);
@@ -1563,8 +1555,8 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
 //    fprintf(self->data->log_file, "HDR: %12s %16s %-32s %-80s %4s %-40s\n",
 //            "Clock", "Address", "Type", "File", "Line", "Function"
 //    );
-    fprintf(self->data->log_file, "HDR: %12s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-        "Clock", "Address", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    fprintf(self->data->log_file, "HDR: %12s %16s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
+        "Clock", "Address", "RefCnt", "Sizeof", "Type", "File", "Line", "Function", "RSS", "dRSS"
     );
     assert(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
@@ -1682,6 +1674,9 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
         data = reference_tracing_ll_get_data(reference_tracing_ll);
         if (data) {
             PyRefTracer_SetTracer(&reference_trace_allocations_callback, data);
+        }
+        if (PyErr_Occurred()) {
+            Py_RETURN_TRUE;
         }
         Py_RETURN_FALSE;
     }
