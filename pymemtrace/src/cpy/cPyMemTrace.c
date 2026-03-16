@@ -46,7 +46,7 @@
  * Monitored events are:
  * PyRefTracer_CREATE https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_CREATE
  * PyRefTracer_DESTROY https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_DESTROY
- * PyRefTracer_TRACKER_REMOVED https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED
+ * Possibly: PyRefTracer_TRACKER_REMOVED https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED
  */
 #define PY_SSIZE_T_CLEAN
 
@@ -1129,7 +1129,7 @@ static PyTypeObject cpyTraceObjectType = {
  * Monitored events are:
  * PyRefTracer_CREATE https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_CREATE
  * PyRefTracer_DESTROY https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_DESTROY
- * PyRefTracer_TRACKER_REMOVED https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED
+ * Possibly: PyRefTracer_TRACKER_REMOVED https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED
  *
  */
 
@@ -1275,11 +1275,7 @@ static const char NO_FILE_NAME[] = "<no file name>";
  */
 #if REFERENCE_TRACING_GET_SIZEOF
 static long
-sys_getsizeof(PyObject* obj) {
-#else
-static long
 sys_getsizeof(PyObject* Py_UNUSED(obj)) {
-#endif
     long ret = -1;
 #if REFERENCE_TRACING_GET_SIZEOF
     assert(obj);
@@ -1345,6 +1341,7 @@ sys_getsizeof(PyObject* Py_UNUSED(obj)) {
 #endif // REFERENCE_TRACING_GET_SIZEOF
     return ret;
 }
+#endif // #if REFERENCE_TRACING_GET_SIZEOF
 
 /**
  * The callback function that is passed to \c PyRefTracer_SetTracer.
@@ -1372,6 +1369,8 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
         // Write the destruction of an object.
         fputs("DEL:", data_alias->log_file);
         data_alias->count_del++;
+#if 0
+    // Python 3.14 doe snot seem to support this so cancel it.
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 14
         } else if (event == PyRefTracer_TRACKER_REMOVED) {
             // Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
@@ -1379,6 +1378,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
             // fputs("REM", the_data->log_file);
             return 0;
 #endif // #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 14
+#endif // 0
     } else {
         Py_UNREACHABLE();
     }
@@ -2017,10 +2017,12 @@ debug_cPyMemtrace(int argc, char **argv) {
     fprintf(stdout, "Second decref from %zd\n", Py_REFCNT(profile_object));
     Py_DECREF((PyObject *) profile_object);
 
+#if 0
     PyObject *bytes_obj = PyBytes_FromStringAndSize(NULL, 1024);
     long getsize = sys_getsizeof(bytes_obj);
     printf("sys_getsizeof() result: %ld\n", getsize);
     Py_DECREF(bytes_obj);
+#endif
 
     /* Cleanup. */
     PyConfig_Clear(&config);
