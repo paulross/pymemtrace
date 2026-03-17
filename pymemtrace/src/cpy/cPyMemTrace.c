@@ -633,90 +633,75 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 
 static cpyTraceFileWrapper *
 new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *specific_filename, int is_profile) {
-    static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH];
+    static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH + 1];
     assert(!PyErr_Occurred());
     cpyTraceFileWrapper *trace_wrapper = NULL;
-    const char *filename;
     if (specific_filename) {
-        filename = specific_filename;
+        snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s", specific_filename);
     } else {
         char trace_type = is_profile ? 'P' : 'T';
         size_t ll_depth = is_profile ? wrapper_ll_length(static_profile_wrappers) : wrapper_ll_length(
                 static_trace_wrappers);
-        filename = create_filename(trace_type, ll_depth);
+        create_filename_within_cwd(trace_type, ll_depth, file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH);
     }
-    if (filename) {
-#ifdef _WIN32
-        char seperator = '\\';
-#else
-        char seperator = '/';
-#endif
-        if (filename[0] == seperator) {
-            snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s", filename);
-        } else {
-            snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s%c%s", current_working_directory(),
-                     seperator,
-                     filename);
-        }
-        trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(&cpyTraceFileWrapperType, NULL, NULL);
-        if (trace_wrapper) {
+    trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(&cpyTraceFileWrapperType, NULL, NULL);
+    if (trace_wrapper) {
 #if DEBUG
-            fprintf(stdout, "DEBUG: Opening log file %s\n", file_path_buffer);
+        fprintf(stdout, "DEBUG: Opening log file %s\n", file_path_buffer);
 #endif
-            trace_wrapper->file = fopen(filename, "w");
-            if (trace_wrapper->file) {
-                // Copy the filename
-                trace_wrapper->log_file_path = malloc(strlen(file_path_buffer) + 1);
-                strcpy(trace_wrapper->log_file_path, file_path_buffer);
-                // Write the message to the log file if present.
-                // fprintf(stdout, "TRACE: Message \"%s\"\n", message);
-                if (message) {
-                    fprintf(trace_wrapper->file, "%s\n", message);
-                }
-                fprintf(trace_wrapper->file, "%s\n", MARKER_LOG_FILE_START);
+        trace_wrapper->file = fopen(file_path_buffer, "w");
+        if (trace_wrapper->file) {
+            // Copy the filename
+            trace_wrapper->log_file_path = malloc(strlen(file_path_buffer) + 1);
+            strcpy(trace_wrapper->log_file_path, file_path_buffer);
+            // Write the message to the log file if present.
+            // fprintf(stdout, "TRACE: Message \"%s\"\n", message);
+            if (message) {
+                fprintf(trace_wrapper->file, "%s\n", message);
+            }
+            fprintf(trace_wrapper->file, "%s\n", MARKER_LOG_FILE_START);
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
-                fprintf(trace_wrapper->file, "HDR: %-12s %-6s  %-12s %-8s %-80s %4s %-32s %12s %12s\n",
-                        "Event", "dEvent", "Clock", "What", "File", "Line", "Function", "RSS", "dRSS"
-                );
+            fprintf(trace_wrapper->file, "HDR: %-12s %-6s  %-12s %-8s %-80s %4s %-32s %12s %12s\n",
+                    "Event", "dEvent", "Clock", "What", "File", "Line", "Function", "RSS", "dRSS"
+            );
 #else
-                fprintf(trace_wrapper->file, "%-12s %-6s  %-12s %-8s %-80s %4s %-32s %12s %12s\n",
-                        "Event", "dEvent", "Clock", "What", "File", "Line", "Function", "RSS", "dRSS"
-                );
+            fprintf(trace_wrapper->file, "%-12s %-6s  %-12s %-8s %-80s %4s %-32s %12s %12s\n",
+                    "Event", "dEvent", "Clock", "What", "File", "Line", "Function", "RSS", "dRSS"
+            );
 #endif
 #else
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
-                fprintf(trace_wrapper->file, "HDR: %-12s %-6s  %-8s %-80s %4s %-32s %12s %12s\n",
-                        "Event", "dEvent", "What", "File", "Line", "Function", "RSS", "dRSS"
-                );
+            fprintf(trace_wrapper->file, "HDR: %-12s %-6s  %-8s %-80s %4s %-32s %12s %12s\n",
+                    "Event", "dEvent", "What", "File", "Line", "Function", "RSS", "dRSS"
+            );
 #else
-                fprintf(trace_wrapper->file, "%-12s %-6s  %-8s %-80s %4s %-32s %12s %12s\n",
-                        "Event", "dEvent", "What", "File", "Line", "Function", "RSS", "dRSS"
-                );
+            fprintf(trace_wrapper->file, "%-12s %-6s  %-8s %-80s %4s %-32s %12s %12s\n",
+                    "Event", "dEvent", "What", "File", "Line", "Function", "RSS", "dRSS"
+            );
 #endif
 #endif
-                fputs("FRST: ", trace_wrapper->file);
-                trace_wrapper_write_frame_data_to_event_text(trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
-                fputs(trace_wrapper->event_text, trace_wrapper->file);
-                fputc('\n', trace_wrapper->file);
-                trace_wrapper->event_number = 0;
-                trace_wrapper->rss = 0;
-                if (d_rss_trigger < 0) {
-                    trace_wrapper->d_rss_trigger = getpagesize();
-                } else {
-                    trace_wrapper->d_rss_trigger = d_rss_trigger;
-                }
-#ifdef PY_MEM_TRACE_WRITE_OUTPUT
-                trace_wrapper->previous_event_number = 0;
-#endif
+            fputs("FRST: ", trace_wrapper->file);
+            trace_wrapper_write_frame_data_to_event_text(trace_wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
+            fputs(trace_wrapper->event_text, trace_wrapper->file);
+            fputc('\n', trace_wrapper->file);
+            trace_wrapper->event_number = 0;
+            trace_wrapper->rss = 0;
+            if (d_rss_trigger < 0) {
+                trace_wrapper->d_rss_trigger = getpagesize();
             } else {
-                cpyTraceFileWrapper_dealloc(trace_wrapper);
-                fprintf(stderr, "Can not open writable file for cpyTraceFileWrapper at %s\n", filename);
-                return NULL;
+                trace_wrapper->d_rss_trigger = d_rss_trigger;
             }
+#ifdef PY_MEM_TRACE_WRITE_OUTPUT
+            trace_wrapper->previous_event_number = 0;
+#endif
         } else {
-            fprintf(stderr, "Can not create cpyTraceFileWrapper.\n");
+            cpyTraceFileWrapper_dealloc(trace_wrapper);
+            fprintf(stderr, "Can not open writable file for cpyTraceFileWrapper at %s\n", file_path_buffer);
+            return NULL;
         }
+    } else {
+        fprintf(stderr, "Can not create cpyTraceFileWrapper.\n");
     }
     assert(!PyErr_Occurred());
     return trace_wrapper;
@@ -1547,20 +1532,48 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
     static char *kwlist[] = {"message", "filepath", NULL};
     char *message = NULL;
     char *log_file_path = NULL;
+    static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH + 1];
+
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sO&", kwlist, &message, PyUnicode_FSConverter,
                                      &log_file_path)) {
         assert(PyErr_Occurred());
         return -1;
     }
     /* Open the log file, default to the CWD. */
-    // TODO:
-    //  TODO: Error checking
-    if (!log_file_path) {
+    int err_code;
+    if (log_file_path) {
+        self->log_file_path = malloc(strlen(log_file_path) + 1);
+        if (!self->log_file_path) {
+            PyErr_Format(
+                    PyExc_RuntimeError, "%s#%d Can not malloc.", __FUNCTION__, __LINE__
+                    );
+        }
+        if (strcpy(self->log_file_path, log_file_path) != self->log_file_path) {
+            PyErr_Format(
+                    PyExc_RuntimeError, "%s#%d strcpy failed.", __FUNCTION__, __LINE__
+                    );
+        }
+    } else {
         /* Default to a standard log file name in the current working directory. */
-        log_file_path = create_filename('O', reference_tracing_ll_length(reference_tracing_ll));
+        size_t ll_depth = reference_tracing_ll_length(reference_tracing_ll);
+        err_code = create_filename_within_cwd('O', ll_depth, file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH);
+        if (err_code <= 0) {
+            PyErr_Format(
+                    PyExc_RuntimeError, "%s#%d Can not print to buffer, error %d", __FUNCTION__, __LINE__, err_code
+                    );
+        }
+        self->log_file_path = malloc(strlen(file_path_buffer) + 1);
+        if (!self->log_file_path) {
+            PyErr_Format(
+                    PyExc_RuntimeError, "%s#%d Can not malloc.", __FUNCTION__, __LINE__
+            );
+        }
+        if (strcpy(self->log_file_path, file_path_buffer) != self->log_file_path) {
+            PyErr_Format(
+                    PyExc_RuntimeError, "%s#%d strcpy failed.", __FUNCTION__, __LINE__
+            );
+        }
     }
-    self->log_file_path = malloc(strlen(log_file_path) + 1);
-    strcpy(self->log_file_path, log_file_path);
 #if DEBUG
     fprintf(stdout, "DEBUG: Reference Tracing opening log file %s\n", self->log_file_path);
 #endif
@@ -1927,54 +1940,57 @@ debug_cPyMemtrace(int argc, char **argv) {
     }
 #endif
 
-    /* Debug trace wrapper. */
     {
-        if (PyType_Ready(&cpyTraceFileWrapperType) < 0) {
-            return -8;
+        /* Debug trace wrapper. */
+        {
+            if (PyType_Ready(&cpyTraceFileWrapperType) < 0) {
+                return -8;
+            }
+            Py_INCREF(&cpyTraceFileWrapperType);
+
+            cpyTraceFileWrapper *trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(
+                    &cpyTraceFileWrapperType, NULL, NULL
+            );
+            fprintf(stdout, "cpyTraceFileWrapper *trace_wrapper:\n");
+            PyObject_Print((PyObject *) trace_wrapper, stdout, Py_PRINT_RAW);
+
+            PyFrameObject *frame_object = PyEval_GetFrame();
+            trace_wrapper_write_frame_data_to_event_text(trace_wrapper, frame_object, PyTrace_CALL, Py_None);
+
+            Py_DECREF((PyObject *) trace_wrapper);
         }
-        Py_INCREF(&cpyTraceFileWrapperType);
-
-        cpyTraceFileWrapper *trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(
-                &cpyTraceFileWrapperType, NULL, NULL
-        );
-        fprintf(stdout, "cpyTraceFileWrapper *trace_wrapper:\n");
-        PyObject_Print((PyObject *) trace_wrapper, stdout, Py_PRINT_RAW);
-
-        PyFrameObject *frame_object = PyEval_GetFrame();
-        trace_wrapper_write_frame_data_to_event_text(trace_wrapper, frame_object, PyTrace_CALL, Py_None);
-
-        Py_DECREF((PyObject *) trace_wrapper);
     }
     /* END: Debug trace wrapper. */
 
     /* Debug profile wrapper. */
-    if (PyType_Ready(&cpyProfileObjectType) < 0) {
-        return -16;
-    }
-    Py_INCREF(&cpyProfileObjectType);
-
-    cpyProfileOrTraceObject *profile_object = (cpyProfileOrTraceObject *) cpyProfileOrTraceObject_new(
-            &cpyProfileObjectType, NULL, NULL
-    );
     {
-        PyObject *py_args = Py_BuildValue("()");
-        PyObject *py_kwargs = Py_BuildValue("{}");
-        int init = cpyProfileOrTraceObject_init(profile_object, py_args, py_kwargs);
-        Py_DECREF(py_args);
-        Py_DECREF(py_kwargs);
-        fprintf(stdout, "cpyProfileOrTraceObject_init() returned %d\n", init);
-        PyObject_Print((PyObject *) profile_object, stdout, Py_PRINT_RAW);
-        fprintf(stdout, "\n");
-    }
+        if (PyType_Ready(&cpyProfileObjectType) < 0) {
+            return -16;
+        }
+        Py_INCREF(&cpyProfileObjectType);
 
-    /* This attaches the profiler to the Python runtime. */
-    PyObject *result_enter = ProfileObject_enter(profile_object);
-    fprintf(stdout, "result_enter:\n");
-    PyObject_Print(result_enter, stdout, Py_PRINT_RAW);
-    fprintf(stdout, "\n");
+        cpyProfileOrTraceObject *profile_object = (cpyProfileOrTraceObject *) cpyProfileOrTraceObject_new(
+                &cpyProfileObjectType, NULL, NULL
+        );
+        {
+            PyObject *py_args = Py_BuildValue("()");
+            PyObject *py_kwargs = Py_BuildValue("{}");
+            int init = cpyProfileOrTraceObject_init(profile_object, py_args, py_kwargs);
+            Py_DECREF(py_args);
+            Py_DECREF(py_kwargs);
+            fprintf(stdout, "cpyProfileOrTraceObject_init() returned %d\n", init);
+            PyObject_Print((PyObject *) profile_object, stdout, Py_PRINT_RAW);
+            fprintf(stdout, "\n");
+        }
+
+        /* This attaches the profiler to the Python runtime. */
+        PyObject *result_enter = ProfileObject_enter(profile_object);
+        fprintf(stdout, "result_enter:\n");
+        PyObject_Print(result_enter, stdout, Py_PRINT_RAW);
+        fprintf(stdout, "\n");
 
 #if 0
-    /* TODO: Write to the profiler by calling a Python function. */
+        /* TODO: Write to the profiler by calling a Python function. */
     PyObject *code_object = Py_CompileStringObject(
             "import os; os.getpid()\n" /* const char *str */,
             NULL /*PyObject *filename */,
@@ -1995,27 +2011,54 @@ debug_cPyMemtrace(int argc, char **argv) {
     fprintf(stdout, "\n");
 #endif
 
-    /* This detaches the profiler from the Python runtime. */
-    PyObject *result_exit = ProfileObject_exit(profile_object, NULL);
-    fprintf(stdout, "result_exit: ");
-    if (result_exit) {
-        PyObject_Print(result_exit, stdout, Py_PRINT_RAW);
-    } else {
-        fprintf(stdout, "NULL");
-    }
-    fprintf(stdout, "\n");
+        /* This detaches the profiler from the Python runtime. */
+        PyObject *result_exit = ProfileObject_exit(profile_object, NULL);
+        fprintf(stdout, "result_exit: ");
+        if (result_exit) {
+            PyObject_Print(result_exit, stdout, Py_PRINT_RAW);
+        } else {
+            fprintf(stdout, "NULL");
+        }
+        fprintf(stdout, "\n");
 
-    /* Context manager example:
-     *  with cPyMemTrace.Profile(message=message) as profiler:
-     *      # profiler will have refcount of 2, one from the ctor, one from __enter__.
-     *  # profiler has a refcount of 1 as __exit__ decrements self..
-     *  del profiler
-     *  # profiler has a refcount of 0 and is deallocated.
-     */
-    fprintf(stdout, "First decref from %zd\n", Py_REFCNT(profile_object));
-    Py_DECREF((PyObject *) profile_object);
-    fprintf(stdout, "Second decref from %zd\n", Py_REFCNT(profile_object));
-    Py_DECREF((PyObject *) profile_object);
+        /* Context manager example:
+         *  with cPyMemTrace.Profile(message=message) as profiler:
+         *      # profiler will have refcount of 2, one from the ctor, one from __enter__.
+         *  # profiler has a refcount of 1 as __exit__ decrements self..
+         *  del profiler
+         *  # profiler has a refcount of 0 and is deallocated.
+         */
+        fprintf(stdout, "First decref from %zd\n", Py_REFCNT(profile_object));
+        Py_DECREF((PyObject *) profile_object);
+        fprintf(stdout, "Second decref from %zd\n", Py_REFCNT(profile_object));
+        Py_DECREF((PyObject *) profile_object);
+    }
+    /* END: Debug profile wrapper. */
+
+    /* Debug Reference Tracing wrapper. */
+    {
+        if (PyType_Ready(&cpyReferenceTracingType) < 0) {
+            return -32;
+        }
+        Py_INCREF(&cpyReferenceTracingType);
+
+        cpyReferenceTracing *ref_tracing_object = (cpyReferenceTracing *) cpyReferenceTracing_new(
+                &cpyReferenceTracingType, NULL, NULL
+        );
+        {
+            PyObject *py_args = Py_BuildValue("()");
+            PyObject *py_kwargs = Py_BuildValue("{}");
+            int init = cpyReferenceTracing_init(ref_tracing_object, py_args, py_kwargs);
+            Py_DECREF(py_args);
+            Py_DECREF(py_kwargs);
+            fprintf(stdout, "cpyReferenceTracing_init() returned %d\n", init);
+            PyObject_Print((PyObject *) ref_tracing_object, stdout, Py_PRINT_RAW);
+            fprintf(stdout, "\n");
+        }
+        Py_DECREF(ref_tracing_object);
+    }
+    /* End: Debug Reference Tracing wrapper. */
+
 
 #if 0
     PyObject *bytes_obj = PyBytes_FromStringAndSize(NULL, 1024);
