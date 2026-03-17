@@ -8,10 +8,10 @@ Introduction
 
 ``cPyMemTrace`` is a Python profiler written in 'C' that records the
 `Resident Set Size <https://en.wikipedia.org/wiki/Resident_set_size>`_ for every Python and C call and return.
-It writes this data to a log file with a name of the form ``"20241107_195847_0_62264_P_0_PY3.13.0b3.log"``.
-See :ref:`tech_notes-cpymemtrace_log_file` for the format.
+It writes this data to a log file with a name of the form ``"20241107_195847_12_62264_P_0_PY3.13.0b3.log"``.
+See :ref:`tech_notes-cpymemtrace_profile_trace_log_file_format` for the format.
 
-Python supports two similar ways of tracking code:
+Python supports several similar ways of tracking code:
 
 - A *Profiler* that ignores Python line, opcode and exception events.
   This is more suitable for logging C code.
@@ -19,12 +19,11 @@ Python supports two similar ways of tracking code:
 - A *Tracer* that ignores C call, exception and return events.
   This is more suitable for logging pure Python code.
   This is supported by the :py:class:`pymemtrace.cPyMemTrace.Trace` class.
+- A *Reference Tracer* tracks every Python allocation and de-allocation.
+  This is supported by the :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing` class.
+  This is available in Python 3.13+.
 
-.. note::
-
-    `Reference Tracing`_ (Python 3.13+) is not supported by the current version of pymemtrace.
-
-.. list-table:: **Python Events**
+.. list-table:: **Python Profile/Trace Events**
    :widths: 40 60 15 15 15
    :header-rows: 1
 
@@ -332,8 +331,107 @@ To write to a specific file, and then read it follow this pattern:
 
 See ``tests.test_cpymemtrace.test_trace_to_specific_log_file_nested()`` for a more complicated example.
 
-.. todo::
+Reference Tracing
+-----------------
 
-    Support `Reference Tracing <https://docs.python.org/3/c-api/profiling.html#reference-tracing>`_
-    from Python 3.13 onwards.
-    See an example here: `<https://github.com/python/cpython/pull/115945/changes>`_
+From Python 3.13 onwards Python supports
+`Reference Tracing <https://docs.python.org/3/c-api/profiling.html#reference-tracing>`_.
+This enables us to track every Python allocation and de-allocation.
+The class that does this is :py:class:`cPyMemTrace.ReferenceTracing`.
+
+Here we create an example class that just allocates memory:
+
+.. code-block:: python
+
+    class BytesWrapper:
+        def __init__(self, length: int):
+            self.bytes = b' ' * length
+
+Then we invoke this multiple times under the watchful eye of a ``ReferenceTracing`` context manger:
+
+.. code-block:: python
+
+    from pymemtrace import cPyMemTrace
+
+    def make_bytes_wrappers() -> str:
+        with cPyMemTrace.ReferenceTracing() as profiler:
+            l = []
+            for i in range(4):
+                length = random.randint(512, 1024) + 1024 ** 2
+                l.append(BytesWrapper(length))
+                time.sleep(0.25)
+            while len(l):
+                p = l.pop()
+                del p
+                time.sleep(0.25)
+            return profiler.log_file_path()
+
+Example
+^^^^^^^
+
+The log file wil look like this (abridged).
+
+..
+
+    .. raw:: latex
+
+        [Continued on the next page]
+
+        \pagebreak
+
+.. raw:: latex
+
+    \begin{landscape}
+
+.. code-block:: text
+
+
+    SOF
+    HDR:        Clock          Address           RefCnt Type                             File                                                                             Line Function                                              RSS             dRSS
+    DEL:     0.816121   0x60000670f980                0 builtin_function_or_method       pymemtrace/tests/test_cpymemtrace.py             292 make_bytes_wrappers                              38207488         38207488
+    NEW:     0.816183   0x6000025fde70                1 list                             pymemtrace/tests/test_cpymemtrace.py             293 make_bytes_wrappers                              38207488                0
+    NEW:     0.816203   0x6000025ec6a0                1 range                            pymemtrace/tests/test_cpymemtrace.py             294 make_bytes_wrappers                              38207488                0
+    NEW:     0.816218   0x60000169c210                1 range_iterator                   pymemtrace/tests/test_cpymemtrace.py             294 make_bytes_wrappers                              38207488                0
+    DEL:     0.816229   0x6000025ec6a0                0 range                            pymemtrace/tests/test_cpymemtrace.py             294 make_bytes_wrappers                              38207488                0
+    8<---- Snip ---->8
+    NEW:     0.816531   0x7fa81fbf2a00                1 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    NEW:     0.816590   0x7fa823903010                1 bytes                            pymemtrace/tests/test_cpymemtrace.py             288 __init__                                         38207488                0
+    DEL:     0.816634   0x60000385cf90                0 frame                            pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    DEL:     0.816645   0x6000025e34a0                0 tuple                            pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    8<---- Snip ---->8
+    NEW:     0.817109   0x7fa81e7aa280                1 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    NEW:     0.817162   0x7fa823600010                1 bytes                            pymemtrace/tests/test_cpymemtrace.py             288 __init__                                         38207488                0
+    DEL:     0.817203   0x6000038593a0                0 frame                            pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    NEW:     0.817250   0x60000169c110                1 int                              /Users/engun/dev/Python/Python-3.13.2/Lib/random.py                               340 randint                                          38207488                0
+    8<---- Snip ---->8
+    DEL:     0.817495   0x60000168b350                0 int                              pymemtrace/tests/test_cpymemtrace.py             295 make_bytes_wrappers                              38207488                0
+    NEW:     0.817513   0x7fa82347c940                1 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    NEW:     0.817602   0x7fa823701010                1 bytes                            pymemtrace/tests/test_cpymemtrace.py             288 __init__                                         38207488                0
+    DEL:     0.817675   0x600003849540                0 frame                            pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    NEW:     0.817762   0x600001694d90                1 int                              /Users/engun/dev/Python/Python-3.13.2/Lib/random.py                               340 randint                                          38207488                0
+    NEW:     0.817885   0x600001694c90                1 int                              /Users/engun/dev/Python/Python-3.13.2/Lib/random.py                               317 randrange                                        38207488                0
+    8<---- Snip ---->8
+    DEL:     0.818299   0x60000169c510                0 int                              pymemtrace/tests/test_cpymemtrace.py             295 make_bytes_wrappers                              38207488                0
+    NEW:     0.818333   0x7fa81fafbe60                1 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    NEW:     0.818525   0x7fa823802010                1 bytes                            pymemtrace/tests/test_cpymemtrace.py             288 __init__                                         38207488                0
+    DEL:     0.818701   0x6000038409e0                0 frame                            pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    DEL:     0.818776   0x60000169c210                0 range_iterator                   pymemtrace/tests/test_cpymemtrace.py             294 make_bytes_wrappers                              38207488                0
+    DEL:     0.818860   0x7fa81fafbe60                0 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    DEL:     0.818875   0x7fa823802010                0 bytes                            pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    DEL:     0.819012   0x7fa82347c940                0 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    DEL:     0.819128   0x7fa823701010                0 bytes                            pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    DEL:     0.819370   0x7fa81e7aa280                0 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    DEL:     0.819447   0x7fa823600010                0 bytes                            pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    DEL:     0.819582   0x7fa81fbf2a00                0 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    DEL:     0.819648   0x7fa823903010                0 bytes                            pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    NEW:     0.820073   0x600003236b30                1 str                              pymemtrace/tests/test_cpymemtrace.py             304 make_bytes_wrappers                              38211584             4096
+    NEW:     0.820357   0x6000067033e0                1 tuple                            pymemtrace/tests/test_cpymemtrace.py             292 make_bytes_wrappers                              38211584                0
+    EOF
+
+.. raw:: latex
+
+    \end{landscape}
+
+The file format is described here :ref:`tech_notes-cpymemtrace_reference_tracing_log_file_format`.
+
+TODO: Log file analysis with ``pymemtrace/util/ref_trace_analyse.py``.

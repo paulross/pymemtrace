@@ -22,6 +22,8 @@ The tools provided by ``pymemtrace``:
   See `some process examples <https://pymemtrace.readthedocs.io/en/latest/examples/process.html>`_
 * ``cPyMemTrace`` is a memory tracer written in C that can report total memory usage for every function call/return for
   both C and Python sections.
+  With Python 3.13+ ``cPyMemTrace`` can also report every object allocation and de-allocation with
+  `Reference Tracing <https://docs.python.org/3/c-api/profiling.html#reference-tracing>`_.
   See some `cPyMemTrace examples <https://pymemtrace.readthedocs.io/en/latest/examples/c_py_mem_trace.html>`_
   and a `technical note on cPyMemTrace <https://pymemtrace.readthedocs.io/en/latest/tech_notes/cPyMemTrace.html>`_.
 * DTrace: Here are a number of D scripts that can trace the low level ``malloc()`` and ``free()`` system calls and

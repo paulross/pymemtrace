@@ -56,8 +56,8 @@ def g():
     print(f'Done.')
 
 
-def example_for_documentation():
-    print(f'example_for_documentation()')
+def example_profile_for_documentation():
+    print(f'example_profile_for_documentation()')
     with cPyMemTrace.Profile(0, message="MESSAGE"):
         print(f'Logging to {cPyMemTrace.get_log_file_path_profile()}')
         l = []
@@ -82,7 +82,7 @@ def main():
     #     test_over_512()
     #     test_well_over_512()
 
-    example_for_documentation()
+    example_profile_for_documentation()
 
     return 0
 
