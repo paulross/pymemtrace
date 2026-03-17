@@ -1772,8 +1772,8 @@ static PyTypeObject cpyReferenceTracingType = {
                   "\n\n- ``message``: An optional message to write to the begining of the log file."
                   "\n\n- ``filepath``: An optional specific path to the log file."
                   "\n  By default this writes to a file in the current working directory named"
-                  " ``\"YYYYMMDD_HHMMMSS_<PID>_O_<depth>_PY<Python Version>.log\"``"
-                  " For example ``\"20241107_195847_62264_O_0_PY3.13.0b3.log\"``"
+                  " ``\"YYYYMMDD_HHMMMSS_<int>_<PID>_O_<depth>_PY<Python Version>.log\"``"
+                  " For example ``\"20241107_195847_12_62264_O_0_PY3.13.0b3.log\"``"
                   "\n",
         .tp_basicsize = sizeof(cpyReferenceTracing),
         .tp_itemsize = 0,
@@ -1898,7 +1898,7 @@ PyInit_cPyMemTrace(void) {
         return NULL;
     }
     Py_INCREF(&cpyReferenceTracingType);
-    if (PyModule_AddObject(m, "ReferenceTrace", (PyObject *) &cpyReferenceTracingType) < 0) {
+    if (PyModule_AddObject(m, "ReferenceTracing", (PyObject *) &cpyReferenceTracingType) < 0) {
         Py_DECREF(&cpyReferenceTracingType);
         Py_DECREF(m);
         return NULL;

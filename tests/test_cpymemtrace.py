@@ -38,7 +38,7 @@ def test_module_dir_pre_313():
 def test_module_dir_pre_313():
     assert dir(cPyMemTrace) == [
         'Profile',
-        'ReferenceTrace',
+        'ReferenceTracing',
         'Trace',
         '__doc__',
         '__file__',
@@ -240,7 +240,7 @@ def test_profile_inline_message_to_log_file_pre_313(cls):
     'cls',
     (
             cPyMemTrace.Profile,
-            # cPyMemTrace.ReferenceTrace,
+            # cPyMemTrace.ReferenceTracing,
             cPyMemTrace.Trace,
     )
 )
@@ -266,7 +266,7 @@ def create_bytes(length: int) -> bytes:
 def test_reference_trace_basic_post_313():
     message = 'test_profile_inline_message_to_log_file():'
     time.sleep(1.1)  # Make sure that we increment the log file name by one second.
-    with cPyMemTrace.ReferenceTrace() as profiler:
+    with cPyMemTrace.ReferenceTracing() as profiler:
         l = []
         for i in range(4):
             b = create_bytes(random.randint(512, 1024) + 1024 ** 2)
@@ -289,7 +289,7 @@ class BytesWrapper:
 
 
 def make_bytes_wrappers() -> str:
-    with cPyMemTrace.ReferenceTrace() as profiler:
+    with cPyMemTrace.ReferenceTracing() as profiler:
         l = []
         for i in range(4):
             length = random.randint(512, 1024) + 1024 ** 2
