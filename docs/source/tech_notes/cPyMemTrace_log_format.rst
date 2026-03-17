@@ -33,7 +33,7 @@ The components are seperated by '_':
      - Integer
      - This is used to discriminate between log files that are created at the same second as
        ``struct tm`` does not have fractions of a second.
-       Starting from 0.
+       Starting from 0 for each PID.
        Not Zero padded.
    * - Process ID
      - Integer
