@@ -17,6 +17,12 @@
 #include "pymemtrace_util.h"
 
 /**
+ * This is used to discriminate between log files that are created at the same second as struct tm does not have
+ * fractions of a second.
+ */
+static int file_number = 0;
+
+/**
  * Creates a log file name with the timestamp (to the second), the process ID and the Python version.
  *
  * @param trace_type 'T' for a trace function, 'P' for a profile function.
@@ -39,8 +45,8 @@ char *create_filename(char trace_type, int trace_stack_depth) {
     int byte_len = snprintf(
         filename + len,
         PYMEMTRACE_FILE_NAME_MAX_LENGTH - len - 1,
-        "_%d_%c_%d_PY%s.log",
-        pid, trace_type, trace_stack_depth, PY_VERSION
+        "_%d_%d_%c_%d_PY%s.log",
+        file_number++, pid, trace_type, trace_stack_depth, PY_VERSION
     );
 
     if (byte_len == 0) {

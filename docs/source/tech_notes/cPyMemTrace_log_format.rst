@@ -29,22 +29,29 @@ The components are seperated by '_':
    * - Time
      - HHMMSS
      -
+   * - Ordinal
+     - Integer
+     - This is used to discriminate between log files that are created at the same second as
+       ``struct tm`` does not have fractions of a second.
+       Starting from 0.
+       Not Zero padded.
    * - Process ID
      - Integer
-     -
+     - Not Zero padded.
    * - Trace/Profile
      - ``'T'`` or ``'P'``
      -
    * - Trace Stack Depth
      - Integer
      - Starting from 0.
+       Not Zero padded.
    * - Python Version
      - ``'PY'`` + version
      - The version is the C string ``PY_VERSION`` from the CPython API.
 
 The file extension is ``'.log'``
 
-For example ``20260227_122119_50260_T_2_PY3.12.1.log``.
+For example ``20260227_122119_14_50260_T_2_PY3.12.1.log``.
 
 See ``create_filename()`` in ``pymemtrace/src/c/pymemtrace_util.c``.
 

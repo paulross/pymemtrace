@@ -121,3 +121,5 @@ cmake-build-release/
 cmake-build-debug-event-trace/
 
 attic/
+
+!pymemtrace/examples/process.log

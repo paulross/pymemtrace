@@ -8,7 +8,7 @@ Introduction
 
 ``cPyMemTrace`` is a Python profiler written in 'C' that records the
 `Resident Set Size <https://en.wikipedia.org/wiki/Resident_set_size>`_ for every Python and C call and return.
-It writes this data to a log file with a name of the form ``"20241107_195847_62264_P_0_PY3.13.0b3.log"``.
+It writes this data to a log file with a name of the form ``"20241107_195847_0_62264_P_0_PY3.13.0b3.log"``.
 See :ref:`tech_notes-cpymemtrace_log_file` for the format.
 
 Python supports two similar ways of tracking code:
