@@ -2,10 +2,12 @@
 Analyses log files produced by cPyMemTrace.ReferenceTrace()
 
 """
+import argparse
 import dataclasses
 import logging
 import os
 import sys
+import time
 import typing
 
 logger = logging.getLogger(__file__)
@@ -93,7 +95,7 @@ class LogFileResult:
             del self.live_objects[obj_repr.address]
         else:
             logger.warning(
-                f'DEL: on unknown object'
+                f'DEL: on untracked object'
                 f' of type "{obj_repr.type}"'
                 f' at 0x{obj_repr.address:08x} on line {line_num}'
             )
@@ -104,11 +106,16 @@ class LogFileResult:
     def long_str_list(self) -> typing.List[str]:
 
         def _str_from_object_file(obj: ObjectData) -> str:
-            return f'{obj.file}'
-            # return f'{os.path.basename(obj.file)}'
+            return f'{os.path.basename(obj.file)}'
+            # return f'{obj.file}'
 
         def _str_from_object(obj: ObjectData) -> str:
-            return f'0x{obj.address:08x} {obj.type:40} {obj.file}#{obj.line}'
+            return (
+                f'0x{obj.address:08x}'
+                f' {obj.ref_cnt:4d}'
+                f' {obj.type:40}'
+                f' {_str_from_object_file(obj)}#{obj.line}'
+            )
 
         def _str_from_object_pair(obj_pair: typing.Tuple[ObjectData, ObjectData]) -> str:
             assert obj_pair[0].address == obj_pair[1].address
@@ -123,11 +130,11 @@ class LogFileResult:
         if self.intro_message_lines:
             ret.append('Initial Message:')
             ret.extend(self.intro_message_lines)
-        ret.append('Live Objects:')
+        ret.append(f'Live Objects [{len(self.live_objects)}]:')
         for address in sorted(self.live_objects.keys()):
             obj = self.live_objects[address]
             ret.append(f'    {_str_from_object(obj)}')
-        ret.append('Previous Objects:')
+        ret.append(f'Previous Objects [{len(self.prev_objects)}]:')
         for address in sorted(self.prev_objects.keys()):
             for obj_pair in self.prev_objects[address]:
                 ret.append(f'    {_str_from_object_pair(obj_pair)}')
@@ -171,23 +178,28 @@ def process_file_path(file_path: str):
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog=__file__,
+        description="""Reads an Reference Tracing log of a process and analyses it.""",
+    )
+    parser.add_argument("-l", "--log_level", type=int, dest="log_level", default=20,
+                        help="Log Level (debug=10, info=20, warning=30, error=40, critical=50)"
+                             " [default: %(default)s]"
+                        )
+    parser.add_argument('log_path', type=str, help='Input path to the log.')
+    args = parser.parse_args()
     logging.basicConfig(
-        level=20,
+        level=args.log_level,
         # format='%(asctime)s - %(filename)s#%(lineno)d - %(process)5d - (%(threadName)-10s) - %(levelname)-8s - %(message)s',
         format='%(asctime)s - %(filename)s#%(lineno)d - %(levelname)-8s - %(message)s',
         stream=sys.stdout,
     )
-
-    file_path = '/Users/engun/Documents/workspace/pymemtrace/20260316_115400_59322_O_0_PY3.13.2.log'
-    result = process_file_path(file_path)
-    print(f'File path: {file_path}')
+    time_start = time.perf_counter()
+    print(f'File path: {args.log_path}')
+    result = process_file_path(args.log_path)
     print('\n'.join(result.long_str_list()))
     print()
-
-    file_path = '/Users/engun/Documents/workspace/pymemtrace/20260316_115401_59322_O_0_PY3.13.2.log'
-    print(f'File path: {file_path}')
-    result = process_file_path(file_path)
-    print('\n'.join(result.long_str_list()))
+    print(f'Process time: {time.perf_counter() - time_start:.3f} (s)')
     return 0
 
 
