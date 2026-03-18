@@ -16,7 +16,7 @@ Python supports several similar ways of tracking code:
 - A *Profiler* that is suitable for logging Python and C code.
   This ignores Python line, opcode and exception events.
   This is supported by the :py:class:`pymemtrace.cPyMemTrace.Profile` class.
-- A *Tracer* that is suitable for logging pure Python code
+- A *Tracer* that is suitable for logging pure Python code.
   It ignores C call, and return events.
   This is supported by the :py:class:`pymemtrace.cPyMemTrace.Trace` class.
 - A *Reference Tracer* tracks every Python allocation and de-allocation.
@@ -443,13 +443,13 @@ The file format is described here :ref:`tech_notes-cpymemtrace_reference_tracing
 Analysing the Log With ``ref_trace_analyse.py``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This log file can bee very large so to help understand it there is a script
+This log file can be very large so to help understand it there is a script
 :py:mod:`pymemtrace.util.ref_trace_analyse` that can analyse it.
 
 This performs the following analysis:
 
 - If an object is deleted but hasn't been created in the log file a warning is issued.
-  These are not significant but refer to objects created before the log file was started.
+  These are not significant as they refer to objects created before the log file was started.
 - Any objects that were created within the log run but not de-allocated are listed
   along with the function, file, and line where it was created.
 - Any objects that were created and deleted within the log run are listed.

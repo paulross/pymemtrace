@@ -2,8 +2,6 @@
 Tracking Down Memory Leaks
 **************************
 
-Contents:
-
 .. toctree::
     :maxdepth: 3
 
