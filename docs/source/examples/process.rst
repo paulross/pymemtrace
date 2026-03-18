@@ -7,8 +7,13 @@
 ``process`` Examples
 ==============================
 
-``process`` is a very lightweight way of logging the total memory usage at regular time intervals.
-Here is an example:
+:py:mod:`pymemtrace.process` is a very lightweight way of logging the total memory usage at regular time intervals.
+It creates a monitoring thread that writes process information as JSON to your log output.
+
+Monitoring Your Python Process
+-----------------------------------
+
+Here is an example of including :py:mod:`pymemtrace.process` in your Python code:
 
 .. code-block:: python
 
@@ -78,7 +83,7 @@ The line:
     with process.log_process(interval=0.5, log_level=logger.getEffectiveLevel()):
         # As before.
 
-Instructs ``process`` to report every 0.5 seconds to the current log at the current log level.
+Instructs :py:mod:`pymemtrace.process` to report every 0.5 seconds to the current log at the current log level.
 You can specify an actual log level so:
 
 .. code-block:: python
@@ -86,13 +91,13 @@ You can specify an actual log level so:
     with process.log_process(interval=0.5, logging.INFO):
         # As before.
 
-And that will suppress any ``process`` output if you have the logging level set at, say, ERROR.
+And that will suppress any :py:mod:`pymemtrace.process` output if you have the logging level set at, say, ERROR.
 
 
 Monitoring Another Process
 -----------------------------------
 
-``process`` can monitor another process from the command line:
+:py:mod:`pymemtrace.process` can monitor any another process from the command line by giving it the PID:
 
 .. raw:: latex
 
@@ -127,34 +132,43 @@ Monitoring Another Process
 Using ``gnuplot`` on the Log File
 --------------------------------------
 
-``process`` can extract memory data from the log file and write the necessary files for plotting with ``gnuplot`` (which must be installed).
+:py:mod:`pymemtrace.process` can extract memory data from the log file and write the necessary files for
+plotting with ``gnuplot`` (which must be installed).
 
+For example run a process and save the log output:
 
 .. code-block:: bash
 
-    $ pwd
-    ~/Documents/workspace/pymemtrace (master)
     $ mkdir tmp
-    $ mkdir tmp/gnuplot
     $ python pymemtrace/examples/ex_process.py > tmp/process.log 2>&1
+
+Now run :py:mod:`pymemtrace.process` with that log file and an output location:
+
+.. code-block:: bash
+
+    $ mkdir tmp/gnuplot
     $ python pymemtrace/process.py tmp/process.log tmp/gnuplot/
     2020-11-16 10:39:55,884 - gnuplot.py#114 - 14141 - (MainThread) - INFO     - gnuplot stdout: None
     2020-11-16 10:39:55,887 - gnuplot.py#67 - 14141 - (MainThread) - INFO     - Writing gnuplot data "process.log_14129" in path tmp/gnuplot/
     2020-11-16 10:39:55,924 - gnuplot.py#85 - 14141 - (MainThread) - INFO     - gnuplot stdout: None
     Bye, bye!
+
+In the destination will be the ``gnuplot`` data:
+
+.. code-block:: bash
+
     $ ll tmp/gnuplot/
     total 160
     -rw-r--r--  1 user  staff   4829 16 Nov 10:39 process.log_14129.dat
     -rw-r--r--  1 user  staff   2766 16 Nov 10:39 process.log_14129.plt
-    -rw-r--r--  1 user  staff  32943 16 Nov 10:39 process.log_14129.svg
-    -rw-r--r--  1 user  staff  32100 16 Nov 10:39 test.svg
+    -rw-r--r--  1 user  staff  32943 16 Nov 10:39 process.log_14129.png
+    -rw-r--r--  1 user  staff  32100 16 Nov 10:39 test.png
 
-The file ``process.log_14129.svg`` will look like this:
+The file ``process.log_14129.png`` will look like this.
+The memory, page faults and CPU usage and the plot is annotated with the lables made by the
+line ``process.add_message_to_queue(f'String of {size:,d} bytes')`` in the script above:
 
 .. image:: images/process.log_14129.png
     :alt: Example of process.py
     :width: 800
     :align: center
-
-
-

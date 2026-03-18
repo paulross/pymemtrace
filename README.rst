@@ -11,33 +11,63 @@ Full documentation: https://pymemtrace.readthedocs.io
 pymemtrace Tools
 ======================
 
-The tools provided by ``pymemtrace``:
+The tools provided by ``pymemtrace`` are:
 
-* ``process_tree`` is a command line tool that shows the total memory usage of a process *and* its child processes
-  at regular time intervals.
-  It can log this data to a JSON file for later analysis.
-  See `some process_tree examples <https://pymemtrace.readthedocs.io/en/latest/examples/process_tree.html>`_
-* ``process`` is a very lightweight way of logging the total memory usage of a single process at regular time intervals.
-  It can plot memory over time with plotting programs such as ``gnuplot``.
-  See `some process examples <https://pymemtrace.readthedocs.io/en/latest/examples/process.html>`_
-* ``cPyMemTrace`` is a memory tracer written in C that can report total memory usage for every function call/return for
-  both C and Python sections.
-  With Python 3.13+ ``cPyMemTrace`` can also report every object allocation and de-allocation with
+``process_tree``
+----------------
+
+A command line tool that shows the total memory usage of a process *and* its child processes
+at regular time intervals.
+It can log this data to a JSON file for later analysis.
+See `some process_tree examples <https://pymemtrace.readthedocs.io/en/latest/examples/process_tree.html>`_
+
+``process``
+-----------
+
+A very lightweight way of logging the total memory usage of a single process at regular time intervals.
+It can plot memory over time with plotting programs such as ``gnuplot``.
+See `some process examples <https://pymemtrace.readthedocs.io/en/latest/examples/process.html>`_
+
+``cPyMemTrace``
+---------------
+
+This module, written in C, provides real time logging of Python and C actions:
+
+- :py:class:`pymemtrace.cPyMemTrace.Profile` is a memory tracer written in C that can report total memory usage
+  for every function call/return for both C and Python sections.
+  This is more suitable for logging C code, for example Python's C extensions.
+- :py:class:`pymemtrace.cPyMemTrace.Trace` is a memory tracer written in C that can report total memory usage
+  for every function call/return/line for Python sections.
+  This is more suitable for logging pure Python code.
+- With Python 3.13+ :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing` can report every object allocation
+  and de-allocation with
   `Reference Tracing <https://docs.python.org/3/c-api/profiling.html#reference-tracing>`_.
-  See some `cPyMemTrace examples <https://pymemtrace.readthedocs.io/en/latest/examples/c_py_mem_trace.html>`_
-  and a `technical note on cPyMemTrace <https://pymemtrace.readthedocs.io/en/latest/tech_notes/cPyMemTrace.html>`_.
-* DTrace: Here are a number of D scripts that can trace the low level ``malloc()`` and ``free()`` system calls and
-  report how much memory was allocated and by whom.
-  See some `DTrace examples <https://pymemtrace.readthedocs.io/en/latest/examples/dtrace.html>`_
-  and a `technical note on DTrace <https://pymemtrace.readthedocs.io/en/latest/tech_notes/dtrace.html>`_.
-* ``trace_malloc`` is a convenience wrapper around the Python standard library `tracemalloc` module.
-  This can report Python memory usage by module and line compensating for the cost of ``tracemalloc``.
-  This can take memory snapshots before and after code blocks and show the change on memory caused by that code.
-  See some `trace_malloc examples <https://pymemtrace.readthedocs.io/en/latest/examples/trace_malloc.html>`_
-* ``debug_malloc_stats`` is a wrapper around the ``sys._debugmallocstats`` function that can take snapshots of
-  memory before and after code execution and report the significant differences of the Python small object allocator.
-  See some `debug_malloc_stats examples <https://pymemtrace.readthedocs.io/en/latest/examples/debug_malloc_stats.html>`_
 
+See some `cPyMemTrace examples <https://pymemtrace.readthedocs.io/en/latest/examples/c_py_mem_trace.html>`_
+and a `technical note on cPyMemTrace <https://pymemtrace.readthedocs.io/en/latest/tech_notes/cPyMemTrace.html>`_.
+
+DTrace
+------
+
+There are a number of D scripts that can trace the low level ``malloc()`` and ``free()`` system calls and
+report how much memory was allocated and by whom.
+See some `DTrace examples <https://pymemtrace.readthedocs.io/en/latest/examples/dtrace.html>`_
+and a `technical note on DTrace <https://pymemtrace.readthedocs.io/en/latest/tech_notes/dtrace.html>`_.
+
+``trace_malloc``
+----------------
+
+A convenience wrapper around the Python standard library `tracemalloc` module.
+This can report Python memory usage by module and line compensating for the cost of ``tracemalloc``.
+This can take memory snapshots before and after code blocks and show the change on memory caused by that code.
+See some `trace_malloc examples <https://pymemtrace.readthedocs.io/en/latest/examples/trace_malloc.html>`_
+
+``debug_malloc_stats``
+----------------------
+
+Awrapper around the ``sys._debugmallocstats`` function that can take snapshots of
+memory before and after code execution and report the significant differences of the Python small object allocator.
+See some `debug_malloc_stats examples <https://pymemtrace.readthedocs.io/en/latest/examples/debug_malloc_stats.html>`_
 
 Tool Characteristics
 ======================
@@ -77,7 +107,7 @@ Clearly there are trade-offs between these depending on the problem you are tryi
      - Near zero.
    * - ``cPyMemTrace``
      - RSS (total Python and C memory).
-     - Per Python line, Python function and C function call.
+     - Per Python line, Python function and C function call. Per object allocation/de-allocation.
      - Near zero.
      - x10 to x20.
    * - DTrace
@@ -97,7 +127,7 @@ Clearly there are trade-offs between these depending on the problem you are tryi
      - x2000+ for small objects, x12 for large objects.
 
 Licence
------------------------
+=======
 
 Python memory tracing.
 
@@ -106,7 +136,7 @@ Python memory tracing.
 * Project: https://github.com/paulross/pymemtrace.
 
 Credits
------------------
+=======
 
 Phil Smith (AHL) with whom a casual lunch time chat lead to the creation of an earlier, but quite different
 implementation, of ``cPyMemTrace`` in pure Python.

@@ -1,6 +1,99 @@
 """
 Analyses log files produced by cPyMemTrace.ReferenceTrace()
 
+For example, given a log file such as:
+
+.. code-block:: text
+
+    SOF
+    HDR:        Clock          Address RefCnt Type                             File                                            Line Function                                              RSS             dRSS
+    DEL:     0.816121   0x60000670f980      0 builtin_function_or_method       pymemtrace/tests/test_cpymemtrace.py             292 make_bytes_wrappers                              38207488         38207488
+    NEW:     0.816183   0x6000025fde70      1 list                             pymemtrace/tests/test_cpymemtrace.py             293 make_bytes_wrappers                              38207488                0
+    NEW:     0.816203   0x6000025ec6a0      1 range                            pymemtrace/tests/test_cpymemtrace.py             294 make_bytes_wrappers                              38207488                0
+    NEW:     0.816218   0x60000169c210      1 range_iterator                   pymemtrace/tests/test_cpymemtrace.py             294 make_bytes_wrappers                              38207488                0
+    DEL:     0.816229   0x6000025ec6a0      0 range                            pymemtrace/tests/test_cpymemtrace.py             294 make_bytes_wrappers                              38207488                0
+    8<---- Snip ---->8
+    NEW:     0.816531   0x7fa81fbf2a00      1 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    NEW:     0.816590   0x7fa823903010      1 bytes                            pymemtrace/tests/test_cpymemtrace.py             288 __init__                                         38207488                0
+    DEL:     0.816634   0x60000385cf90      0 frame                            pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    DEL:     0.816645   0x6000025e34a0      0 tuple                            pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    8<---- Snip ---->8
+    NEW:     0.817109   0x7fa81e7aa280      1 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    NEW:     0.817162   0x7fa823600010      1 bytes                            pymemtrace/tests/test_cpymemtrace.py             288 __init__                                         38207488                0
+    DEL:     0.817203   0x6000038593a0      0 frame                            pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    NEW:     0.817250   0x60000169c110      1 int                              Python-3.13.2/Lib/random.py                      340 randint                                          38207488                0
+    8<---- Snip ---->8
+    DEL:     0.817495   0x60000168b350      0 int                              pymemtrace/tests/test_cpymemtrace.py             295 make_bytes_wrappers                              38207488                0
+    NEW:     0.817513   0x7fa82347c940      1 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    NEW:     0.817602   0x7fa823701010      1 bytes                            pymemtrace/tests/test_cpymemtrace.py             288 __init__                                         38207488                0
+    DEL:     0.817675   0x600003849540      0 frame                            pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    NEW:     0.817762   0x600001694d90      1 int                              Python-3.13.2/Lib/random.py                      340 randint                                          38207488                0
+    NEW:     0.817885   0x600001694c90      1 int                              Python-3.13.2/Lib/random.py                      317 randrange                                        38207488                0
+    8<---- Snip ---->8
+    DEL:     0.818299   0x60000169c510      0 int                              pymemtrace/tests/test_cpymemtrace.py             295 make_bytes_wrappers                              38207488                0
+    NEW:     0.818333   0x7fa81fafbe60      1 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    NEW:     0.818525   0x7fa823802010      1 bytes                            pymemtrace/tests/test_cpymemtrace.py             288 __init__                                         38207488                0
+    DEL:     0.818701   0x6000038409e0      0 frame                            pymemtrace/tests/test_cpymemtrace.py             296 make_bytes_wrappers                              38207488                0
+    DEL:     0.818776   0x60000169c210      0 range_iterator                   pymemtrace/tests/test_cpymemtrace.py             294 make_bytes_wrappers                              38207488                0
+    DEL:     0.818860   0x7fa81fafbe60      0 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    DEL:     0.818875   0x7fa823802010      0 bytes                            pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    DEL:     0.819012   0x7fa82347c940      0 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    DEL:     0.819128   0x7fa823701010      0 bytes                            pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    DEL:     0.819370   0x7fa81e7aa280      0 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    DEL:     0.819447   0x7fa823600010      0 bytes                            pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    DEL:     0.819582   0x7fa81fbf2a00      0 BytesWrapper                     pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    DEL:     0.819648   0x7fa823903010      0 bytes                            pymemtrace/tests/test_cpymemtrace.py             300 make_bytes_wrappers                              38207488                0
+    NEW:     0.820073   0x600003236b30      1 str                              pymemtrace/tests/test_cpymemtrace.py             304 make_bytes_wrappers                              38211584             4096
+    NEW:     0.820357   0x6000067033e0      1 tuple                            pymemtrace/tests/test_cpymemtrace.py             292 make_bytes_wrappers                              38211584                0
+    EOF
+
+Then the output will be something like:
+
+.. code-block:: text
+
+    2026-03-18 11:51:12,278 - ref_trace_analyse.py#107 - WARNING  - DEL: on untracked object of type "builtin_function_or_method" at 0x60000670f980 on line 3
+    2026-03-18 11:51:12,278 - ref_trace_analyse.py#107 - WARNING  - DEL: on untracked object of type "frame" at 0x600007cc44d0 on line 13
+    2026-03-18 11:51:12,278 - ref_trace_analyse.py#107 - WARNING  - DEL: on untracked object of type "frame" at 0x7fa82347c930 on line 16
+    8<---- Snip ---->8
+    2026-03-18 11:51:12,280 - ref_trace_analyse.py#107 - WARNING  - DEL: on untracked object of type "frame" at 0x6000038409e0 on line 78
+    Live Objects [4]:
+        0x600001694c90    1 int                                      make_bytes_wrappers              test_cpymemtrace.py#295
+        0x6000025fde70    1 list                                     make_bytes_wrappers              test_cpymemtrace.py#293
+        0x600003236b30    1 str                                      make_bytes_wrappers              test_cpymemtrace.py#304
+        0x6000067033e0    1 tuple                                    make_bytes_wrappers              test_cpymemtrace.py#292
+    Previous Objects [26]:
+        0x60000168b0d0 int                                      NEW: random.py#340 DEL: random.py#340
+        0x60000168b190 int                                      NEW: random.py#322 DEL: test_cpymemtrace.py#295
+        0x60000168b2d0 int                                      NEW: random.py#250 DEL: random.py#322
+    8<---- Snip ---->8
+        0x6000025e34a0 tuple                                    NEW: test_cpymemtrace.py#296 DEL: test_cpymemtrace.py#296
+        0x6000025ec6a0 range                                    NEW: test_cpymemtrace.py#294 DEL: test_cpymemtrace.py#294
+        0x6000067035c0 builtin_function_or_method               NEW: random.py#248 DEL: random.py#322
+        0x600006709760 builtin_function_or_method               NEW: random.py#248 DEL: random.py#322
+        0x60000670f980 builtin_function_or_method               NEW: random.py#248 DEL: random.py#322
+        0x60000670f980 builtin_function_or_method               NEW: random.py#248 DEL: random.py#322
+        0x7fa81e7aa280 BytesWrapper                             NEW: test_cpymemtrace.py#296 DEL: test_cpymemtrace.py#300
+        0x7fa81fafbe60 BytesWrapper                             NEW: test_cpymemtrace.py#296 DEL: test_cpymemtrace.py#300
+        0x7fa81fbf2a00 BytesWrapper                             NEW: test_cpymemtrace.py#296 DEL: test_cpymemtrace.py#300
+        0x7fa82347c940 BytesWrapper                             NEW: test_cpymemtrace.py#296 DEL: test_cpymemtrace.py#300
+        0x7fa823600010 bytes                                    NEW: test_cpymemtrace.py#288 DEL: test_cpymemtrace.py#300
+        0x7fa823701010 bytes                                    NEW: test_cpymemtrace.py#288 DEL: test_cpymemtrace.py#300
+        0x7fa823802010 bytes                                    NEW: test_cpymemtrace.py#288 DEL: test_cpymemtrace.py#300
+        0x7fa823903010 bytes                                    NEW: test_cpymemtrace.py#288 DEL: test_cpymemtrace.py#300
+    Type count [10]:
+    Type                                          New      Del  New - Del
+    BytesWrapper                                    4        4          0
+    builtin_function_or_method                      4        5         -1
+    bytes                                           4        4          0
+    frame                                           0       16        -16
+    int                                            19       18          1
+    list                                            1        0          1
+    range                                           1        1          0
+    range_iterator                                  1        1          0
+    str                                             1        0          1
+    tuple                                           2        1          1
+    Process time: 0.004 (s)
+
 """
 import argparse
 import collections
@@ -128,6 +221,7 @@ class LogFileResult:
                 f'0x{obj.address:012x}'
                 f' {obj.ref_cnt:4d}'
                 f' {obj.type:40}'
+                f' {obj.function:32}'
                 f' {_str_from_object_file(obj, show_full_path)}#{obj.line}'
             )
 
