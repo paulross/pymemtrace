@@ -3,6 +3,7 @@ Analyses log files produced by cPyMemTrace.ReferenceTrace()
 
 """
 import argparse
+import collections
 import dataclasses
 import logging
 import os
@@ -36,6 +37,8 @@ class LogFileResult:
         self.live_objects: typing.Dict[int, ObjectData] = {}
         # Pairs of (NEW, DEL)
         self.prev_objects: typing.Dict[int, typing.List[typing.Tuple[ObjectData, ObjectData]]] = {}
+        self.type_count_new: typing.Dict[str, int] = collections.defaultdict(int)
+        self.type_count_del: typing.Dict[str, int] = collections.defaultdict(int)
 
     def _parse_line(self, line_num: int, line: str) -> typing.Dict[str, typing.Any]:
         columns = line.strip().split()
@@ -83,6 +86,7 @@ class LogFileResult:
                 f' already exists from line {self.live_objects[obj_repr.address].line_num}.'
             )
         self.live_objects[obj_repr.address] = obj_repr
+        self.type_count_new[obj_repr.type] += 1
 
     def add_del(self, line_num: int, line: str) -> None:
         line_dict = self._parse_line(line_num, line)
@@ -97,47 +101,63 @@ class LogFileResult:
             logger.warning(
                 f'DEL: on untracked object'
                 f' of type "{obj_repr.type}"'
-                f' at 0x{obj_repr.address:08x} on line {line_num}'
+                f' at 0x{obj_repr.address:012x} on line {line_num}'
             )
+        self.type_count_del[obj_repr.type] += 1
 
     def add_msg(self, line_num: int, line: str) -> None:
         pass
 
-    def long_str_list(self) -> typing.List[str]:
+    def long_str_list(self, show_full_path: bool) -> typing.List[str]:
 
-        def _str_from_object_file(obj: ObjectData) -> str:
+        def _str_from_object_file(obj: ObjectData, show_full_path: bool) -> str:
+            if show_full_path:
+                return f'{obj.file}'
             return f'{os.path.basename(obj.file)}'
-            # return f'{obj.file}'
 
-        def _str_from_object(obj: ObjectData) -> str:
+        def _str_from_object(obj: ObjectData, show_full_path: bool) -> str:
+            # Address is typically 0x7fd1f8028000
             return (
-                f'0x{obj.address:08x}'
+                f'0x{obj.address:012x}'
                 f' {obj.ref_cnt:4d}'
                 f' {obj.type:40}'
-                f' {_str_from_object_file(obj)}#{obj.line}'
+                f' {_str_from_object_file(obj, show_full_path)}#{obj.line}'
             )
 
-        def _str_from_object_pair(obj_pair: typing.Tuple[ObjectData, ObjectData]) -> str:
+        def _str_from_object_pair(obj_pair: typing.Tuple[ObjectData, ObjectData], show_full_path: bool) -> str:
             assert obj_pair[0].address == obj_pair[1].address
             assert obj_pair[0].type == obj_pair[1].type
             return (
-                f'0x{obj_pair[0].address:08x} {obj_pair[0].type:40}'
-                f' NEW: {_str_from_object_file(obj_pair[0])}#{obj_pair[0].line}'
-                f' DEL: {_str_from_object_file(obj_pair[1])}#{obj_pair[1].line}'
+                f'0x{obj_pair[0].address:012x} {obj_pair[0].type:40}'
+                f' NEW: {_str_from_object_file(obj_pair[0], show_full_path)}#{obj_pair[0].line}'
+                f' DEL: {_str_from_object_file(obj_pair[1], show_full_path)}#{obj_pair[1].line}'
             )
 
         ret = []
         if self.intro_message_lines:
             ret.append('Initial Message:')
             ret.extend(self.intro_message_lines)
+
         ret.append(f'Live Objects [{len(self.live_objects)}]:')
         for address in sorted(self.live_objects.keys()):
             obj = self.live_objects[address]
-            ret.append(f'    {_str_from_object(obj)}')
+            ret.append(f'    {_str_from_object(obj, show_full_path)}')
+
         ret.append(f'Previous Objects [{len(self.prev_objects)}]:')
         for address in sorted(self.prev_objects.keys()):
             for obj_pair in self.prev_objects[address]:
-                ret.append(f'    {_str_from_object_pair(obj_pair)}')
+                ret.append(f'    {_str_from_object_pair(obj_pair, show_full_path)}')
+        all_types = sorted(set(self.type_count_new.keys()) | set(self.type_count_del.keys()))
+
+        ret.append(f'Type count [{len(all_types)}]:')
+        ret.append(f'{"Type":40} {"New":>8} {"Del":>8} {"New - Del":>10}')
+        for type_name in all_types:
+            ret.append(
+                f'{type_name:40}'
+                f' {self.type_count_new[type_name]:>8}'
+                f' {self.type_count_del[type_name]:>8}'
+                f' {self.type_count_new[type_name] - self.type_count_del[type_name]:10}'
+            )
         return ret
 
 
@@ -182,11 +202,17 @@ def main() -> int:
         prog=__file__,
         description="""Reads an Reference Tracing log of a process and analyses it.""",
     )
+    parser.add_argument('log_path', type=str, help='Input path to the log.')
+    parser.add_argument(
+        "--full-path",
+        action="store_true",
+        help="Show the full Python file path."
+             " [default: %(default)s]",
+    )
     parser.add_argument("-l", "--log_level", type=int, dest="log_level", default=20,
                         help="Log Level (debug=10, info=20, warning=30, error=40, critical=50)"
                              " [default: %(default)s]"
                         )
-    parser.add_argument('log_path', type=str, help='Input path to the log.')
     args = parser.parse_args()
     logging.basicConfig(
         level=args.log_level,
@@ -197,7 +223,7 @@ def main() -> int:
     time_start = time.perf_counter()
     print(f'File path: {args.log_path}')
     result = process_file_path(args.log_path)
-    print('\n'.join(result.long_str_list()))
+    print('\n'.join(result.long_str_list(args.full_path)))
     print()
     print(f'Process time: {time.perf_counter() - time_start:.3f} (s)')
     return 0
