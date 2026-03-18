@@ -1,12 +1,12 @@
 .. _examples-cpymemtrace:
 
-``cPyMemTrace`` Examples
+:py:mod:`pymemtrace.cPyMemTrace` Examples
 ===============================================
 
 Introduction
 --------------------------------
 
-``cPyMemTrace`` is a Python profiler written in 'C' that records the
+:py:mod:`pymemtrace.cPyMemTrace` is a Python profiler written in 'C' that records the
 `Resident Set Size <https://en.wikipedia.org/wiki/Resident_set_size>`_ for every Python and C call and return.
 It writes this data to a log file with a name of the form ``"20241107_195847_12_62264_P_0_PY3.13.0b3.log"``.
 See :ref:`tech_notes-cpymemtrace_profile_trace_log_file_format` for the format.
@@ -160,181 +160,7 @@ And the log file looks like this:
     NEXT: 64    +1      0.084566     C_CALL   test.py #  65 len     17526784            0
     NEXT: 65    +1      0.084568     C_RETURN test.py #  65 len     17526784            0
 
-There is some discussion about the performance of ``cPyMemTrace`` here :ref:`tech_notes-cpymemtrace`
-
-Stacking Context Managers
--------------------------------
-
-The ``cPyMemTrace`` profile and trace context managers can be stacked.
-In that case a new log file is started and the previous one is temporarily suspended.
-``cPyMemTrace`` only writes to one log file at a time.
-The log file has the stack depth in its name.
-For example:
-
-.. code-block:: python
-
-    from pymemtrace import cPyMemTrace
-
-    with cPyMemTrace.Profile():
-        # Now writing to, say, "20241107_195847_62264_P_0_PY3.13.0b3.log"
-        # Note the "_0_" in the file name.
-        with cPyMemTrace.Profile():
-            # Writing to "20241107_195847_62264_P_0_PY3.13.0b3.log" is suspended.
-            # Now writing to, say, "20241107_195847_62264_P_1_PY3.13.0b3.log"
-            # Note the "_1_" in the file name.
-            pass
-        # The log file "20241107_195847_62264_P_1_PY3.13.0b3.log" is closed.
-        # Writing to "20241107_195847_62264_P_0_PY3.13.0b3.log" is resumed.
-        pass
-    # The log file "20241107_195847_62264_P_0_PY3.13.0b3.log" is closed.
-
-When running all the tests example log files will be generated in the ``tests`` directory.
-
-The module level functions ``profile_wrapper_depth()`` (and ``trace_wrapper_depth()``) will give you the stack depth:
-
-.. code-block:: python
-
-    assert cPyMemTrace.profile_wrapper_depth() == 0
-    with cPyMemTrace.Profile():
-        assert cPyMemTrace.profile_wrapper_depth() == 1
-        with cPyMemTrace.Profile():
-            assert cPyMemTrace.profile_wrapper_depth() == 2
-            with cPyMemTrace.Profile():
-                assert cPyMemTrace.profile_wrapper_depth() == 3
-            assert cPyMemTrace.profile_wrapper_depth() == 2
-        assert cPyMemTrace.profile_wrapper_depth() == 1
-    assert cPyMemTrace.profile_wrapper_depth() == 0
-
-Writing Messages to a Log File
-------------------------------
-
-To make log files more useful the user can inject messages into the log file in two ways:
-
-- On construction of the Trace/Profile object using the ``message=<message>`` argument.
-  This message will be reproduced verbatim and will be followed by a newline.
-- At any time during the running of Trace/Profile object with the ``write_message_to_log_file()`` API.
-  This message will be preceded with a ``MESG:`` string, then the message is reproduced verbatim and
-  will be followed by a newline.
-
-.. note::
-
-    New lines *within* messages will be respected.
-    This may affect your parsing of the log file.
-
-This example illustrates both techniques.
-Firstly the code (slightly edited), here we create a profiler with a start message then allocate, then delete, a
-randomly sized string of between 100 Mb and 500 Mb.
-Before the allocation and after deletion we write an appropriate message to the log file.
-
-.. code-block:: python
-
-    with cPyMemTrace.Profile(d_rss_trigger=-1, message="Start message") as profiler:
-        for i in range(8):
-            str_len = random.randint(100 * 1024**2, 500 * 1024**2)
-            profiler.write_message_to_log(f'Before allocation of {str_len} bytes.')
-            s = ' ' * str_len
-            time.sleep(0.5)
-            del s
-            profiler.write_message_to_log(f'After de-allocation of {str_len} bytes.')
-            time.sleep(0.5)
-        time.sleep(0.5)
-
-Here is a typical log file:
-
-.. raw:: latex
-
-    \begin{landscape}
-
-.. code-block:: text
-
-    Start message
-    SOF
-    HEDR: Event  dEvent  Clock        What     File                           Line Function                  RSS         dRSS
-    FRST: 0      +0      3.153048     LINE     test_cpymemtrace.py             201 test_messaging       41754624     41754624
-    MESG: 18     +17     3.153134     Before allocation of 179379131 bytes.
-    PREV: 18     +17     3.153134    
-    NEXT: 19     +18     3.232753     C_CALL   test_cpymemtrace.py             206 sleep                221143040    179380224
-    PREV: 19     +18     3.232753     C_CALL   test_cpymemtrace.py             206 sleep                221143040    179380224
-    NEXT: 21     +2      3.249982     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -179380224
-    MESG: 22     +1      3.250007     After de-allocation of 179379131 bytes.
-    MESG: 42     +21     3.250190     Before allocation of 198138484 bytes.
-    PREV: 42     +21     3.250190    
-    NEXT: 43     +22     3.344885     C_CALL   test_cpymemtrace.py             206 sleep                239902720    198139904
-    PREV: 43     +22     3.344885     C_CALL   test_cpymemtrace.py             206 sleep                239902720    198139904
-    NEXT: 45     +2      3.362191     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -198139904
-    MESG: 46     +1      3.362201     After de-allocation of 198138484 bytes.
-    MESG: 66     +21     3.362277     Before allocation of 392320729 bytes.
-    PREV: 66     +21     3.362277    
-    NEXT: 67     +22     3.541612     C_CALL   test_cpymemtrace.py             206 sleep                434085888    392323072
-    PREV: 67     +22     3.541612     C_CALL   test_cpymemtrace.py             206 sleep                434085888    392323072
-    NEXT: 69     +2      3.573907     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -392323072
-    MESG: 70     +1      3.573918     After de-allocation of 392320729 bytes.
-    MESG: 90     +21     3.574011     Before allocation of 504746338 bytes.
-    PREV: 90     +21     3.574011    
-    NEXT: 91     +22     3.803951     C_CALL   test_cpymemtrace.py             206 sleep                546512896    504750080
-    PREV: 91     +22     3.803951     C_CALL   test_cpymemtrace.py             206 sleep                546512896    504750080
-    NEXT: 93     +2      3.845491     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -504750080
-    MESG: 94     +1      3.845500     After de-allocation of 504746338 bytes.
-    MESG: 114    +21     3.845611     Before allocation of 312965383 bytes.
-    PREV: 114    +21     3.845611
-    NEXT: 115    +22     3.993233     C_CALL   test_cpymemtrace.py             206 sleep                354729984    312967168
-    PREV: 115    +22     3.993233     C_CALL   test_cpymemtrace.py             206 sleep                354729984    312967168
-    NEXT: 117    +2      4.018102     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -312967168
-    MESG: 118    +1      4.018114     After de-allocation of 312965383 bytes.
-    MESG: 138    +21     4.018275     Before allocation of 438944001 bytes.
-    PREV: 138    +21     4.018275
-    NEXT: 139    +22     4.231798     C_CALL   test_cpymemtrace.py             206 sleep                480710656    438947840
-    PREV: 139    +22     4.231798     C_CALL   test_cpymemtrace.py             206 sleep                480710656    438947840
-    NEXT: 141    +2      4.275196     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -438947840
-    MESG: 142    +1      4.275208     After de-allocation of 438944001 bytes.
-    MESG: 162    +21     4.275367     Before allocation of 279020117 bytes.
-    PREV: 162    +21     4.275367
-    NEXT: 163    +22     4.424839     C_CALL   test_cpymemtrace.py             206 sleep                320786432    279023616
-    PREV: 163    +22     4.424839     C_CALL   test_cpymemtrace.py             206 sleep                320786432    279023616
-    NEXT: 165    +2      4.446285     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -279023616
-    MESG: 166    +1      4.446297     After de-allocation of 279020117 bytes.
-    MESG: 186    +21     4.446371     Before allocation of 442963008 bytes.
-    PREV: 186    +21     4.446371
-    NEXT: 187    +22     4.643456     C_CALL   test_cpymemtrace.py             206 sleep                484728832    442966016
-    PREV: 187    +22     4.643456     C_CALL   test_cpymemtrace.py             206 sleep                484728832    442966016
-    NEXT: 189    +2      4.678978     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -442966016
-    MESG: 190    +1      4.678990     After de-allocation of 442963008 bytes.
-    LAST: 196    +7      4.679326     LINE     test_cpymemtrace.py             201 test_messaging        41762816            0
-    EOF
-
-.. raw:: latex
-
-    \end{landscape}
-
-Logging to a Temporary File
-------------------------------
-
-By default the log is written to a file in the current working directory.
-To write to a specific file, and then read it follow this pattern:
-
-.. code-block:: python
-
-    import tempfile
-
-    with tempfile.NamedTemporaryFile() as file:
-        with cPyMemTrace.Trace(0, message='# Trace level0', filepath=file.name) as trace:
-            trace.trace_file_wrapper.write_message_to_log('# Level 0 __enter__')
-            temp_list = []
-            for i in range(16):
-                temp_list.append(b' ' * (1024 ** 2))
-            trace.trace_file_wrapper.write_message_to_log('# Level 0 after populating list.')
-            while len(temp_list):
-                temp_list.pop()
-            trace.trace_file_wrapper.write_message_to_log('# Level 0 after deleting the list.')
-        file.flush()
-        file_data = file.read()
-        print()
-        print(' filedata '.center(75, '-'))
-        for line in file_data.split(b'\n'):
-            print(line.decode('ascii'))
-        print(' file_data DONE '.center(75, '-'))
-
-See ``tests.test_cpymemtrace.test_trace_to_specific_log_file_nested()`` for a more complicated example.
+There is some discussion about the performance of :py:mod:`pymemtrace.cPyMemTrace` here :ref:`tech_notes-cpymemtrace`
 
 Reference Tracing
 -----------------
@@ -518,3 +344,191 @@ For example the output will be something like:
 .. raw:: latex
 
     \end{landscape}
+
+Stacking Context Managers
+-------------------------------
+
+The :py:mod:`pymemtrace.cPyMemTrace` tracers :py:class:`pymemtrace.cPyMemTrace.Profile`,
+:py:class:`pymemtrace.cPyMemTrace.Trace`
+and :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing`
+context managers can be stacked.
+In that case a new log file is started and the previous one is temporarily suspended.
+:py:mod:`pymemtrace.cPyMemTrace` only writes to one log file at a time for each tracer.
+The log file will have the stack depth in its name, starting from 0.
+
+For example:
+
+.. code-block:: python
+
+    from pymemtrace import cPyMemTrace
+
+    with cPyMemTrace.Profile():
+        # Now writing to, say, "20241107_195847_11_62264_P_0_PY3.13.0b3.log"
+        # Note the "_0_" in the file name.
+        with cPyMemTrace.Profile():
+            # Writing to "20241107_195847_12_62264_P_0_PY3.13.0b3.log" is suspended.
+            # Now writing to, say, "20241107_195847_12_62264_P_1_PY3.13.0b3.log"
+            # Note the "_1_" in the file name.
+            pass
+        # The log file "20241107_195847_12_62264_P_1_PY3.13.0b3.log" is closed.
+        # Writing to "20241107_195847_11_62264_P_0_PY3.13.0b3.log" is resumed.
+        pass
+    # The log file "20241107_195847_11_62264_P_0_PY3.13.0b3.log" is closed.
+
+When running all the tests example log files will be generated in the ``tests`` directory.
+
+The module has these functions to give you the stack depth for that tracer:
+
+- :py:meth:`pymemtrace.cPyMemTrace.profile_wrapper_depth` for the
+  :py:class:`pymemtrace.cPyMemTrace.Profile` stack.
+- :py:meth:`pymemtrace.cPyMemTrace.trace_wrapper_depth` for the
+  :py:class:`pymemtrace.cPyMemTrace.Trace` stack.
+- :py:meth:`pymemtrace.cPyMemTrace.reference_tracing_wrapper_depth` for the
+  :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing` stack.
+
+For example:
+
+.. code-block:: python
+
+    assert cPyMemTrace.profile_wrapper_depth() == 0
+    with cPyMemTrace.Profile():
+        assert cPyMemTrace.profile_wrapper_depth() == 1
+        with cPyMemTrace.Profile():
+            assert cPyMemTrace.profile_wrapper_depth() == 2
+            with cPyMemTrace.Profile():
+                assert cPyMemTrace.profile_wrapper_depth() == 3
+            assert cPyMemTrace.profile_wrapper_depth() == 2
+        assert cPyMemTrace.profile_wrapper_depth() == 1
+    assert cPyMemTrace.profile_wrapper_depth() == 0
+
+Writing Messages to a Log File
+------------------------------
+
+To make log files more useful the user can inject messages into the log file in two ways:
+
+- On construction of the Trace/Profile/Reference Tracing object using the ``message=<message>`` argument.
+  This message will be reproduced verbatim and will be followed by a newline.
+- At any time during the running of Trace/Profile/Reference Tracing object with the
+  ``write_message_to_log_file()`` API.
+  This message will be preceded with a ``MESG:`` or ``MSG:`` string, then the message is reproduced verbatim and
+  will be followed by a newline.
+
+.. note::
+
+    New lines *within* messages will be respected.
+    This may affect your parsing of the log file.
+
+This example illustrates both techniques.
+Firstly the code (slightly edited), here we create a profiler with a start message then allocate, then delete, a
+randomly sized string of between 100 Mb and 500 Mb.
+Before the allocation and after deletion we write an appropriate message to the log file.
+
+.. code-block:: python
+
+    with cPyMemTrace.Profile(d_rss_trigger=-1, message="Start message") as profiler:
+        for i in range(8):
+            str_len = random.randint(100 * 1024**2, 500 * 1024**2)
+            profiler.write_message_to_log(f'Before allocation of {str_len} bytes.')
+            s = ' ' * str_len
+            time.sleep(0.5)
+            del s
+            profiler.write_message_to_log(f'After de-allocation of {str_len} bytes.')
+            time.sleep(0.5)
+        time.sleep(0.5)
+
+Here is a typical log file:
+
+.. raw:: latex
+
+    \begin{landscape}
+
+.. code-block:: text
+
+    Start message
+    SOF
+    HEDR: Event  dEvent  Clock        What     File                           Line Function                  RSS         dRSS
+    FRST: 0      +0      3.153048     LINE     test_cpymemtrace.py             201 test_messaging       41754624     41754624
+    MESG: 18     +17     3.153134     Before allocation of 179379131 bytes.
+    PREV: 18     +17     3.153134    
+    NEXT: 19     +18     3.232753     C_CALL   test_cpymemtrace.py             206 sleep                221143040    179380224
+    PREV: 19     +18     3.232753     C_CALL   test_cpymemtrace.py             206 sleep                221143040    179380224
+    NEXT: 21     +2      3.249982     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -179380224
+    MESG: 22     +1      3.250007     After de-allocation of 179379131 bytes.
+    MESG: 42     +21     3.250190     Before allocation of 198138484 bytes.
+    PREV: 42     +21     3.250190    
+    NEXT: 43     +22     3.344885     C_CALL   test_cpymemtrace.py             206 sleep                239902720    198139904
+    PREV: 43     +22     3.344885     C_CALL   test_cpymemtrace.py             206 sleep                239902720    198139904
+    NEXT: 45     +2      3.362191     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -198139904
+    MESG: 46     +1      3.362201     After de-allocation of 198138484 bytes.
+    MESG: 66     +21     3.362277     Before allocation of 392320729 bytes.
+    PREV: 66     +21     3.362277    
+    NEXT: 67     +22     3.541612     C_CALL   test_cpymemtrace.py             206 sleep                434085888    392323072
+    PREV: 67     +22     3.541612     C_CALL   test_cpymemtrace.py             206 sleep                434085888    392323072
+    NEXT: 69     +2      3.573907     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -392323072
+    MESG: 70     +1      3.573918     After de-allocation of 392320729 bytes.
+    MESG: 90     +21     3.574011     Before allocation of 504746338 bytes.
+    PREV: 90     +21     3.574011    
+    NEXT: 91     +22     3.803951     C_CALL   test_cpymemtrace.py             206 sleep                546512896    504750080
+    PREV: 91     +22     3.803951     C_CALL   test_cpymemtrace.py             206 sleep                546512896    504750080
+    NEXT: 93     +2      3.845491     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -504750080
+    MESG: 94     +1      3.845500     After de-allocation of 504746338 bytes.
+    MESG: 114    +21     3.845611     Before allocation of 312965383 bytes.
+    PREV: 114    +21     3.845611
+    NEXT: 115    +22     3.993233     C_CALL   test_cpymemtrace.py             206 sleep                354729984    312967168
+    PREV: 115    +22     3.993233     C_CALL   test_cpymemtrace.py             206 sleep                354729984    312967168
+    NEXT: 117    +2      4.018102     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -312967168
+    MESG: 118    +1      4.018114     After de-allocation of 312965383 bytes.
+    MESG: 138    +21     4.018275     Before allocation of 438944001 bytes.
+    PREV: 138    +21     4.018275
+    NEXT: 139    +22     4.231798     C_CALL   test_cpymemtrace.py             206 sleep                480710656    438947840
+    PREV: 139    +22     4.231798     C_CALL   test_cpymemtrace.py             206 sleep                480710656    438947840
+    NEXT: 141    +2      4.275196     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -438947840
+    MESG: 142    +1      4.275208     After de-allocation of 438944001 bytes.
+    MESG: 162    +21     4.275367     Before allocation of 279020117 bytes.
+    PREV: 162    +21     4.275367
+    NEXT: 163    +22     4.424839     C_CALL   test_cpymemtrace.py             206 sleep                320786432    279023616
+    PREV: 163    +22     4.424839     C_CALL   test_cpymemtrace.py             206 sleep                320786432    279023616
+    NEXT: 165    +2      4.446285     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -279023616
+    MESG: 166    +1      4.446297     After de-allocation of 279020117 bytes.
+    MESG: 186    +21     4.446371     Before allocation of 442963008 bytes.
+    PREV: 186    +21     4.446371
+    NEXT: 187    +22     4.643456     C_CALL   test_cpymemtrace.py             206 sleep                484728832    442966016
+    PREV: 187    +22     4.643456     C_CALL   test_cpymemtrace.py             206 sleep                484728832    442966016
+    NEXT: 189    +2      4.678978     C_CALL   test_cpymemtrace.py             208 write_message_to_log  41762816   -442966016
+    MESG: 190    +1      4.678990     After de-allocation of 442963008 bytes.
+    LAST: 196    +7      4.679326     LINE     test_cpymemtrace.py             201 test_messaging        41762816            0
+    EOF
+
+.. raw:: latex
+
+    \end{landscape}
+
+Logging to a Temporary File
+------------------------------
+
+By default the log is written to a file in the current working directory.
+To write to a specific file, and then read it follow this pattern:
+
+.. code-block:: python
+
+    import tempfile
+
+    with tempfile.NamedTemporaryFile() as file:
+        with cPyMemTrace.Trace(0, message='# Trace level0', filepath=file.name) as trace:
+            trace.trace_file_wrapper.write_message_to_log('# Level 0 __enter__')
+            temp_list = []
+            for i in range(16):
+                temp_list.append(b' ' * (1024 ** 2))
+            trace.trace_file_wrapper.write_message_to_log('# Level 0 after populating list.')
+            while len(temp_list):
+                temp_list.pop()
+            trace.trace_file_wrapper.write_message_to_log('# Level 0 after deleting the list.')
+        file.flush()
+        file_data = file.read()
+        print()
+        print(' filedata '.center(75, '-'))
+        for line in file_data.split(b'\n'):
+            print(line.decode('ascii'))
+        print(' file_data DONE '.center(75, '-'))
+
+See ``tests.test_cpymemtrace.test_trace_to_specific_log_file_nested()`` for a more complicated example.

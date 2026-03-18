@@ -212,7 +212,6 @@ def test_profile_start_message_to_log_file(cls):
     assert profiler.log_file_path() is None
 
 
-
 @pytest.mark.skipif(not (sys.version_info.minor < 13), reason='Python < 3.13')
 @pytest.mark.parametrize(
     'cls',
@@ -313,6 +312,22 @@ def test_reference_trace_special_class_post_313():
         print()
         print(f'File data [{len(file_data)}]:\n{file_data}')
         # assert 'message foo' in file_data
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_trace_depth():
+    assert cPyMemTrace.reference_tracing_wrapper_depth() == 0
+    assert cPyMemTrace.profile_wrapper_depth() == 0
+    with cPyMemTrace.ReferenceTracing() as ref_trace_0:
+        assert cPyMemTrace.reference_tracing_wrapper_depth() == 1
+        assert cPyMemTrace.profile_wrapper_depth() == 0
+        with cPyMemTrace.Profile() as ref_trace_1:
+            assert cPyMemTrace.reference_tracing_wrapper_depth() == 1
+            assert cPyMemTrace.profile_wrapper_depth() == 1
+        assert cPyMemTrace.reference_tracing_wrapper_depth() == 1
+        assert cPyMemTrace.profile_wrapper_depth() == 0
+    assert cPyMemTrace.reference_tracing_wrapper_depth() == 0
+    assert cPyMemTrace.profile_wrapper_depth() == 0
 
 
 @pytest.mark.parametrize(
@@ -514,6 +529,26 @@ def test_trace_depth():
                 assert cPyMemTrace.trace_wrapper_depth() == 3
             assert cPyMemTrace.trace_wrapper_depth() == 2
         assert cPyMemTrace.trace_wrapper_depth() == 1
+    assert cPyMemTrace.trace_wrapper_depth() == 0
+
+
+def test_mixed_profile_trace_depth():
+    assert cPyMemTrace.profile_wrapper_depth() == 0
+    assert cPyMemTrace.trace_wrapper_depth() == 0
+    with cPyMemTrace.Profile(0) as profiler_0:
+        assert cPyMemTrace.profile_wrapper_depth() == 1
+        assert cPyMemTrace.trace_wrapper_depth() == 0
+        with cPyMemTrace.Trace(0) as tracer_0:
+            assert cPyMemTrace.profile_wrapper_depth() == 1
+            assert cPyMemTrace.trace_wrapper_depth() == 1
+            with cPyMemTrace.Trace() as tracer_1:
+                assert cPyMemTrace.profile_wrapper_depth() == 1
+                assert cPyMemTrace.trace_wrapper_depth() == 2
+            assert cPyMemTrace.profile_wrapper_depth() == 1
+            assert cPyMemTrace.trace_wrapper_depth() == 1
+        assert cPyMemTrace.profile_wrapper_depth() == 1
+        assert cPyMemTrace.trace_wrapper_depth() == 0
+    assert cPyMemTrace.profile_wrapper_depth() == 0
     assert cPyMemTrace.trace_wrapper_depth() == 0
 
 

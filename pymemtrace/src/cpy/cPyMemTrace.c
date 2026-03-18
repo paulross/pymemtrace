@@ -647,7 +647,7 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
     trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(&cpyTraceFileWrapperType, NULL, NULL);
     if (trace_wrapper) {
 #if DEBUG
-        fprintf(stdout, "DEBUG: Opening log file %s\n", file_path_buffer);
+        fprintf(stdout, "DEBUG: Profile/Trace opening log file %s\n", file_path_buffer);
 #endif
         trace_wrapper->file = fopen(file_path_buffer, "w");
         if (trace_wrapper->file) {
@@ -1355,13 +1355,13 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
         fputs("DEL:", data_alias->log_file);
         data_alias->count_del++;
 #if 0
-    // Python 3.14 doe snot seem to support this so cancel it.
+        // Python 3.14 does not seem to support this so cancel it.
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 14
-        } else if (event == PyRefTracer_TRACKER_REMOVED) {
-            // Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
-            // call (below) will trigger a call to this callback function.
-            // fputs("REM", the_data->log_file);
-            return 0;
+            } else if (event == PyRefTracer_TRACKER_REMOVED) {
+                // Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
+                // call (below) will trigger a call to this callback function.
+                // fputs("REM", the_data->log_file);
+                return 0;
 #endif // #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 14
 #endif // 0
     } else {
@@ -1372,7 +1372,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     double clock_time = (double) clock() / CLOCKS_PER_SEC;
     /* RSS stuff. */
     size_t rss = getCurrentRSS_alternate();
-    long d_rss = (long)rss - (long)data_alias->rss;
+    long d_rss = (long) rss - (long) data_alias->rss;
     data_alias->rss = rss;
     /* NOTE: We need to disable tracing at this point as PyEval_GetFrame() and
      * sys_getsizeof() create arbitrary Python objects and that will
@@ -1432,7 +1432,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     snprintf(event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
              " %12.6f %16p %16ld %-32s %-80s %4d %-40s %16zd %16ld",
              clock_time,
-             (void *)obj,
+             (void *) obj,
              Py_REFCNT(obj),
              Py_TYPE(obj)->tp_name,
              get_python_file_name(frame),
@@ -1440,7 +1440,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
              func_name,
              rss,
              d_rss
-             );
+    );
 #endif // REFERENCE_TRACING_GET_SIZEOF
     Py_DECREF(frame);
     assert(data_alias);
@@ -1546,12 +1546,12 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
         if (!self->log_file_path) {
             PyErr_Format(
                     PyExc_RuntimeError, "%s#%d Can not malloc.", __FUNCTION__, __LINE__
-                    );
+            );
         }
         if (strcpy(self->log_file_path, log_file_path) != self->log_file_path) {
             PyErr_Format(
                     PyExc_RuntimeError, "%s#%d strcpy failed.", __FUNCTION__, __LINE__
-                    );
+            );
         }
     } else {
         /* Default to a standard log file name in the current working directory. */
@@ -1560,7 +1560,7 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
         if (err_code <= 0) {
             PyErr_Format(
                     PyExc_RuntimeError, "%s#%d Can not print to buffer, error %d", __FUNCTION__, __LINE__, err_code
-                    );
+            );
         }
         self->log_file_path = malloc(strlen(file_path_buffer) + 1);
         if (!self->log_file_path) {
@@ -1595,7 +1595,7 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
     );
 #else
     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-        "Clock", "Address", "RefCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
+            "Clock", "Address", "RefCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
     );
 #endif // REFERENCE_TRACING_GET_SIZEOF
     assert(!PyErr_Occurred());
@@ -1814,24 +1814,43 @@ trace_wrapper_depth(void) {
     return Py_BuildValue("n", wrapper_ll_length(static_trace_wrappers));
 }
 
+static PyObject *
+reference_tracing_wrapper_depth(void) {
+    assert(!PyErr_Occurred());
+    return Py_BuildValue("n", reference_tracing_ll_length(reference_tracing_ll));
+}
 
 static PyMethodDef cPyMemTraceMethods[] = {
-        {"rss",                   (PyCFunction) py_rss,                METH_NOARGS, "Return the current RSS in bytes."},
-        {"rss_peak",              (PyCFunction) py_rss_peak,           METH_NOARGS, "Return the peak RSS in bytes."},
-//        {
-//         "get_log_file_path_profile",
-//                                  (PyCFunction) get_log_file_path_profile,
-//                                                                       METH_NOARGS,
-//                                                                                    "Return the current log file path for profiling."
-//        },
-//        {
-//         "get_log_file_path_trace",
-//                                  (PyCFunction) get_log_file_path_trace,
-//                                                                       METH_NOARGS,
-//                                                                                    "Return the current log file path for tracing."
-//        },
-        {"profile_wrapper_depth", (PyCFunction) profile_wrapper_depth, METH_NOARGS, "Return the depth of the profile wrapper stack."},
-        {"trace_wrapper_depth",   (PyCFunction) trace_wrapper_depth,   METH_NOARGS, "Return the depth of the trace wrapper stack."},
+        {
+                "rss",
+                (PyCFunction) py_rss,
+                METH_NOARGS,
+                "Return the current RSS in bytes.",
+        },
+        {
+                "rss_peak",
+                (PyCFunction) py_rss_peak,
+                METH_NOARGS,
+                "Return the peak RSS in bytes.",
+        },
+        {
+                "profile_wrapper_depth",
+                (PyCFunction) profile_wrapper_depth,
+                METH_NOARGS,
+                "Return the depth of the profile wrapper stack.",
+        },
+        {
+                "trace_wrapper_depth",
+                (PyCFunction) trace_wrapper_depth,
+                METH_NOARGS,
+                "Return the depth of the trace wrapper stack.",
+        },
+        {
+                "reference_tracing_wrapper_depth",
+                (PyCFunction) reference_tracing_wrapper_depth,
+                METH_NOARGS,
+                "Return the depth of the Reference Tracing wrapper stack.",
+        },
         {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
@@ -1904,7 +1923,7 @@ PyInit_cPyMemTrace(void) {
         return NULL;
     }
 #endif // #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
-    
+
     return m;
 }
 
