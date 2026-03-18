@@ -2035,6 +2035,7 @@ debug_cPyMemtrace(int argc, char **argv) {
     }
     /* END: Debug profile wrapper. */
 
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
     /* Debug Reference Tracing wrapper. */
     {
         if (PyType_Ready(&cpyReferenceTracingType) < 0) {
@@ -2058,7 +2059,7 @@ debug_cPyMemtrace(int argc, char **argv) {
         Py_DECREF(ref_tracing_object);
     }
     /* End: Debug Reference Tracing wrapper. */
-
+#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
 
 #if 0
     PyObject *bytes_obj = PyBytes_FromStringAndSize(NULL, 1024);
