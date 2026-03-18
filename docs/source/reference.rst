@@ -14,3 +14,4 @@ pymemtrace Reference
     ref/redirect_stdout
     ref/util/dtrace_log_analyse
     ref/util/gnuplot
+    ref/util/ref_trace_analyse
