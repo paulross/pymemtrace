@@ -16,6 +16,7 @@ logger = logging.getLogger(__file__)
 
 @dataclasses.dataclass
 class ObjectData:
+    """Contents of a single line of the log file with the columns in their appropriate types."""
     line_num: int
     clock: float
     address: int
@@ -29,18 +30,21 @@ class ObjectData:
 
 
 class LogFileResult:
-
+    """Class that can read the log file into an internal representation."""
     def __init__(self):
         self.intro_message_lines = []
         self.header_columns = []
         # The key is the address.
         self.live_objects: typing.Dict[int, ObjectData] = {}
         # Pairs of (NEW, DEL)
+        # The key is the address.
         self.prev_objects: typing.Dict[int, typing.List[typing.Tuple[ObjectData, ObjectData]]] = {}
+        # Count of type allocation and de-allocation.
         self.type_count_new: typing.Dict[str, int] = collections.defaultdict(int)
         self.type_count_del: typing.Dict[str, int] = collections.defaultdict(int)
 
     def _parse_line(self, line_num: int, line: str) -> typing.Dict[str, typing.Any]:
+        """Parse a line of the log file into a dict of the columns of the form: {header: value}."""
         columns = line.strip().split()
         if len(columns) != len(self.header_columns):
             raise ValueError(
@@ -61,6 +65,7 @@ class LogFileResult:
         return ret
 
     def _create_object(self, line_num: int, line_dict: typing.Dict[str, typing.Any]) -> ObjectData:
+        """Create an ObjectData from the dict of {header: value}."""
         return ObjectData(
             line_num,
             line_dict['Clock'],
@@ -75,7 +80,7 @@ class LogFileResult:
         )
 
     def add_new(self, line_num: int, line: str) -> None:
-        # print(f'TRACE: {line}')
+        """Add a line starting "NEW:"."""
         line_dict = self._parse_line(line_num, line)
         assert line_dict['HDR:'] == 'NEW:'
         obj_repr = self._create_object(line_num, line_dict)
@@ -89,6 +94,7 @@ class LogFileResult:
         self.type_count_new[obj_repr.type] += 1
 
     def add_del(self, line_num: int, line: str) -> None:
+        """Add a line starting "DEL:"."""
         line_dict = self._parse_line(line_num, line)
         assert line_dict['HDR:'] == 'DEL:'
         obj_repr = self._create_object(line_num, line_dict)
@@ -106,10 +112,11 @@ class LogFileResult:
         self.type_count_del[obj_repr.type] += 1
 
     def add_msg(self, line_num: int, line: str) -> None:
+        """Add a line starting "MSG:"."""
         pass
 
     def long_str_list(self, show_full_path: bool) -> typing.List[str]:
-
+        """Return the analysis as a list of strings suitable for printing."""
         def _str_from_object_file(obj: ObjectData, show_full_path: bool) -> str:
             if show_full_path:
                 return f'{obj.file}'
@@ -162,6 +169,7 @@ class LogFileResult:
 
 
 def process_file(file: typing.TextIO) -> LogFileResult:
+    """Process the file into a LogFileResult and return that."""
     result = LogFileResult()
     has_sof = False
     for l, line in enumerate(file):
@@ -180,7 +188,6 @@ def process_file(file: typing.TextIO) -> LogFileResult:
                     assert len(result.header_columns) == 0
                     result.header_columns = line.strip().split()
                 elif line.startswith('NEW:'):
-                    # print(f'TRACE: {line}')
                     result.add_new(line_num, line)
                 elif line.startswith('DEL:'):
                     result.add_del(line_num, line)
@@ -188,16 +195,17 @@ def process_file(file: typing.TextIO) -> LogFileResult:
                     result.add_msg(line_num, line)
                 else:
                     logger.error(f'Line {line_num}: Can not process line "{line}"')
-    # print(result)
     return result
 
 
-def process_file_path(file_path: str):
+def process_file_path(file_path: str) -> LogFileResult:
+    """Process the file path into a LogFileResult and return that."""
     with open(file_path) as file:
         return process_file(file)
 
 
 def main() -> int:
+    """Main entry point."""
     parser = argparse.ArgumentParser(
         prog=__file__,
         description="""Reads an Reference Tracing log of a process and analyses it.""",
@@ -224,7 +232,6 @@ def main() -> int:
     print(f'File path: {args.log_path}')
     result = process_file_path(args.log_path)
     print('\n'.join(result.long_str_list(args.full_path)))
-    print()
     print(f'Process time: {time.perf_counter() - time_start:.3f} (s)')
     return 0
 
