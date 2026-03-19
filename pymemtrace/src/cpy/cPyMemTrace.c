@@ -698,6 +698,7 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
         } else {
             cpyTraceFileWrapper_dealloc(trace_wrapper);
             fprintf(stderr, "Can not open writable file for cpyTraceFileWrapper at %s\n", file_path_buffer);
+            PyErr_Format(PyExc_IOError, "Can not open log file %s", file_path_buffer);
             return NULL;
         }
     } else {
@@ -796,11 +797,11 @@ cpyProfileOrTraceObject_init(cpyProfileOrTraceObject *self, PyObject *args, PyOb
 }
 
 static PyMemberDef cpyProfileOrTraceObject_members[] = {
-        {
-                "_trace_file_wrapper", Py_T_OBJECT_EX, offsetof(cpyProfileOrTraceObject,
-                                                                trace_file_wrapper), Py_READONLY,
-                "The trace file wrapper. This an opaque object with an unpublished API."
-        },
+//        {
+//                "_trace_file_wrapper", Py_T_OBJECT_EX, offsetof(cpyProfileOrTraceObject,
+//                                                                trace_file_wrapper), Py_READONLY,
+//                "The trace file wrapper. This an opaque object with an unpublished API."
+//        },
         {NULL, 0, 0, 0, NULL} /* Sentinel */
 };
 
@@ -1225,8 +1226,6 @@ reference_tracing_ll_pop(struct cReferenceTracingLinkedListNode **h_linked_list)
     return ret;
 }
 
-// TODO:
-
 /**
  * Return the length of the Reference Tracing linked list.
  *
@@ -1354,8 +1353,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
         // Write the destruction of an object.
         fputs("DEL:", data_alias->log_file);
         data_alias->count_del++;
-#if 0
-        // Python 3.14 does not seem to support this so cancel it.
+#if 0 // Python 3.14 does not seem to support this so cancel support for this event.
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 14
             } else if (event == PyRefTracer_TRACKER_REMOVED) {
                 // Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
@@ -1365,7 +1363,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
 #endif // #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 14
 #endif // 0
     } else {
-        Py_UNREACHABLE();
+        // Ignore unknown events instead of Py_UNREACHABLE();
     }
     /* Write the rest of the event line. */
     static char event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
@@ -1392,7 +1390,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     err_code--;
     /* Now we can call into Python code. */
     PyFrameObject *frame = PyEval_GetFrame();
-    Py_INCREF(frame);
+    Py_XINCREF(frame);
     /* Get the function name. This does not use get_python_function_name(). */
     const char *func_name = NULL;
     if (frame) {
@@ -1442,7 +1440,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
              d_rss
     );
 #endif // REFERENCE_TRACING_GET_SIZEOF
-    Py_DECREF(frame);
+    Py_XDECREF(frame);
     assert(data_alias);
     assert(data_alias->log_file);
     fputs(event_text, data_alias->log_file);
@@ -1462,9 +1460,12 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
  */
 typedef struct {
     PyObject_HEAD
-    // Store the file path and provide an API that can return it (or None) from profile_wrapper or trace_wrapper.
-    char *log_file_path;
     struct reference_tracing_data *data;
+    // User can provide a specific filename.
+    // A PyBytesObject.
+    PyObject *py_specific_filename;
+    // User can provide a specific message to be written at the beginning of the file.
+    char *message;
 } cpyReferenceTracing;
 
 
@@ -1487,8 +1488,9 @@ cpyReferenceTracing_dealloc(cpyReferenceTracing *self) {
         free(self->data);
         self->data = NULL;
     }
-    free(self->log_file_path);
-    self->log_file_path = NULL;
+    Py_DECREF(self->py_specific_filename);
+    self->py_specific_filename = NULL;
+    free(self->message);
     PyObject_Del((PyObject *) self);
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
 }
@@ -1511,7 +1513,7 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
         self->data->log_file = NULL;
         self->data->count_new = 0;
         self->data->count_del = 0;
-        self->log_file_path = NULL;
+        self->py_specific_filename = NULL;
     }
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     return (PyObject *) self;
@@ -1531,73 +1533,24 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     static char *kwlist[] = {"message", "filepath", NULL};
     char *message = NULL;
-    char *log_file_path = NULL;
-    static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH + 1];
+//    char *log_file_path = NULL;
+//    static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH + 1];
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sO&", kwlist, &message, PyUnicode_FSConverter,
-                                     &log_file_path)) {
+                                     &self->py_specific_filename)) {
         assert(PyErr_Occurred());
         return -1;
     }
-    /* Open the log file, default to the CWD. */
-    int err_code;
-    if (log_file_path) {
-        self->log_file_path = malloc(strlen(log_file_path) + 1);
-        if (!self->log_file_path) {
-            PyErr_Format(
-                    PyExc_RuntimeError, "%s#%d Can not malloc.", __FUNCTION__, __LINE__
-            );
-        }
-        if (strcpy(self->log_file_path, log_file_path) != self->log_file_path) {
-            PyErr_Format(
-                    PyExc_RuntimeError, "%s#%d strcpy failed.", __FUNCTION__, __LINE__
-            );
-        }
-    } else {
-        /* Default to a standard log file name in the current working directory. */
-        size_t ll_depth = reference_tracing_ll_length(reference_tracing_ll);
-        err_code = create_filename_within_cwd('O', ll_depth, file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH);
-        if (err_code <= 0) {
-            PyErr_Format(
-                    PyExc_RuntimeError, "%s#%d Can not print to buffer, error %d", __FUNCTION__, __LINE__, err_code
-            );
-        }
-        self->log_file_path = malloc(strlen(file_path_buffer) + 1);
-        if (!self->log_file_path) {
-            PyErr_Format(
-                    PyExc_RuntimeError, "%s#%d Can not malloc.", __FUNCTION__, __LINE__
-            );
-        }
-        if (strcpy(self->log_file_path, file_path_buffer) != self->log_file_path) {
-            PyErr_Format(
-                    PyExc_RuntimeError, "%s#%d strcpy failed.", __FUNCTION__, __LINE__
-            );
-        }
-    }
-#if DEBUG
-    fprintf(stdout, "DEBUG: Reference Tracing opening log file %s\n", self->log_file_path);
-#endif
-    self->data->log_file = fopen(self->log_file_path, "w");
-    /* Write the opening message. */
     if (message) {
-        fputs(message, self->data->log_file);
-        fputc('\n', self->data->log_file);
+        self->message = malloc(strlen(message) + 1);
+        if (self->message) {
+            strcpy(self->message, message);
+        } else {
+            PyErr_Format(PyExc_MemoryError, "cpyReferenceTracing_init() can not allocate memory in type %s.",
+                         Py_TYPE(self)->tp_name);
+            return -2;
+        }
     }
-    /* Write the header. */
-    fputs(MARKER_LOG_FILE_START, self->data->log_file);
-    fputc('\n', self->data->log_file);
-//    fprintf(self->data->log_file, "HDR: %12s %16s %-32s %-80s %4s %-40s\n",
-//            "Clock", "Address", "Type", "File", "Line", "Function"
-//    );
-#if REFERENCE_TRACING_GET_SIZEOF
-    fprintf(self->data->log_file, "HDR: %12s %16s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-        "Clock", "Address", "RefCnt", "Sizeof", "Type", "File", "Line", "Function", "RSS", "dRSS"
-    );
-#else
-    fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-            "Clock", "Address", "RefCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
-    );
-#endif // REFERENCE_TRACING_GET_SIZEOF
     assert(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
     return 0;
@@ -1651,7 +1604,7 @@ cpyReferenceTracing_write_message_to_log(cpyReferenceTracing *self, PyObject *op
 }
 
 /**
- * De-regester the existing tracer, push new data onto the linked list and register it.
+ * De-register the existing tracer, push new data onto the linked list and register it.
  *
  * @param self
  * @return
@@ -1660,10 +1613,58 @@ static PyObject *
 cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     assert(!PyErr_Occurred());
+    static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH + 1];
     /* Clear the existing tracer. */
     if (PyRefTracer_SetTracer(NULL, NULL)) {
         return NULL;
     }
+    /* Open the log file. */
+    char *debug_filename = NULL;
+    if (self->py_specific_filename) {
+        /* User supplied filename. */
+        debug_filename = PyBytes_AS_STRING(self->py_specific_filename);
+    } else {
+        /* Default to a standard log file name in the current working directory. */
+        size_t ll_depth = reference_tracing_ll_length(reference_tracing_ll);
+        int err_code = create_filename_within_cwd('O', ll_depth, file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH);
+        if (err_code <= 0) {
+            PyErr_Format(
+                    PyExc_RuntimeError, "%s#%d Can not print to buffer, error %d", __FUNCTION__, __LINE__, err_code
+            );
+            return NULL;
+        }
+        self->py_specific_filename = (PyObject *)PyBytes_FromString(file_path_buffer);
+        debug_filename = file_path_buffer;
+    }
+    self->data->log_file = fopen(debug_filename, "w");
+    if (!self->data->log_file) {
+        PyErr_Format(PyExc_IOError, "Can not open log file %s", debug_filename);
+        return NULL;
+    }
+#if DEBUG
+    fprintf(
+            stdout,
+            "DEBUG: Reference Tracing opening log file \"%s\"\n",
+            PyBytes_AS_STRING(self->py_specific_filename)
+            );
+#endif
+    /* Write the opening message. */
+    if (self->message) {
+        fputs(self->message, self->data->log_file);
+        fputc('\n', self->data->log_file);
+    }
+    /* Write the header. */
+    fputs(MARKER_LOG_FILE_START, self->data->log_file);
+    fputc('\n', self->data->log_file);
+#if REFERENCE_TRACING_GET_SIZEOF
+    fprintf(self->data->log_file, "HDR: %12s %16s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
+        "Clock", "Address", "RefCnt", "Sizeof", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    );
+#else
+    fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
+            "Clock", "Address", "RefCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    );
+#endif // REFERENCE_TRACING_GET_SIZEOF
     /* Push the data onto the head of the linked list. */
     reference_tracing_ll_push(&reference_tracing_ll, self->data);
     /* Register the existing tracer. */
@@ -1710,6 +1711,7 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
         fputc('\n', data->log_file);
         /* Close the file. */
         fclose(self->data->log_file);
+        self->data->log_file = NULL;
         /* Register the previous tracer from the linked list. */
         data = reference_tracing_ll_get_data(reference_tracing_ll);
         if (data) {
@@ -1730,8 +1732,8 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
 static PyObject *
 cpyReferenceTracing_get_log_file_path(cpyReferenceTracing *self, PyObject *Py_UNUSED(arg)) {
     assert(!PyErr_Occurred());
-    if (self->log_file_path) {
-        return Py_BuildValue("s", self->log_file_path);
+    if (self->py_specific_filename) {
+        return Py_BuildValue("s", PyBytes_AS_STRING(self->py_specific_filename));
     } else {
         Py_RETURN_NONE;
     }
@@ -1814,11 +1816,13 @@ trace_wrapper_depth(void) {
     return Py_BuildValue("n", wrapper_ll_length(static_trace_wrappers));
 }
 
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
 static PyObject *
 reference_tracing_wrapper_depth(void) {
     assert(!PyErr_Occurred());
     return Py_BuildValue("n", reference_tracing_ll_length(reference_tracing_ll));
 }
+#endif
 
 static PyMethodDef cPyMemTraceMethods[] = {
         {
@@ -1845,12 +1849,14 @@ static PyMethodDef cPyMemTraceMethods[] = {
                 METH_NOARGS,
                 "Return the depth of the trace wrapper stack.",
         },
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
         {
                 "reference_tracing_wrapper_depth",
                 (PyCFunction) reference_tracing_wrapper_depth,
                 METH_NOARGS,
                 "Return the depth of the Reference Tracing wrapper stack.",
         },
+#endif
         {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
@@ -1993,8 +1999,13 @@ debug_cPyMemtrace(int argc, char **argv) {
         );
         {
             PyObject *py_args = Py_BuildValue("()");
-            PyObject *py_kwargs = Py_BuildValue("{}");
+//            PyObject *py_kwargs = Py_BuildValue("{}");
+
+            PyObject *py_kwargs = Py_BuildValue("{ss}", "filepath", "Profile_foo_bar_baz.log");
+            PyObject_Print((PyObject *) py_kwargs, stdout, Py_PRINT_RAW);
+            fputc('\n', stdout);
             int init = cpyProfileOrTraceObject_init(profile_object, py_args, py_kwargs);
+
             Py_DECREF(py_args);
             Py_DECREF(py_kwargs);
             fprintf(stdout, "cpyProfileOrTraceObject_init() returned %d\n", init);
@@ -2067,13 +2078,31 @@ debug_cPyMemtrace(int argc, char **argv) {
         );
         {
             PyObject *py_args = Py_BuildValue("()");
-            PyObject *py_kwargs = Py_BuildValue("{}");
+            PyObject *py_kwargs = Py_BuildValue("{ss}", "filepath", "foo_bar_baz.log");
+            PyObject_Print((PyObject *) py_kwargs, stdout, Py_PRINT_RAW);
+            fputc('\n', stdout);
             int init = cpyReferenceTracing_init(ref_tracing_object, py_args, py_kwargs);
             Py_DECREF(py_args);
             Py_DECREF(py_kwargs);
             fprintf(stdout, "cpyReferenceTracing_init() returned %d\n", init);
             PyObject_Print((PyObject *) ref_tracing_object, stdout, Py_PRINT_RAW);
             fprintf(stdout, "\n");
+
+            PyObject *result_enter = cpyReferenceTracing_enter(ref_tracing_object);
+            fprintf(stdout, "result_enter:\n");
+            PyObject_Print(result_enter, stdout, Py_PRINT_RAW);
+            fprintf(stdout, "\n");
+
+            /* This detaches the profiler from the Python runtime. */
+            PyObject *result_exit = cpyReferenceTracing_exit(ref_tracing_object, NULL);
+            fprintf(stdout, "result_exit: ");
+            if (result_exit) {
+                PyObject_Print(result_exit, stdout, Py_PRINT_RAW);
+            } else {
+                fprintf(stdout, "NULL");
+            }
+            fprintf(stdout, "\n");
+            Py_DECREF(result_enter);
         }
         Py_DECREF(ref_tracing_object);
     }
