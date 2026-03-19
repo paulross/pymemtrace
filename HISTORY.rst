@@ -1,18 +1,18 @@
 History
 =======
 
-0.3.0rc0 (TODO)
+0.3.0 (2026-03-19)
 ---------------------
 
 * Add ``process-tree.py`` for logging a process and its children.
 * cPyMemTrace:
     * Add Reference Tracing (Python 3.13+) that can record every object allocation or de-allocation.
-    * Fix stacking ``pop()`` issue with trace/profile functions with linked list of ``tTraceFileWrapperLinkedList``.
     * Add an option to log to a specific file.
     * Add an API ``write_message_to_log()`` to inject text into the log file.
     * Better structure of the log file format.
     * Define the log file format.
     * Add debug exploration code with ``debug_cPyMemtrace()``.
+    * Fix stacking ``pop()`` issue with trace/profile functions with linked list of ``tTraceFileWrapperLinkedList``.
 * Add support for Python 3.14
 * Remove support for Python 3.7
 * Supported Python versions are: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14
