@@ -1,4 +1,5 @@
 import io
+import sys
 import tempfile
 
 import pytest
@@ -7,6 +8,7 @@ from pymemtrace import cPyMemTrace
 from pymemtrace.util import ref_trace_analyse
 
 
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_reference_tracing():
     message = 'test_reference_tracing_to_specific_log_file_nested():'
     with tempfile.NamedTemporaryFile() as file_0:

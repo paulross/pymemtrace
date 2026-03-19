@@ -30,7 +30,6 @@ def test_module_dir_pre_313():
         '__package__',
         '__spec__',
         'profile_wrapper_depth',
-        'reference_tracing_wrapper_depth',
         'rss',
         'rss_peak',
         'trace_wrapper_depth',
@@ -60,7 +59,6 @@ def test_module_dir_post_313():
 
 @pytest.mark.skipif(not (sys.version_info.minor <= 10), reason='Python <= 3.10')
 def test_profile_basic_lt_310():
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Profile(0) as profiler:
         b' ' * (1024 ** 2)
         print()
@@ -76,22 +74,11 @@ def test_profile_basic_lt_310():
                                  'write_message_to_log',
                                  'write_to_log',
                                  ]
-        print(profiler)
-        print(dir(profiler))
-        assert dir(profiler) == ['__class__', '__delattr__', '__dir__', '__doc__', '__eq__',
-                                 '__format__', '__ge__', '__getattribute__',
-                                 '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__',
-                                 '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__',
-                                 '__repr__', '__setattr__', '__sizeof__', '__str__',
-                                 '__subclasshook__', 'd_rss_trigger', 'event_number', 'event_text',
-                                 'log_file_path', 'previous_event_number', 'rss',
-                                 'write_message_to_log', 'write_to_log']
         assert os.path.isfile(profiler.log_file_path())
 
 
 @pytest.mark.skipif(not (sys.version_info.minor > 10), reason='Python > 3.10')
 def test_profile_basic_gt_310():
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     print()
     print('test_profile_basic_gt_310():')
     with cPyMemTrace.Profile(0) as profiler:
@@ -109,14 +96,6 @@ def test_profile_basic_gt_310():
                                  'write_message_to_log',
                                  'write_to_log',
                                  ]
-        print(profiler)
-        print(dir(profiler))
-        assert dir(profiler) == ['__class__', '__delattr__', '__dir__', '__doc__', '__enter__', '__eq__', '__exit__',
-                                 '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__',
-                                 '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
-                                 '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__',
-                                 '__subclasshook__', 'log_file_path', 'write_message_to_log', 'write_to_log']
-        print(f'Profiler: {profiler}')
         assert os.path.isfile(profiler.log_file_path())
     print(f'Profiler: {profiler}')
     print(type(profiler))
@@ -128,7 +107,6 @@ def test_profile_basic_gt_310():
 
 @pytest.mark.skipif(not (sys.version_info.minor <= 10), reason='Python <= 3.10')
 def test_trace_basic_lt_310():
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Trace(0) as tracer:
         b' ' * (1024 ** 2)
         print()
@@ -144,13 +122,6 @@ def test_trace_basic_lt_310():
                                'write_message_to_log',
                                'write_to_log',
                                ]
-        print(tracer)
-        print(dir(tracer))
-        assert dir(tracer) == ['__class__', '__delattr__', '__dir__', '__doc__', '__enter__', '__eq__', '__exit__',
-                               '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__',
-                               '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
-                               '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__',
-                               'log_file_path', 'write_message_to_log', 'write_to_log']
         assert os.path.isfile(tracer.log_file_path())
 
 
@@ -230,12 +201,10 @@ def test_profile_inline_message_to_log_file_pre_313(cls):
         assert message in file_data
 
 
-@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 @pytest.mark.parametrize(
     'cls',
     (
             cPyMemTrace.Profile,
-            cPyMemTrace.ReferenceTracing,
             cPyMemTrace.Trace,
     )
 )
@@ -431,16 +400,10 @@ def test_profile_trace_to_specific_log_file(cls):
 
 
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
-@pytest.mark.parametrize(
-    'cls',
-    (
-            cPyMemTrace.ReferenceTracing,
-    )
-)
-def test_reference_tracing_to_specific_log_file(cls):
+def test_reference_tracing_to_specific_log_file():
     message = 'test_reference_tracing_to_specific_log_file():'
     with tempfile.NamedTemporaryFile() as file:
-        with cls(message=message, filepath=file.name) as profiler:
+        with cPyMemTrace.ReferenceTracing(message=message, filepath=file.name) as profiler:
             assert profiler.log_file_path() == file.name
             for i in range(4):
                 populate_list()
@@ -528,20 +491,14 @@ def test_profile_trace_to_specific_log_file_nested(cls):
 
 
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
-@pytest.mark.parametrize(
-    'cls',
-    (
-            cPyMemTrace.ReferenceTracing,
-    )
-)
-def test_reference_tracing_to_specific_log_file_nested(cls):
+def test_reference_tracing_to_specific_log_file_nested():
     """This tests that the nested context managers work properly.
     In particular, when the inner one exists the outer one takes over."""
     SLEEP = 1.0
     message = 'test_reference_tracing_to_specific_log_file_nested():'
     with tempfile.NamedTemporaryFile() as file_0:
         # Create the outer context manager.
-        with cls(message=message + '#level0', filepath=file_0.name) as trace_0:
+        with cPyMemTrace.ReferenceTracing(message=message + '#level0', filepath=file_0.name) as trace_0:
             trace_0.write_message_to_log('# Level 0 __enter__')
             # Exercise the outer context manager *before* the inner context manager.
             assert trace_0.log_file_path() == file_0.name

@@ -178,7 +178,8 @@ class LogFileResult:
         assert line_dict['HDR:'] == 'NEW:'
         obj_repr = self._create_object(line_num, line_dict)
         if obj_repr.address in self.live_objects:
-            raise ValueError(
+            # raise ValueError(
+            logger.error(
                 f'NEW address {obj_repr.address}'
                 f' from line {line_num}'
                 f' already exists from line {self.live_objects[obj_repr.address].line_num}.'

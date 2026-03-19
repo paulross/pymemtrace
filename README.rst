@@ -33,13 +33,13 @@ See `some process examples <https://pymemtrace.readthedocs.io/en/latest/examples
 
 This module, written in C, provides real time logging of Python and C actions:
 
-- :py:class:`pymemtrace.cPyMemTrace.Profile` is a memory tracer written in C that can report total memory usage
+- ``pymemtrace.cPyMemTrace.Profile`` is a memory tracer written in C that can report total memory usage
   for every function call/return for both C and Python sections.
   This is more suitable for logging C code, for example Python's C extensions.
-- :py:class:`pymemtrace.cPyMemTrace.Trace` is a memory tracer written in C that can report total memory usage
+- ``pymemtrace.cPyMemTrace.Trace`` is a memory tracer written in C that can report total memory usage
   for every function call/return/line for Python sections.
   This is more suitable for logging pure Python code.
-- With Python 3.13+ :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing` can report every object allocation
+- With Python 3.13+ ``pymemtrace.cPyMemTrace.ReferenceTracing`` can report every object allocation
   and de-allocation with
   `Reference Tracing <https://docs.python.org/3/c-api/profiling.html#reference-tracing>`_.
 
