@@ -238,6 +238,7 @@ class LogFileResult:
         if self.intro_message_lines:
             ret.append('Initial Message:')
             ret.extend(self.intro_message_lines)
+        # print(f'TRACE self.intro_message_lines {self.intro_message_lines}')
 
         ret.append(f'Live Objects [{len(self.live_objects)}]:')
         for address in sorted(self.live_objects.keys()):
@@ -276,7 +277,8 @@ def process_file(file: typing.TextIO) -> LogFileResult:
         else:
             # Decide on what the line is
             if not has_sof:
-                result.intro_message_lines.append(line)
+                # Remove '\n' from the end.
+                result.intro_message_lines.append(line[:-1])
             else:
                 if line.startswith('HDR:'):
                     assert len(result.header_columns) == 0

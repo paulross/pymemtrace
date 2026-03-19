@@ -17,12 +17,11 @@ from pymemtrace import cPyMemTrace
 faulthandler.enable()
 
 
-@pytest.mark.skipif(not (sys.version_info.minor <= 13), reason='Python <= 3.13')
+@pytest.mark.skipif(not (sys.version_info.minor < 13), reason='Python < 3.13')
 def test_module_dir_pre_313():
     pprint.pprint(dir(cPyMemTrace))
     assert dir(cPyMemTrace) == [
         'Profile',
-        'ReferenceTracing',
         'Trace',
         '__doc__',
         '__file__',
@@ -38,7 +37,7 @@ def test_module_dir_pre_313():
     ]
 
 
-@pytest.mark.skipif(not (sys.version_info.minor > 13), reason='Python > 3.13')
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_module_dir_post_313():
     pprint.pprint(dir(cPyMemTrace))
     assert dir(cPyMemTrace) == [
@@ -236,7 +235,7 @@ def test_profile_inline_message_to_log_file_pre_313(cls):
     'cls',
     (
             cPyMemTrace.Profile,
-            # cPyMemTrace.ReferenceTracing,
+            cPyMemTrace.ReferenceTracing,
             cPyMemTrace.Trace,
     )
 )
@@ -284,7 +283,7 @@ class BytesWrapper:
         self.bytes = b' ' * length
 
 
-def make_bytes_wrappers() -> str:
+def make_bytes_wrappers_with_reference_tracing() -> str:
     with cPyMemTrace.ReferenceTracing() as profiler:
         l = []
         for i in range(4):
@@ -303,7 +302,7 @@ def make_bytes_wrappers() -> str:
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_reference_trace_special_class_post_313():
     for i in range(1):
-        log_file_path = make_bytes_wrappers()
+        log_file_path = make_bytes_wrappers_with_reference_tracing()
     with open(log_file_path) as file:
         file_data = file.read()
         print()
@@ -431,6 +430,7 @@ def test_profile_trace_to_specific_log_file(cls):
         assert file_data.startswith(bytes(message, 'ascii'))
 
 
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 @pytest.mark.parametrize(
     'cls',
     (
@@ -526,6 +526,8 @@ def test_profile_trace_to_specific_log_file_nested(cls):
         print(' file_0_data DONE '.center(75, '-'))
         assert file_0_data.startswith(bytes(message + '#level0', 'ascii'))
 
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 @pytest.mark.parametrize(
     'cls',
     (
