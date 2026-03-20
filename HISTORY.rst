@@ -1,6 +1,13 @@
 History
 =======
 
+0.3.1 (TODO)
+---------------------
+
+* cPyMemTrace:
+    * Add decorators for Python functions for Profile, Trace and ReferenceTracing.
+    * Fix a SIGSEGV when bad keyword arguments were passed to ReferenceTracing.
+
 0.3.0 (2026-03-19)
 ---------------------
 
