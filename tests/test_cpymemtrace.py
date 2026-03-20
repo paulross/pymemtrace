@@ -247,6 +247,14 @@ def test_reference_trace_basic_post_313():
         # assert message in file_data
 
 
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_trace_bad_keywords_post_313():
+    with pytest.raises(TypeError) as err:
+        with cPyMemTrace.ReferenceTracing(d_rss_trigger=0):
+            pass
+    assert err.value.args[0] == "this function got an unexpected keyword argument 'd_rss_trigger'"
+
+
 class BytesWrapper:
     def __init__(self, length: int):
         self.bytes = b' ' * length
