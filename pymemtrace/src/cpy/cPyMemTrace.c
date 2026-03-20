@@ -1488,6 +1488,8 @@ cpyReferenceTracing_dealloc(cpyReferenceTracing *self) {
         free(self->data);
         self->data = NULL;
     }
+    /* NOTE: Py_XDECREF as self->py_specific_filename might be NULL.
+     * For instance when the wrong keyword arguments are supplied to __init__ */
     Py_XDECREF(self->py_specific_filename);
     self->py_specific_filename = NULL;
     free(self->message);
@@ -1514,6 +1516,7 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
         self->data->count_new = 0;
         self->data->count_del = 0;
         self->py_specific_filename = NULL;
+        self->message = NULL;
     }
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     return (PyObject *) self;
