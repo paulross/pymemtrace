@@ -532,3 +532,22 @@ To write to a specific file, and then read it follow this pattern:
         print(' file_data DONE '.center(75, '-'))
 
 See ``tests.test_cpymemtrace.test_trace_to_specific_log_file_nested()`` for a more complicated example.
+
+Decorators
+------------
+
+Often it is more convenient to use these as decorators of a particular function of interest.
+The decorators take the constructor arguments.
+For example:
+
+.. code-block:: python
+
+    from pymemtrace import cpymemtrace_decs
+
+    @cpymemtrace_decs.reference_tracing(
+        message='Testing some really important function',
+    )
+    def really_important_function():
+        pass
+
+See ``tests/test_cpymemtrace_decs.py()`` for some examples.
