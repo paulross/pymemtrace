@@ -1488,7 +1488,7 @@ cpyReferenceTracing_dealloc(cpyReferenceTracing *self) {
         free(self->data);
         self->data = NULL;
     }
-    Py_DECREF(self->py_specific_filename);
+    Py_XDECREF(self->py_specific_filename);
     self->py_specific_filename = NULL;
     free(self->message);
     PyObject_Del((PyObject *) self);
