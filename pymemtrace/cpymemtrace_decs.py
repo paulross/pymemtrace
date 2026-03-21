@@ -1,4 +1,5 @@
 import functools
+import sys
 
 from pymemtrace import cPyMemTrace
 
@@ -33,16 +34,17 @@ def trace(*dec_args, **dec_kwargs):
     return trace_inner
 
 
-def reference_tracing(*dec_args, **dec_kwargs):
-    """Decorator that calls the function within a cPyMemTrace.ReferenceTracing context manager."""
+if sys.version_info >= (3, 13):
+    def reference_tracing(*dec_args, **dec_kwargs):
+        """Decorator that calls the function within a cPyMemTrace.ReferenceTracing context manager."""
 
-    def reference_tracing_inner(fn):
-        @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
-            with cPyMemTrace.ReferenceTracing(*dec_args, **dec_kwargs):
-                result = fn(*args, **kwargs)
-            return result
+        def reference_tracing_inner(fn):
+            @functools.wraps(fn)
+            def wrapper(*args, **kwargs):
+                with cPyMemTrace.ReferenceTracing(*dec_args, **dec_kwargs):
+                    result = fn(*args, **kwargs)
+                return result
 
-        return wrapper
+            return wrapper
 
-    return reference_tracing_inner
+        return reference_tracing_inner

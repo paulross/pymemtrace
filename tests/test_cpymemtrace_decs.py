@@ -1,4 +1,5 @@
 import random
+import sys
 
 import pytest
 
@@ -37,13 +38,15 @@ def test_trace_decorator_kwargs():
     create_list_of_strings(4, 20 * 1024 ** 2, 50 * 1024 ** 2)
 
 
-@cpymemtrace_decs.reference_tracing()
-def test_reference_tracing_decorator_basic():
-    create_list_of_strings(4, 20 * 1024 ** 2, 50 * 1024 ** 2)
+if sys.version_info >= (3, 13):
+    @cpymemtrace_decs.reference_tracing()
+    def test_reference_tracing_decorator_basic():
+        create_list_of_strings(4, 20 * 1024 ** 2, 50 * 1024 ** 2)
 
 
-@cpymemtrace_decs.reference_tracing(
-    message='test_reference_tracing_decorator_kwargs()',
-)
-def test_reference_tracing_decorator_kwargs():
-    create_list_of_strings(4, 20 * 1024 ** 2, 50 * 1024 ** 2)
+if sys.version_info >= (3, 13):
+    @cpymemtrace_decs.reference_tracing(
+        message='test_reference_tracing_decorator_kwargs()',
+    )
+    def test_reference_tracing_decorator_kwargs():
+        create_list_of_strings(4, 20 * 1024 ** 2, 50 * 1024 ** 2)
