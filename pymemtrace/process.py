@@ -185,7 +185,7 @@ def extract_json_as_table(json_data: typing.List[typing.Dict[str, typing.Any]]) 
             [
                 f'{record[KEY_ELAPSED_TIME]:<12.1f}',
                 f'{record["memory_info"]["rss"]:12d}',
-                f'{inst_page_faults:12f}',
+                f'{inst_page_faults:12.1f}',
                 f'{record["cpu_times"]["user"]:12.1f}',
                 f'{mean_cpu_user:12.1%}',
                 f'{inst_cpu_user:12.1%}',
@@ -233,6 +233,18 @@ def invoke_gnuplot(log_path: str, gnuplot_dir: str) -> int:
         if ret:
             break
     return ret
+
+
+def write_log_to_stdout(log_path: str) -> None:
+    """Reads a log file, extracts the data, writes it out to gnuplot_dir and invokes gnuplot on it."""
+    with open(log_path) as instream:
+        json_data = extract_json(instream)
+    table, _t_min, _t_max, rss_min, rss_max = extract_json_as_table(json_data)
+    for pid in table:
+        print(f' PID: {pid} '.center(75, '-'))
+        for line in table[pid]:
+            print(' '.join(line))
+        print(f' PID: {pid} DONE '.center(75, '-'))
 
 
 class ProcessLoggingThread(threading.Thread):
@@ -344,7 +356,7 @@ def main() -> int:
     """Main CLI entry point. For testing."""
     parser = argparse.ArgumentParser(
         prog='process.py',
-        description="""Reads an annotated log of a process and writes a Gnuplot graph.""",
+        description="""Reads an annotated log of a process and writes a summary to stdout or to a Gnuplot graph.""",
     )
     parser.add_argument('-i', '--interval', type=float, help='Logging interval in seconds [default: %(default)s]',
                         default=1.0)
@@ -354,15 +366,22 @@ def main() -> int:
                         help="Log Level (debug=10, info=20, warning=30, error=40, critical=50)"
                              " [default: %(default)s]"
                         )
-    parser.add_argument('path_in', type=str, help='Input path.', nargs='?')
-    parser.add_argument('path_out', type=str, help='Output path.', nargs='?')
+    parser.add_argument('path_in', type=str, help='Input path of the log file.', nargs='?')
+    parser.add_argument('path_out', type=str, help='Output directory for gnuplot data.', nargs='?')
     args = parser.parse_args()
     logging.basicConfig(
         level=args.log_level,
-        format='%(asctime)s - %(filename)s#%(lineno)d - %(process)5d - (%(threadName)-10s) - %(levelname)-8s - %(message)s',
+        format=(
+            '%(asctime)s - %(filename)s#%(lineno)d - %(process)5d'
+            ' - (%(threadName)-10s) - %(levelname)-8s - %(message)s'
+        ),
     )
     if args.path_in and args.path_out:
+        # Treat as analysing a log file and writing to gnuplot data and plot.
         invoke_gnuplot(args.path_in, args.path_out)
+    elif args.path_in:
+        # Treat as analysing a log file and writing to stdout.
+        write_log_to_stdout(args.path_in)
     else:
         # Log another process or self
         logger.info('Demonstration of logging a process')

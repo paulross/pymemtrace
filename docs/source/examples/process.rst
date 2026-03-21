@@ -29,7 +29,10 @@ Here is an example of including :py:mod:`pymemtrace.process` in your Python code
     def main() -> int:
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(filename)s#%(lineno)d - %(process)5d - (%(threadName)-10s) - %(levelname)-8s - %(message)s',
+            format=(
+                '%(asctime)s - %(filename)s#%(lineno)d - %(process)5d
+                ' - (%(threadName)-10s) - %(levelname)-8s - %(message)s'
+                ),
         )
         logger.info('Demonstration of logging a process')
         # Log process data to the log file every 0.5 seconds.
@@ -91,12 +94,13 @@ You can specify an actual log level so:
     with process.log_process(interval=0.5, logging.INFO):
         # As before.
 
-And that will suppress any :py:mod:`pymemtrace.process` output if you have the logging level set at, say, ERROR.
+And that will suppress any :py:mod:`pymemtrace.process` output if you have the logging level set at, in this example,
+INFO.
 
 Using ``process`` as a Decorator
 -----------------------------------
 
-Sometimes it is usefule to (temporarily) monitor a particular function for debugging purposes.
+Sometimes it is useful to (temporarily) monitor a particular function for debugging purposes.
 :py:mod:`pymemtrace.process` provides a decorator :py:meth:`pymemtrace.process.log_process_dec` for this purpose.
 Here is an example, first the imports and preamble:
 
@@ -150,6 +154,17 @@ Adding a ``main()`` calling function:
 
 Running this gives this, for example:
 
+.. raw:: latex
+
+    [Continued on the next page]
+
+    \pagebreak
+
+.. raw:: latex
+
+    \begin{landscape}
+
+
 .. code-block:: text
 
     $ python3.13 pymemtrace/examples/ex_process_decorator.py
@@ -166,6 +181,13 @@ Running this gives this, for example:
     2026-03-21 12:39:39,286 - process.py#288 - 82965 - (MainThread) - WARNING  - ProcessLoggingThread-JSON-STOP {"timestamp": "2026-03-21 12:39:39.286393", "memory_info": {"rss": 160972800, "vms": 35124613120, "pfaults": 40323, "pageins": 154}, "cpu_times": {"user": 1.246212992, "system": 1.10794368, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 6.798800945281982, "pid": 82965}
 
     Process finished with exit code 0
+
+.. raw:: latex
+
+    \end{landscape}
+
+Thst is a lot to swallow so see :ref:`examples-process_summarising_the_log_file` below which simplifies the output
+to the essential details.
 
 See ``pymemtrace/examples/ex_process_decorator.py`` for this example.
 
@@ -199,6 +221,56 @@ Monitoring Another Process
     2020-11-10 20:46:47,626 - process.py#289 - 71869 - (MainThread) - INFO     - ProcessLoggingThread-JSON-STOP {"timestamp": "2020-11-10 20:46:47.626020", "memory_info": {"rss": 12906496, "vms": 4359774208, "pfaults": 3310, "pageins": 960}, "cpu_times": {"user": 0.248923952, "system": 0.078601624, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 1402.3160009384155, "pid": 71519}
     Bye, bye!
 
+
+.. raw:: latex
+
+    \end{landscape}
+
+.. _examples-process_summarising_the_log_file:
+
+Summarising the Log File
+--------------------------------------
+
+:py:mod:`pymemtrace.process` can read a captured log file and summarise it.
+
+Taking the decorator example above we can pipe the log to a file:
+
+.. code-block:: shell
+
+    $ python pymemtrace/examples/ex_process_decorator.py > tmp/ex_process_decorator.py.txt
+
+Then we can analyse the saved log file:
+
+.. code-block:: shell
+
+    $ python pymemtrace/process.py tmp/ex_process_decorator.py.txt
+
+.. raw:: latex
+
+    [Continued on the next page]
+
+    \pagebreak
+
+.. raw:: latex
+
+    \begin{landscape}
+
+.. code-block:: shell
+
+    -------------------------------- PID: 83606 -------------------------------
+    #t(s)                 RSS PageFaults/s         User    Mean_CPU%    Inst_CPU% Timestamp                     PID Label
+    0.4              18477056      12104.2          0.2        38.1%        38.1% 2026-03-21T13:07:51.567924  83606 #
+    0.9              51056640      15748.4          0.2        22.0%         8.8% 2026-03-21T13:07:52.071953  83606 #
+    1.4              85819392      16833.1          0.3        18.5%        12.2% 2026-03-21T13:07:52.576988  83606 #
+    1.9             125403136      19279.2          0.3        16.2%         9.5% 2026-03-21T13:07:53.078218  83606 #
+    2.4             159227904      16374.3          0.4        14.7%         9.2% 2026-03-21T13:07:53.582512  83606 #
+    2.9             159227904          0.0          0.4        12.3%         0.9% 2026-03-21T13:07:54.086849  83606 #
+    3.4             159227904          0.0          0.4        11.0%         3.4% 2026-03-21T13:07:54.590127  83606 #
+    3.9             159227904          0.0          0.4         9.7%         0.5% 2026-03-21T13:07:55.091277  83606 #
+    4.4             159227904          0.0          0.4         8.7%         1.0% 2026-03-21T13:07:55.596389  83606 #
+    4.7             159227904          0.0          0.4         8.2%         0.3% 2026-03-21T13:07:55.884672  83606 #
+    ----------------------------- PID: 83606 DONE -----------------------------
+    Bye, bye!
 
 .. raw:: latex
 
