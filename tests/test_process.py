@@ -1,12 +1,17 @@
 import datetime
 import io
+import logging
 import pprint
+import random
+import time
 
 import pytest
 
 
 from pymemtrace import process
 
+
+logger = logging.getLogger(__file__)
 
 @pytest.mark.parametrize(
     'line, expected',
@@ -144,3 +149,21 @@ def test_extract_json_as_table():
     assert t_max == {24098: 5.3028600215911865}
     assert rss_min == {24098: 28475392}
     assert rss_max == {24098: 56565760}
+
+
+def create_list_of_strings(num: int, min_size: int, max_size: int, delay: float) -> None:
+    """Create a list of strings to exercise the resource usage."""
+    l = []
+    for i in range(num):
+        l.append(' ' * random.randint(min_size, max_size))
+        time.sleep(delay)
+    while len(l):
+        l.pop()
+        time.sleep(delay)
+
+
+@process.log_process_dec(interval=0.5, log_level=logger.getEffectiveLevel())
+def test_process_decorator_basic():
+    create_list_of_strings(4, 20 * 1024 ** 2, 50 * 1024 ** 2, 0.5)
+
+

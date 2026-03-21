@@ -13,6 +13,7 @@ There are several DoF here:
 import argparse
 import contextlib
 import datetime
+import functools
 import json
 import logging
 import os
@@ -28,7 +29,6 @@ import psutil
 from pymemtrace.util import gnuplot
 
 logger = logging.getLogger(__file__)
-
 
 #: Unique string in the log line
 LOGGER_PREFIX = 'ProcessLoggingThread-JSON'
@@ -146,16 +146,16 @@ def extract_json_as_table(json_data: typing.List[typing.Dict[str, typing.Any]]) 
 
     """
     header = [
-            f'{"#t(s)":12}',
-            f'{"RSS":>12}',
-            f'{"PageFaults/s":>12}',
-            f'{"User":>12}',
-            f'{"Mean_CPU%":>12}',
-            f'{"Inst_CPU%":>12}',
-            f'{"Timestamp":<26}',
-            f'{"PID":>6}',
-            f'{"Label"}',
-        ]
+        f'{"#t(s)":12}',
+        f'{"RSS":>12}',
+        f'{"PageFaults/s":>12}',
+        f'{"User":>12}',
+        f'{"Mean_CPU%":>12}',
+        f'{"Inst_CPU%":>12}',
+        f'{"Timestamp":<26}',
+        f'{"PID":>6}',
+        f'{"Label"}',
+    ]
     ret = {}
     prev_cpu = {}
     prev_elapsed_time = {}
@@ -176,10 +176,10 @@ def extract_json_as_table(json_data: typing.List[typing.Dict[str, typing.Any]]) 
             rss_max[record[KEY_PROCESS_ID]] = sys.float_info.min
         mean_cpu_user = record["cpu_times"]["user"] / record[KEY_ELAPSED_TIME]
         inst_cpu_user = (record["cpu_times"]["user"] - prev_cpu[record[KEY_PROCESS_ID]]) \
-            / (record[KEY_ELAPSED_TIME] - prev_elapsed_time[record[KEY_PROCESS_ID]])
+                        / (record[KEY_ELAPSED_TIME] - prev_elapsed_time[record[KEY_PROCESS_ID]])
         # record["memory_info"]["pfaults"] is the cumulative total.
         inst_page_faults = (record["memory_info"]["pfaults"] - prev_page_faults[record[KEY_PROCESS_ID]]) \
-            / (record[KEY_ELAPSED_TIME] - prev_elapsed_time[record[KEY_PROCESS_ID]])
+                           / (record[KEY_ELAPSED_TIME] - prev_elapsed_time[record[KEY_PROCESS_ID]])
         label = record[KEY_LABEL] if KEY_LABEL in record else ''
         ret[record[KEY_PROCESS_ID]].append(
             [
@@ -218,7 +218,7 @@ def invoke_gnuplot(log_path: str, gnuplot_dir: str) -> int:
         log_name = f'{os.path.basename(log_path)}_{pid}'
         labels = extract_labels_from_json(json_data)
         label_lines = []
-        y_value = (0.5 * (rss_max[pid] - rss_min[pid])) / 1024**2
+        y_value = (0.5 * (rss_max[pid] - rss_min[pid])) / 1024 ** 2
         for label_dict in labels:
             t_value = label_dict[KEY_ELAPSED_TIME]
             label_lines.append(f'set arrow from {t_value},{y_value} to {t_value},0 lt -1 lw 1')
@@ -237,6 +237,7 @@ def invoke_gnuplot(log_path: str, gnuplot_dir: str) -> int:
 
 class ProcessLoggingThread(threading.Thread):
     """Thread that regularly logs out process parameters."""
+
     def __init__(self, group=None, target=None, name=None, daemon=None,
                  interval=1.0, log_level=logging.INFO, pid=-1,
                  ):
@@ -262,8 +263,6 @@ class ProcessLoggingThread(threading.Thread):
     def add_message_to_queue(self, msg: str) -> None:
         """Adds a message onto the queue."""
         self.process_queue.put(msg)
-
-
 
     def _get_process_data(self, **kwargs):
         ret = {
@@ -315,6 +314,21 @@ def log_process(*args, **kwargs):
         yield process_thread
     finally:
         process_thread.join()
+
+
+def log_process_dec(*dec_args, **dec_kwargs):
+    """Decorator that calls the function within a ProcessLoggingThread context manager."""
+
+    def log_process_inner(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            with log_process(*dec_args, **dec_kwargs):
+                result = fn(*args, **kwargs)
+            return result
+
+        return wrapper
+
+    return log_process_inner
 
 
 def add_process_logger_to_argument_parser(parser: argparse.ArgumentParser) -> None:
