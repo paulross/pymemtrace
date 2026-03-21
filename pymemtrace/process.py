@@ -317,7 +317,7 @@ def log_process(*args, **kwargs):
 
 
 def log_process_dec(*dec_args, **dec_kwargs):
-    """Decorator that calls the function within a ProcessLoggingThread context manager."""
+    """A decorator that calls the function within a ProcessLoggingThread context manager."""
 
     def log_process_inner(fn):
         @functools.wraps(fn)

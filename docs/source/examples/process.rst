@@ -93,6 +93,81 @@ You can specify an actual log level so:
 
 And that will suppress any :py:mod:`pymemtrace.process` output if you have the logging level set at, say, ERROR.
 
+Using ``process`` as a Decorator
+-----------------------------------
+
+Sometimes it is usefule to (temporarily) monitor a particular function for debugging purposes.
+:py:mod:`pymemtrace.process` provides a decorator :py:meth:`pymemtrace.process.log_process_dec` for this purpose.
+Here is an example, first the imports and preamble:
+
+.. code-block:: python
+
+    import logging
+    import random
+    import sys
+    import time
+
+    from pymemtrace import process
+
+    logger = logging.getLogger(__file__)
+
+Here is a function that just creates a list of large, randomly sized strings.
+It is decorated with :py:meth:`pymemtrace.process.log_process_dec` to report to the log every 0.5 seconds:
+
+.. code-block:: python
+
+    @process.log_process_dec(interval=0.5, log_level=logger.getEffectiveLevel())
+    def example_process_decorator_basic():
+        # create_list_of_strings...
+        l = []
+        for i in range(4):
+            l.append(' ' * random.randint(20 * 1024 ** 2, 50 * 1024 ** 2))
+            time.sleep(0.5)
+        while len(l):
+            l.pop()
+            time.sleep(0.5)
+
+Adding a ``main()`` calling function:
+
+.. code-block:: python
+
+    def main() -> int:
+        logging.basicConfig(
+            level=logging.INFO,
+            format=(
+                '%(asctime)s - %(filename)s#%(lineno)d - %(process)5d
+                ' - (%(threadName)-10s) - %(levelname)-8s - %(message)s'
+            ),
+            stream=sys.stdout,
+        )
+        logger.info('Demonstration of logging a process')
+        example_process_decorator_basic()
+        return 0
+
+
+    if __name__ == '__main__':
+        sys.exit(main())
+
+Running this gives this, for example:
+
+.. code-block:: text
+
+    $ python3.13 pymemtrace/examples/ex_process_decorator.py
+    2026-03-21 12:39:35,034 - ex_process_decorator.py#37 - 82965 - (MainThread) - INFO     - Demonstration of logging a process
+    2026-03-21 12:39:35,035 - process.py#288 - 82965 - (ProcMon   ) - WARNING  - ProcessLoggingThread-JSON-START {"timestamp": "2026-03-21 12:39:35.035089", "memory_info": {"rss": 22712320, "vms": 34986401792, "pfaults": 6566, "pageins": 146}, "cpu_times": {"user": 1.062269568, "system": 1.0507504, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 2.547363042831421, "pid": 82965}
+    2026-03-21 12:39:35,536 - process.py#288 - 82965 - (ProcMon   ) - WARNING  - ProcessLoggingThread-JSON {"timestamp": "2026-03-21 12:39:35.535948", "memory_info": {"rss": 46358528, "vms": 35010007040, "pfaults": 12339, "pageins": 154}, "cpu_times": {"user": 1.087670144, "system": 1.05609504, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 3.048292875289917, "pid": 82965}
+    2026-03-21 12:39:36,038 - process.py#288 - 82965 - (ProcMon   ) - WARNING  - ProcessLoggingThread-JSON {"timestamp": "2026-03-21 12:39:36.037811", "memory_info": {"rss": 86491136, "vms": 35050139648, "pfaults": 22137, "pageins": 154}, "cpu_times": {"user": 1.134148608, "system": 1.069060928, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 3.5501270294189453, "pid": 82965}
+    2026-03-21 12:39:36,543 - process.py#288 - 82965 - (ProcMon   ) - WARNING  - ProcessLoggingThread-JSON {"timestamp": "2026-03-21 12:39:36.543283", "memory_info": {"rss": 126611456, "vms": 35090259968, "pfaults": 31933, "pageins": 154}, "cpu_times": {"user": 1.18200256, "system": 1.081039616, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 4.0557920932769775, "pid": 82965}
+    2026-03-21 12:39:37,048 - process.py#288 - 82965 - (ProcMon   ) - WARNING  - ProcessLoggingThread-JSON {"timestamp": "2026-03-21 12:39:37.047784", "memory_info": {"rss": 160964608, "vms": 35124613120, "pfaults": 40320, "pageins": 154}, "cpu_times": {"user": 1.225273984, "system": 1.091218048, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 4.5602850914001465, "pid": 82965}
+    2026-03-21 12:39:37,549 - process.py#288 - 82965 - (ProcMon   ) - WARNING  - ProcessLoggingThread-JSON {"timestamp": "2026-03-21 12:39:37.548690", "memory_info": {"rss": 160964608, "vms": 35124613120, "pfaults": 40320, "pageins": 154}, "cpu_times": {"user": 1.230032896, "system": 1.095199872, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 5.061201095581055, "pid": 82965}
+    2026-03-21 12:39:38,052 - process.py#288 - 82965 - (ProcMon   ) - WARNING  - ProcessLoggingThread-JSON {"timestamp": "2026-03-21 12:39:38.052779", "memory_info": {"rss": 160968704, "vms": 35124613120, "pfaults": 40321, "pageins": 154}, "cpu_times": {"user": 1.234988032, "system": 1.099866752, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 5.565093040466309, "pid": 82965}
+    2026-03-21 12:39:38,557 - process.py#288 - 82965 - (ProcMon   ) - WARNING  - ProcessLoggingThread-JSON {"timestamp": "2026-03-21 12:39:38.557330", "memory_info": {"rss": 160968704, "vms": 35124613120, "pfaults": 40322, "pageins": 154}, "cpu_times": {"user": 1.241057152, "system": 1.104048384, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 6.069844007492065, "pid": 82965}
+    2026-03-21 12:39:39,062 - process.py#288 - 82965 - (ProcMon   ) - WARNING  - ProcessLoggingThread-JSON {"timestamp": "2026-03-21 12:39:39.061620", "memory_info": {"rss": 160968704, "vms": 35124613120, "pfaults": 40322, "pageins": 154}, "cpu_times": {"user": 1.245515776, "system": 1.10786624, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 6.574124813079834, "pid": 82965}
+    2026-03-21 12:39:39,286 - process.py#288 - 82965 - (MainThread) - WARNING  - ProcessLoggingThread-JSON-STOP {"timestamp": "2026-03-21 12:39:39.286393", "memory_info": {"rss": 160972800, "vms": 35124613120, "pfaults": 40323, "pageins": 154}, "cpu_times": {"user": 1.246212992, "system": 1.10794368, "children_user": 0.0, "children_system": 0.0}, "elapsed_time": 6.798800945281982, "pid": 82965}
+
+    Process finished with exit code 0
+
+See ``pymemtrace/examples/ex_process_decorator.py`` for this example.
 
 Monitoring Another Process
 -----------------------------------
