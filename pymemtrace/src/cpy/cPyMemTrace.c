@@ -1536,8 +1536,6 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     static char *kwlist[] = {"message", "filepath", NULL};
     char *message = NULL;
-//    char *log_file_path = NULL;
-//    static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH + 1];
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sO&", kwlist, &message, PyUnicode_FSConverter,
                                      &self->py_specific_filename)) {

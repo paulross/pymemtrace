@@ -247,12 +247,70 @@ def test_reference_trace_basic_post_313():
         # assert message in file_data
 
 
+@pytest.mark.parametrize(
+    'cls',
+    (
+            cPyMemTrace.Profile,
+            cPyMemTrace.Trace,
+    )
+)
+def test_profile_and_trace_bad_keywords(cls):
+    with pytest.raises(TypeError) as err:
+        with cls(foo=0):
+            pass
+    assert err.value.args[0] == "this function got an unexpected keyword argument 'foo'"
+
+
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_reference_trace_bad_keywords_post_313():
     with pytest.raises(TypeError) as err:
         with cPyMemTrace.ReferenceTracing(d_rss_trigger=0):
             pass
     assert err.value.args[0] == "this function got an unexpected keyword argument 'd_rss_trigger'"
+
+
+@pytest.mark.parametrize(
+    'cls',
+    (
+            cPyMemTrace.Profile,
+            cPyMemTrace.Trace,
+    )
+)
+def test_profile_and_trace_bad_arg_types(cls):
+    with pytest.raises(TypeError) as err:
+        with cls('foo'):
+            pass
+    assert err.value.args[0] == "'str' object cannot be interpreted as an integer"
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_trace_bad_arg_types_post_313():
+    with pytest.raises(TypeError) as err:
+        with cPyMemTrace.ReferenceTracing(21):
+            pass
+    assert err.value.args[0] == "argument 1 must be str, not int"
+
+
+@pytest.mark.parametrize(
+    'cls',
+    (
+            cPyMemTrace.Profile,
+            cPyMemTrace.Trace,
+    )
+)
+def test_profile_and_trace_too_many_args(cls):
+    with pytest.raises(TypeError) as err:
+        with cls('foo', 'bar', 'baz', 'stuff'):
+            pass
+    assert err.value.args[0] == "function takes at most 3 arguments (4 given)"
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_trace_too_many_args_post_313():
+    with pytest.raises(TypeError) as err:
+        with cPyMemTrace.ReferenceTracing('foo', 'bar', 'baz', 'stuff'):
+            pass
+    assert err.value.args[0] == "function takes at most 2 arguments (4 given)"
 
 
 class BytesWrapper:
