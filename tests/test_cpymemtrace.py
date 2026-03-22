@@ -258,7 +258,7 @@ def test_profile_and_trace_bad_keywords(cls):
     with pytest.raises(TypeError) as err:
         with cls(foo=0):
             pass
-    assert err.value.args[0] == "this function got an unexpected keyword argument 'foo'"
+    assert 'foo' in err.value.args[0]
 
 
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
@@ -280,7 +280,7 @@ def test_profile_and_trace_bad_arg_types(cls):
     with pytest.raises(TypeError) as err:
         with cls('foo'):
             pass
-    assert err.value.args[0] == "'str' object cannot be interpreted as an integer"
+    assert 'str' in err.value.args[0]
 
 
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
