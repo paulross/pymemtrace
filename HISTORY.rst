@@ -5,6 +5,8 @@ History
 ---------------------
 
 * cPyMemTrace:
+    * Add decorator for pymemtrace.process.
+    * pymemtrace.process can now summarise JSON in the log to stdout.
     * Add decorators for Python functions for Profile, Trace and ReferenceTracing.
     * Fix a SIGSEGV when bad keyword arguments were passed to cPyMemTrace.ReferenceTracing.
 
