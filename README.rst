@@ -126,6 +126,16 @@ Clearly there are trade-offs between these depending on the problem you are tryi
      - Minimal.
      - x2000+ for small objects, x12 for large objects.
 
+Installation
+============
+
+To install pymemtrace, run this command in your terminal:
+
+.. code-block:: console
+
+    $ pip install pymemtrace
+
+
 Licence
 =======
 
