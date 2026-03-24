@@ -277,7 +277,7 @@ trace_wrapper_write_event_time_to_event_text(cpyTraceFileWrapper *trace_wrapper)
  * The form is:
  *
  * @code
- *  MSG: 3            +1      4.211822     message...
+ *  MSG:  3            +1      4.211822     message...
  * @endcode
  *
  * @param trace_wrapper The trace or profile wrapper.
@@ -287,7 +287,7 @@ static void
 trace_wrapper_write_message_to_log_file(cpyTraceFileWrapper *trace_wrapper, const char *message) {
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
     assert(trace_wrapper->file);
-    fputs("MSG: ", trace_wrapper->file);
+    fputs("MSG:  ", trace_wrapper->file);
     trace_wrapper_write_event_time_to_event_text(trace_wrapper);
     fputs(trace_wrapper->event_text, trace_wrapper->file);
     fputc(' ', trace_wrapper->file);
@@ -692,6 +692,31 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
     }
     trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(&cpyTraceFileWrapperType, NULL, NULL);
     if (trace_wrapper) {
+        {
+            cpyTraceFileWrapper *wrapper_old = NULL;
+            if (is_profile) {
+                wrapper_old = wrapper_ll_get(static_profile_wrappers);
+            } else {
+                wrapper_old = wrapper_ll_get(static_trace_wrappers);
+            }
+            if (wrapper_old) {
+                if (is_profile) {
+                    trace_wrapper_write_message_to_log_file(
+                            wrapper_old,
+                            "Detaching this profile file wrapper. New file:"
+                    );
+                } else {
+                    trace_wrapper_write_message_to_log_file(
+                            wrapper_old,
+                            "Detaching this trace file wrapper. New file:"
+                    );
+                }
+                trace_wrapper_write_message_to_log_file(
+                        wrapper_old,
+                        file_path_buffer
+                );
+            }
+        }
 #if DEBUG
         fprintf(stdout, "DEBUG: Profile/Trace opening log file %s\n", file_path_buffer);
 #endif
@@ -918,7 +943,10 @@ ProfileObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
             PyEval_SetProfile(&trace_or_profile_function, (PyObject *) trace_file_wrapper);
             /* Put a marker in the file. */
             assert(trace_file_wrapper->file);
-            fprintf(trace_file_wrapper->file, "# Re-attaching previous profile file wrapper.\n");
+            trace_wrapper_write_message_to_log_file(
+                    trace_file_wrapper,
+                    "Re-attaching this profile file wrapper."
+            );
         }
 
         TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
@@ -1079,7 +1107,7 @@ TraceObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
             assert(trace_file_wrapper->file);
             trace_wrapper_write_message_to_log_file(
                     trace_file_wrapper,
-                    "Re-attaching previous trace file wrapper."
+                    "Re-attaching this trace file wrapper."
             );
         }
 
@@ -1627,7 +1655,7 @@ static PyMemberDef cpyReferenceTracing_members[] = {
  * @return None on success, NULL on failure (not a unicode argument).
  */
 static PyObject *
-cpyReferenceTracing_write_message_to_log(cpyReferenceTracing *self, PyObject *op) {
+cpyReferenceTracing_write_python_message_to_log(cpyReferenceTracing *self, PyObject *op) {
     assert(!PyErr_Occurred());
     if (!self->data->log_file) {
         PyErr_SetString(PyExc_IOError, "Log file is closed.");
@@ -1643,7 +1671,7 @@ cpyReferenceTracing_write_message_to_log(cpyReferenceTracing *self, PyObject *op
     }
     Py_UCS1 *c_str = PyUnicode_1BYTE_DATA(op);
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
-    fputs("MSG: ", self->data->log_file);
+    fputs("MSG:  ", self->data->log_file);
     fputs((const char *) c_str, self->data->log_file);
     fputc('\n', self->data->log_file);
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
@@ -1797,7 +1825,7 @@ static PyMethodDef cpyReferenceTracing_methods[] = {
                 "Detach a Reference Tracing object from the C runtime."},
         {
                 "write_message_to_log",
-                            (PyCFunction) cpyReferenceTracing_write_message_to_log,
+                (PyCFunction) cpyReferenceTracing_write_python_message_to_log,
                                                                     METH_O,
                 "Write a string as a message to the existing log file with a newline. Returns None."
         },
