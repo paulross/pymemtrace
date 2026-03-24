@@ -583,6 +583,54 @@ void wrapper_ll_clear(tcpyTraceFileWrapperLinkedList **h_linked_list) {
 }
 
 /**
+ * Whether to write a "PREV:" event.
+ *
+ * This is false on the first event as that is dealt with by the "FRST:"
+ * event in new_trace_file_wrapper()
+ *
+ * This is true if the dRSS is greater or equal to the trigger and there have
+ * been more than one events skipped.
+ *
+ * @param trace_wrapper
+ * @param d_rss The difference between the current RSS and the previous RSS.
+ * @return 0 or 1.
+ */
+static int
+trace_or_profile_must_write_previous(cpyTraceFileWrapper *trace_wrapper, long d_rss) {
+    int ret;
+    if (trace_wrapper->event_number == 0) {
+        ret = 0;
+    } else {
+        ret = labs(d_rss) >= trace_wrapper->d_rss_trigger
+              && (trace_wrapper->event_number - trace_wrapper->previous_event_number) > 1;
+    }
+    return ret;
+}
+
+/**
+ * Whether to write a "NEXT:" event.
+ *
+ * This is false on the first event as that is dealt with by the "FRST:"
+ * event in new_trace_file_wrapper().
+ *
+ * This is true if the dRSS is greater or equal to the trigger.
+ *
+ * @param trace_wrapper
+ * @param d_rss The difference between the current RSS and the previous RSS.
+ * @return 0 or 1.
+ */
+static int
+trace_or_profile_must_write_next(cpyTraceFileWrapper *trace_wrapper, long d_rss) {
+    int ret;
+    if (trace_wrapper->event_number == 0) {
+        ret = 0;
+    } else {
+        ret = labs(d_rss) >= trace_wrapper->d_rss_trigger;
+    }
+    return ret;
+}
+
+/**
  * Create a trace function.
  * This is of type \c Py_tracefunc https://docs.python.org/3/c-api/profiling.html#c.Py_tracefunc
  * This is passed to \c PyEval_SetProfile https://docs.python.org/3/c-api/profiling.html#c.PyEval_SetProfile
@@ -603,9 +651,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
     size_t rss = getCurrentRSS_alternate();
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
     long d_rss = rss - trace_wrapper->rss;
-    if (labs(d_rss) >= trace_wrapper->d_rss_trigger
-        && trace_wrapper->event_number > 0
-        && (trace_wrapper->event_number - trace_wrapper->previous_event_number) > 1) {
+    if (trace_or_profile_must_write_previous(trace_wrapper, d_rss)) {
         // Previous event.
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
         fputs("PREV: ", trace_wrapper->file);
@@ -613,7 +659,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
         fputs(trace_wrapper->event_text, trace_wrapper->file);
         fputc('\n', trace_wrapper->file);
     }
-    if (labs(d_rss) >= trace_wrapper->d_rss_trigger && trace_wrapper->event_number) {
+    if (trace_or_profile_must_write_next(trace_wrapper, d_rss)) {
         // NOTE: Ignore event number 0 as that is covered by "FRST:" below.
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
         assert(trace_wrapper->file);
@@ -1355,11 +1401,11 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
         data_alias->count_del++;
 #if 0 // Python 3.14 does not seem to support this so cancel support for this event.
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 14
-            } else if (event == PyRefTracer_TRACKER_REMOVED) {
-                // Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
-                // call (below) will trigger a call to this callback function.
-                // fputs("REM", the_data->log_file);
-                return 0;
+        } else if (event == PyRefTracer_TRACKER_REMOVED) {
+            // Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
+            // call (below) will trigger a call to this callback function.
+            // fputs("REM", the_data->log_file);
+            return 0;
 #endif // #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 14
 #endif // 0
     } else {
@@ -1634,7 +1680,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
             );
             return NULL;
         }
-        self->py_specific_filename = (PyObject *)PyBytes_FromString(file_path_buffer);
+        self->py_specific_filename = (PyObject *) PyBytes_FromString(file_path_buffer);
         debug_filename = file_path_buffer;
     }
     self->data->log_file = fopen(debug_filename, "w");
@@ -1818,11 +1864,13 @@ trace_wrapper_depth(void) {
 }
 
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+
 static PyObject *
 reference_tracing_wrapper_depth(void) {
     assert(!PyErr_Occurred());
     return Py_BuildValue("n", reference_tracing_ll_length(reference_tracing_ll));
 }
+
 #endif
 
 static PyMethodDef cPyMemTraceMethods[] = {
