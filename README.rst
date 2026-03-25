@@ -86,43 +86,59 @@ Each tool can be characterised by:
 
 Clearly there are trade-offs between these depending on the problem you are trying to solve.
 
-.. list-table:: **Tool Characteristics**
-   :widths: 30 30 30 30 30
+Firstly granularity:
+
+.. list-table:: **Tool Granularity**
+   :widths: 20 30 30
    :header-rows: 1
 
    * - Tool
      - Memory Granularity
      - Execution Granularity
-     - Memory Cost
-     - Execution Cost
    * - ``process_tree``
      - RSS (total Python and C memory).
      - Regular time intervals.
-     - Near zero.
-     - Near zero.
    * - ``process``
      - RSS (total Python and C memory).
      - Regular time intervals.
-     - Near zero.
-     - Near zero.
    * - ``cPyMemTrace``
      - RSS (total Python and C memory).
      - Per Python line, Python function and C function call. Per object allocation/de-allocation.
-     - Near zero.
-     - x10 to x20.
    * - DTrace
      - Every ``malloc()`` and ``free()``.
      - Per function call and return.
-     - Minimal.
-     - x90 to x100.
    * - ``trace_malloc``
      - Every Python object.
      - Per Python line, per function call.
-     - Significant but compensated.
-     - x900 for small objects, x6 for large objects.
    * - ``debug_malloc_stats``
      - Python memory pool.
      - Snapshots the CPython memory pool either side of a block of code.
+
+Secondly cost:
+
+.. list-table:: **Tool Cost**
+   :widths: 20 30 30
+   :header-rows: 1
+
+   * - Tool
+     - Memory Cost
+     - Execution Cost
+   * - ``process_tree``
+     - Near zero.
+     - Near zero.
+   * - ``process``
+     - Near zero.
+     - Near zero.
+   * - ``cPyMemTrace``
+     - Near zero.
+     - x10 to x20.
+   * - DTrace
+     - Minimal.
+     - x90 to x100.
+   * - ``trace_malloc``
+     - Significant but compensated.
+     - x900 for small objects, x6 for large objects.
+   * - ``debug_malloc_stats``
      - Minimal.
      - x2000+ for small objects, x12 for large objects.
 

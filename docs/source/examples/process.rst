@@ -87,23 +87,26 @@ The JSON data embedded in the log file line is typically:
 .. code-block:: json
 
     {
-        'cpu_times': {
-            'children_system': 0.0,
-            'children_user': 0.0,
-            'system': 3.594337536,
-            'user': 7.388873216
+        "cpu_times": {
+            "children_system": 0.0,
+            "children_user": 0.0,
+            "system": 3.594337536,
+            "user": 7.388873216
         },
-        'elapsed_time': 68.32946181297302,
-        'label': 'String of 238.000 MB',
-        'memory_info': {
-            'pageins': 573,
-            'pfaults': 518963,
-            'rss': 41639936,
-            'vms': 35048869888
+        "elapsed_time": 68.32946181297302,
+        "label": "String of 238.000 MB",
+        "memory_info": {
+            "pageins": 573,
+            "pfaults": 518963,
+            "rss": 41639936,
+            "vms": 35048869888
         },
-        'pid': 89781,
-        'timestamp': '2026-03-23 11:49:18.406656'
+        "pid": 89781,
+        "timestamp": "2026-03-23 11:49:18.406656"
     }
+
+Log Level and Frequency
+-----------------------
 
 The line:
 

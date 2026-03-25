@@ -277,7 +277,7 @@ trace_wrapper_write_event_time_to_event_text(cpyTraceFileWrapper *trace_wrapper)
  * The form is:
  *
  * @code
- *  MSG:  3            +1      4.211822     message...
+ *  MSG:  3            +1      4.211822     # message...
  * @endcode
  *
  * @param trace_wrapper The trace or profile wrapper.
@@ -290,7 +290,7 @@ trace_wrapper_write_message_to_log_file(cpyTraceFileWrapper *trace_wrapper, cons
     fputs("MSG:  ", trace_wrapper->file);
     trace_wrapper_write_event_time_to_event_text(trace_wrapper);
     fputs(trace_wrapper->event_text, trace_wrapper->file);
-    fputc(' ', trace_wrapper->file);
+    fputs(" # ", trace_wrapper->file);
     fputs(message, trace_wrapper->file);
     fputc('\n', trace_wrapper->file);
 #endif // PY_MEM_TRACE_WRITE_OUTPUT
@@ -1402,6 +1402,11 @@ sys_getsizeof(PyObject* Py_UNUSED(obj)) {
 #endif // #if REFERENCE_TRACING_GET_SIZEOF
 
 /**
+ * Buffer for writing lines to the log file.
+ */
+static char reference_tracing_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
+
+/**
  * The callback function that is passed to \c PyRefTracer_SetTracer.
  * This writes to the log file.
  *
@@ -1440,7 +1445,6 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
         // Ignore unknown events instead of Py_UNREACHABLE();
     }
     /* Write the rest of the event line. */
-    static char event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
     double clock_time = (double) clock() / CLOCKS_PER_SEC;
     /* RSS stuff. */
     size_t rss = getCurrentRSS_alternate();
@@ -1501,7 +1505,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     //     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
     //            "Clock", "Address", "RefCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
     //    );
-    snprintf(event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+    snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
              " %12.6f %16p %16ld %-32s %-80s %4d %-40s %16zd %16ld",
              clock_time,
              (void *) obj,
@@ -1517,7 +1521,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     Py_XDECREF(frame);
     assert(data_alias);
     assert(data_alias->log_file);
-    fputs(event_text, data_alias->log_file);
+    fputs(reference_tracing_event_text, data_alias->log_file);
     fputc('\n', data_alias->log_file);
     fflush(data_alias->log_file);
     /* Restore the Reference Tracer. */
@@ -1647,6 +1651,30 @@ static PyMemberDef cpyReferenceTracing_members[] = {
 // MARK: - cpyReferenceTracing methods
 
 /**
+ * Format and write a message to the log file.
+ *
+ * @param data The <tt>struct reference_tracing_data</tt>
+ * @param message The message.
+ * @return Number of bytes written.
+ */
+static int
+cpyReferenceTracing_write_c_message_to_log(struct reference_tracing_data *data, char *message) {
+    assert(data);
+    assert(data->log_file);
+
+    double clock_time = (double) clock() / CLOCKS_PER_SEC;
+    int ret = snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+                       "%s %12.6f # %s",
+                       "MSG:",
+                       clock_time,
+                       message
+    );
+    fputs((const char *) reference_tracing_event_text, data->log_file);
+    fputc('\n', data->log_file);
+    return ret;
+}
+
+/**
  * Write any string to the existing logfile.
  * Note: This is compatible with the log file format.
  *
@@ -1671,9 +1699,7 @@ cpyReferenceTracing_write_python_message_to_log(cpyReferenceTracing *self, PyObj
     }
     Py_UCS1 *c_str = PyUnicode_1BYTE_DATA(op);
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
-    fputs("MSG:  ", self->data->log_file);
-    fputs((const char *) c_str, self->data->log_file);
-    fputc('\n', self->data->log_file);
+    cpyReferenceTracing_write_c_message_to_log(self->data, (char *) c_str);
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     Py_RETURN_NONE;
 }
@@ -1694,10 +1720,10 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
         return NULL;
     }
     /* Open the log file. */
-    char *debug_filename = NULL;
+    char *new_log_filename = NULL;
     if (self->py_specific_filename) {
         /* User supplied filename. */
-        debug_filename = PyBytes_AS_STRING(self->py_specific_filename);
+        new_log_filename = PyBytes_AS_STRING(self->py_specific_filename);
     } else {
         /* Default to a standard log file name in the current working directory. */
         size_t ll_depth = reference_tracing_ll_length(reference_tracing_ll);
@@ -1709,11 +1735,11 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
             return NULL;
         }
         self->py_specific_filename = (PyObject *) PyBytes_FromString(file_path_buffer);
-        debug_filename = file_path_buffer;
+        new_log_filename = file_path_buffer;
     }
-    self->data->log_file = fopen(debug_filename, "w");
+    self->data->log_file = fopen(new_log_filename, "w");
     if (!self->data->log_file) {
-        PyErr_Format(PyExc_IOError, "Can not open log file %s", debug_filename);
+        PyErr_Format(PyExc_IOError, "Can not open log file %s", new_log_filename);
         return NULL;
     }
 #if DEBUG
@@ -1723,7 +1749,17 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
             PyBytes_AS_STRING(self->py_specific_filename)
             );
 #endif
-    /* Write the opening message. */
+    /* Write suspension message in the old file. */
+    struct reference_tracing_data *data_old = reference_tracing_ll_get_data(reference_tracing_ll);
+    if (data_old) {
+        cpyReferenceTracing_write_c_message_to_log(
+                data_old, "Detaching this Reference Tracing file wrapper. New file:"
+        );
+        cpyReferenceTracing_write_c_message_to_log(
+                data_old, new_log_filename
+        );
+    }
+    /* Write the opening message in the new log file. */
     if (self->message) {
         fputs(self->message, self->data->log_file);
         fputc('\n', self->data->log_file);
@@ -1790,6 +1826,8 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
         /* Register the previous tracer from the linked list. */
         data = reference_tracing_ll_get_data(reference_tracing_ll);
         if (data) {
+            /* Report re-attaching the reference tracer. */
+            cpyReferenceTracing_write_c_message_to_log(data, "Re-attaching this trace file wrapper.");
             PyRefTracer_SetTracer(&reference_trace_allocations_callback, data);
         }
         if (PyErr_Occurred()) {
@@ -1825,7 +1863,7 @@ static PyMethodDef cpyReferenceTracing_methods[] = {
                 "Detach a Reference Tracing object from the C runtime."},
         {
                 "write_message_to_log",
-                (PyCFunction) cpyReferenceTracing_write_python_message_to_log,
+                            (PyCFunction) cpyReferenceTracing_write_python_message_to_log,
                                                                     METH_O,
                 "Write a string as a message to the existing log file with a newline. Returns None."
         },

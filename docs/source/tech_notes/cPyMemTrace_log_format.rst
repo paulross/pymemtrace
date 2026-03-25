@@ -93,8 +93,9 @@ The log file from the Profile or Trace object has the following format.
      - If you are skipping events then this precedes the ``NEXT:`` event as a reminder of what that event was.
        See table below for a description of the columns.
    * - ``MESG:``
-     - A message.
+     - A arbitrary message.
      - This contains the ``Event``, ``dEvent`` and ``Clock`` columns (see table below) followed by the text message.
+       The text message will be preceded with a "# " and any newlines in the message **will** be preserved.
    * - ``LAST:``
      - The last logged event.
      - Only one of these. See table below for a description of the columns.
@@ -201,7 +202,6 @@ Here is an example log file (with event skipping), lightly edited:
     MESG: 255    +240    3.093373     # Level 0 just prior to level 1 __enter__
     MESG: 256    +241    3.093467     # Level 0 events should be suspended
     8<---- Snip ---->8
-    MESG: 256    +241    3.094199     Re-attaching previous trace file wrapper.
     PREV: 256    +241    3.094199
     NEXT: 401    +386    3.094896     LINE     test_cpymemtrace.py  300 test_trace      45686784  4096
     MESG: 579    +178    3.095950     # Level 0 after level 1 exit
@@ -212,6 +212,53 @@ Here is an example log file (with event skipping), lightly edited:
 .. raw:: latex
 
     \end{landscape}
+
+Stacked Context Managers
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+If Profile/Trace context manager objects are stacked then as the context switches an entry in the *previous*
+log will be made.
+
+For example with this code:
+
+.. code-block:: python
+
+    assert cPyMemTrace.profile_wrapper_depth() == 0
+    with cPyMemTrace.Profile(0, message='test_profile_depth()') as profiler_0:
+        assert cPyMemTrace.profile_wrapper_depth() == 1
+        with cPyMemTrace.Profile(0, message='test_profile_depth()') as profiler_1:
+            assert cPyMemTrace.profile_wrapper_depth() == 2
+            with cPyMemTrace.Profile(message='test_profile_depth()') as profiler_2:
+                assert cPyMemTrace.profile_wrapper_depth() == 3
+            assert cPyMemTrace.profile_wrapper_depth() == 2
+        assert cPyMemTrace.profile_wrapper_depth() == 1
+    assert cPyMemTrace.profile_wrapper_depth() == 0
+
+Three separate files will be generated:
+
+- ``20260325_121938_21_95352_P_0_PY3.13.2.log`` the outer file.
+- ``20260325_121938_22_95352_P_1_PY3.13.2.log`` the middle file.
+- ``20260325_121938_23_95352_P_2_PY3.13.2.log`` the inner file.
+
+The outer file, ``20260325_121938_21_95352_P_0_PY3.13.2.log``, will have this content when the context switch
+takes place and back:
+
+.. code-block:: text
+
+    MSG:  3  +1  9.869994  # Detaching this profile file wrapper. New file:
+    MSG:  3  +1  9.869996  # pymemtrace/20260325_121938_22_95352_P_1_PY3.13.2.log
+    MSG:  3  +1  9.870580  # Re-attaching this profile file wrapper.
+
+The middle file, ``20260325_121938_22_95352_P_1_PY3.13.2.log``, will have this content when the context switch
+takes place and back:
+
+.. code-block:: text
+
+    MSG:  3  +1  9.870162  # Detaching this profile file wrapper. New file:
+    MSG:  3  +1  9.870163  # pymemtrace/20260325_121938_23_95352_P_2_PY3.13.2.log
+    MSG:  3  +1  9.870437  # Re-attaching this profile file wrapper.
+
+The inner file has no context switches.
 
 .. _tech_notes-cpymemtrace_reference_tracing_log_file_format:
 
@@ -246,8 +293,9 @@ The log file from the Reference Tracing object (Python 3.13+) has the following 
      - When an object is deallocated.
      -
    * - ``MESG:``
-     - A message.
-     -
+     - An arbitrary message.
+     - This contains the ``Clock`` column (see table below) followed by the text message.
+       The text message will be preceded with a "# " and any newlines in the message *will* be preserved.
    * - ``EOF``
      - None
      - The last line in the log file.
@@ -326,37 +374,82 @@ Here is an example log file lightly edited:
 .. code-block:: text
 
     SOF
-    HDR:        Clock          Address           RefCnt Type                             File                                                                             Line Function                                              RSS             dRSS
-    DEL:     0.764748   0x6000024b4b60                0 builtin_function_or_method       pymemtrace/tests/test_cpymemtrace.py             250 test_reference_trace_basic_post_313              33738752         33738752
-    NEW:     0.764831   0x60000283e9b0                1 list                             pymemtrace/tests/test_cpymemtrace.py             251 test_reference_trace_basic_post_313              33738752                0
-    NEW:     0.764859   0x600002836db0                1 range                            pymemtrace/tests/test_cpymemtrace.py             252 test_reference_trace_basic_post_313              33738752                0
-    NEW:     0.764878   0x600001bb3390                1 range_iterator                   pymemtrace/tests/test_cpymemtrace.py             252 test_reference_trace_basic_post_313              33738752                0
-    DEL:     0.764892   0x600002836db0                0 range                            pymemtrace/tests/test_cpymemtrace.py             252 test_reference_trace_basic_post_313              33738752                0
+    HDR:        Clock          Address RefCnt Type            File                           Line Function       RSS           dRSS
+    NEW:     0.764831   0x60000283e9b0      1 list            test_cpymemtrace.py             251 test_function  33738752         0
+    NEW:     0.764859   0x600002836db0      1 range           test_cpymemtrace.py             252 test_function  33738752         0
+    NEW:     0.764878   0x600001bb3390      1 range_iterator  test_cpymemtrace.py             252 test_function  33738752         0
+    DEL:     0.764892   0x600002836db0      0 range           test_cpymemtrace.py             252 test_function  33738752         0
     8<---- Snip ---->8
-    NEW:     0.765234   0x7f890a500010                1 bytes                            pymemtrace/tests/test_cpymemtrace.py             243 create_bytes                                     33742848                0
-    DEL:     0.765281   0x600003559fd0                0 frame                            pymemtrace/tests/test_cpymemtrace.py             253 test_reference_trace_basic_post_313              33742848                0
-    DEL:     0.765293   0x600001bb3510                0 int                              pymemtrace/tests/test_cpymemtrace.py             253 test_reference_trace_basic_post_313              33742848                0
-    NEW:     0.765362   0x600001bd6290                1 int                              /Users/engun/dev/Python/Python-3.13.2/Lib/random.py                               340 randint                                          26435584         -7307264
-    NEW:     0.765427   0x600001bd5c50                1 int                              /Users/engun/dev/Python/Python-3.13.2/Lib/random.py                               317 randrange                                        26435584                0
-    NEW:     0.765456   0x600002415b80                1 builtin_function_or_method       /Users/engun/dev/Python/Python-3.13.2/Lib/random.py                               248 _randbelow_with_getrandbits                      26435584                0
-    DEL:     0.765475   0x600003147a40                0 frame                            /Users/engun/dev/Python/Python-3.13.2/Lib/random.py                               322 randrange                                        26435584                0
-    DEL:     0.765491   0x600002415b80                0 builtin_function_or_method       /Users/engun/dev/Python/Python-3.13.2/Lib/random.py                               322 randrange                                        26435584                0
+    NEW:     0.765234   0x7f890a500010      1 bytes           test_cpymemtrace.py             243 create_bytes   33742848         0
+    DEL:     0.765281   0x600003559fd0      0 frame           test_cpymemtrace.py             253 test_function  33742848         0
+    DEL:     0.765293   0x600001bb3510      0 int             test_cpymemtrace.py             253 test_function  33742848         0
+    NEW:     0.765362   0x600001bd6290      1 int             Python-3.13.2/Lib/random.py     340 randint        26435584  -7307264
+    NEW:     0.765427   0x600001bd5c50      1 int             Python-3.13.2/Lib/random.py     317 randrange      26435584         0
+    DEL:     0.765475   0x600003147a40      0 frame           Python-3.13.2/Lib/random.py     322 randrange      26435584         0
     8<---- Snip ---->8
-    NEW:     0.766302   0x7f890a601010                1 bytes                            pymemtrace/tests/test_cpymemtrace.py             243 create_bytes                                     27488256          1052672
-    DEL:     0.766407   0x600003541880                0 frame                            pymemtrace/tests/test_cpymemtrace.py             253 test_reference_trace_basic_post_313              27488256                0
-    DEL:     0.766443   0x600001bd5c50                0 int                              pymemtrace/tests/test_cpymemtrace.py             253 test_reference_trace_basic_post_313              27488256                0
+    NEW:     0.766302   0x7f890a601010      1 bytes           test_cpymemtrace.py             243 create_bytes   27488256   1052672
+    DEL:     0.766407   0x600003541880      0 frame           test_cpymemtrace.py             253 test_function  27488256         0
+    DEL:     0.766443   0x600001bd5c50      0 int             test_cpymemtrace.py             253 test_function  27488256         0
     8<---- Snip ---->8
-    NEW:     0.768496   0x7f890a803010                1 bytes                            pymemtrace/tests/test_cpymemtrace.py             243 create_bytes                                     29593600          1052672
-    DEL:     0.768532   0x600003541880                0 frame                            pymemtrace/tests/test_cpymemtrace.py             253 test_reference_trace_basic_post_313              29593600                0
-    DEL:     0.768540   0x600001bb7650                0 int                              pymemtrace/tests/test_cpymemtrace.py             253 test_reference_trace_basic_post_313              29593600                0
-    DEL:     0.768586   0x600001bb3390                0 range_iterator                   pymemtrace/tests/test_cpymemtrace.py             252 test_reference_trace_basic_post_313              29593600                0
-    DEL:     0.768727   0x7f890a702010                0 bytes                            pymemtrace/tests/test_cpymemtrace.py             258 test_reference_trace_basic_post_313              29593600                0
-    DEL:     0.768916   0x7f890a601010                0 bytes                            pymemtrace/tests/test_cpymemtrace.py             258 test_reference_trace_basic_post_313              29593600                0
-    DEL:     0.769104   0x7f890a500010                0 bytes                            pymemtrace/tests/test_cpymemtrace.py             258 test_reference_trace_basic_post_313              29593600                0
-    NEW:     0.769310   0x600002677500                1 str                              pymemtrace/tests/test_cpymemtrace.py             259 test_reference_trace_basic_post_313              29593600                0
-    NEW:     0.769354   0x6000024b47a0                1 tuple                            pymemtrace/tests/test_cpymemtrace.py             250 test_reference_trace_basic_post_313              29593600                0
+    NEW:     0.768496   0x7f890a803010      1 bytes           test_cpymemtrace.py             243 create_bytes   29593600   1052672
+    DEL:     0.768532   0x600003541880      0 frame           test_cpymemtrace.py             253 test_function  29593600         0
+    DEL:     0.768540   0x600001bb7650      0 int             test_cpymemtrace.py             253 test_function  29593600         0
+    DEL:     0.768586   0x600001bb3390      0 range_iterator  test_cpymemtrace.py             252 test_function  29593600         0
+    DEL:     0.768727   0x7f890a702010      0 bytes           test_cpymemtrace.py             258 test_function  29593600         0
+    DEL:     0.768916   0x7f890a601010      0 bytes           test_cpymemtrace.py             258 test_function  29593600         0
+    DEL:     0.769104   0x7f890a500010      0 bytes           test_cpymemtrace.py             258 test_function  29593600         0
+    NEW:     0.769310   0x600002677500      1 str             test_cpymemtrace.py             259 test_function  29593600         0
+    NEW:     0.769354   0x6000024b47a0      1 tuple           test_cpymemtrace.py             250 test_function  29593600         0
     EOF
 
 .. raw:: latex
 
     \end{landscape}
+
+Stacked Context Managers
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+If Reference Tracing context manager objects are stacked then as the context switches an entry in the *previous*
+log will be made.
+
+For example with this code:
+
+.. code-block:: python
+
+    assert cPyMemTrace.reference_tracing_wrapper_depth() == 0
+    with cPyMemTrace.ReferenceTracing('test_reference_trace_depth(): ref_trace_0') as ref_trace_0:
+        assert cPyMemTrace.reference_tracing_wrapper_depth() == 1
+        with cPyMemTrace.ReferenceTracing('test_reference_trace_depth(): ref_trace_1') as ref_trace_1:
+            assert cPyMemTrace.reference_tracing_wrapper_depth() == 2
+            with cPyMemTrace.ReferenceTracing('test_reference_trace_depth(): ref_trace_2') as ref_trace_2:
+                assert cPyMemTrace.reference_tracing_wrapper_depth() == 3
+            assert cPyMemTrace.reference_tracing_wrapper_depth() == 2
+        assert cPyMemTrace.reference_tracing_wrapper_depth() == 1
+    assert cPyMemTrace.reference_tracing_wrapper_depth() == 0
+
+Three separate files will be generated:
+
+- ``20260325_121857_8_95352_O_0_PY3.13.2.log`` the outer file for ref_trace_0.
+- ``20260325_121858_9_95352_O_1_PY3.13.2.log`` the middle file for ref_trace_1.
+- ``20260325_121858_10_95352_O_2_PY3.13.2.log`` the inner file for ref_trace_2.
+
+The outer file, ``20260325_121857_8_95352_O_0_PY3.13.2.log``, will have this content when the context switch
+takes place and back.
+The second column is the clock:
+
+.. code-block:: text
+
+    MSG:     0.889521 # Detaching this Reference Tracing file wrapper. New file:
+    MSG:     0.889528 # pymemtrace/20260325_121858_9_95352_O_1_PY3.13.2.log
+    MSG:     0.890656 # Re-attaching this trace file wrapper.
+
+The middle file, ``20260325_121858_9_95352_O_1_PY3.13.2.log``, will have this content when the context switch
+takes place and back:
+
+.. code-block:: text
+
+    MSG:     0.890185 # Detaching this Reference Tracing file wrapper. New file:
+    MSG:     0.890191 # pymemtrace/20260325_121858_10_95352_O_2_PY3.13.2.log
+    MSG:     0.890488 # Re-attaching this trace file wrapper.
+
+The inner file has no context switches.
