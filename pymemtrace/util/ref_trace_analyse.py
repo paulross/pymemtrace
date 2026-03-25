@@ -180,9 +180,11 @@ class LogFileResult:
         if obj_repr.address in self.live_objects:
             # raise ValueError(
             logger.error(
-                f'NEW address {obj_repr.address}'
+                f'NEW address 0x{obj_repr.address:012x}'
+                f' type: "{obj_repr.type}"'
                 f' from line {line_num}'
                 f' already exists from line {self.live_objects[obj_repr.address].line_num}.'
+                f' type: "{self.live_objects[obj_repr.address].type}".'
             )
         self.live_objects[obj_repr.address] = obj_repr
         self.type_count_new[obj_repr.type] += 1

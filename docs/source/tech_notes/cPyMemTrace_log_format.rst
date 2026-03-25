@@ -38,9 +38,9 @@ The components are seperated by '_':
    * - Process ID
      - Integer
      - Not Zero padded.
-   * - Trace/Profile
-     - ``'T'`` or ``'P'``
-     -
+   * - Profilere Type
+     - ``'O'``, ``'P'`` or ``'T'``
+     - These letters refer, respectively, to (object) Reference Tracing, Profiling and Tracing.
    * - Trace Stack Depth
      - Integer
      - Starting from 0.

@@ -1,27 +1,48 @@
 .. _examples-cpymemtrace:
 
-:py:mod:`pymemtrace.cPyMemTrace` Examples
+``pymemtrace.cPyMemTrace`` Examples
 ===============================================
 
 Introduction
 --------------------------------
 
-:py:mod:`pymemtrace.cPyMemTrace` is a Python profiler written in 'C' that records the
-`Resident Set Size <https://en.wikipedia.org/wiki/Resident_set_size>`_ for every Python and C call and return.
-It writes this data to a log file with a name of the form ``"20241107_195847_12_62264_P_0_PY3.13.0b3.log"``.
-See :ref:`tech_notes-cpymemtrace_profile_trace_log_file_format` for the format.
+:py:mod:`pymemtrace.cPyMemTrace` contains several Python profilers written in C using CPython's C API.
 
-Python supports several similar ways of tracking code:
+.. list-table:: **pymemtrace.cPyMemTrace Profiling Classes**
+   :widths: 50 50
+   :header-rows: 1
 
-- A *Profiler* that is suitable for logging Python and C code.
-  This ignores Python line, opcode and exception events.
-  This is supported by the :py:class:`pymemtrace.cPyMemTrace.Profile` class.
-- A *Tracer* that is suitable for logging pure Python code.
-  It ignores C call, and return events.
-  This is supported by the :py:class:`pymemtrace.cPyMemTrace.Trace` class.
-- A *Reference Tracer* tracks every Python allocation and de-allocation.
-  This is supported by the :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing` class.
-  This is available in Python 3.13+.
+   * - Class
+     - Description
+   * - :py:class:`pymemtrace.cPyMemTrace.Profile`
+     - A *Profiler* that is suitable for logging Python and C code.
+       This ignores Python line, opcode and exception events.
+   * - :py:class:`pymemtrace.cPyMemTrace.Trace`
+     - A *Tracer* that is suitable for logging pure Python code.
+       It ignores C call, and return events.
+   * - :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing`
+     - A *Reference Tracer* tracks every Python object allocation and de-allocation.
+       This is available in Python 3.13+.
+
+.. note::
+
+    A useful debugging technique is to, temporarily, decorate functions of interest with these classes.
+
+    These techniques are described here: :ref:`examples-cpymemtrace_decorators`.
+
+For each class of *profiler* the Python runtime only supports one instance at any point of time.
+:py:mod:`pymemtrace.cPyMemTrace` handles this by using three linked lists of *profilers* that are pushed
+or pop'd according to the users code.
+
+Each of these *profilers* writes their data to a log file with a name of the form:
+
+.. code-block:: text
+
+    20241107_195847_12_62264_P_0_PY3.13.0b3.log
+
+See :ref:`tech_notes-cpymemtrace_log_file_name` for the log file name and, for the log file format,
+:ref:`tech_notes-cpymemtrace_profile_trace_log_file_format`
+or :ref:`tech_notes-cpymemtrace_reference_tracing_log_file_format`.
 
 The events that the :py:class:`pymemtrace.cPyMemTrace.Profile` and
 :py:class:`pymemtrace.cPyMemTrace.Trace` respond to are:
@@ -275,6 +296,10 @@ This performs the following analysis:
 
 - If an object is deleted but hasn't been created in the log file a warning is issued.
   These are not significant as they refer to objects created before the log file was started.
+- An error will be reported if an object has been created at a particular address without being
+  previously deleted at the same address.
+  These are not significant as they (mostly?) refer to objects that are everlasting objects
+  within the Python process.
 - Any objects that were created within the log run but not de-allocated are listed
   along with the function, file, and line where it was created.
 - Any objects that were created and deleted within the log run are listed.
@@ -294,6 +319,7 @@ For example the output will be something like:
 
     \begin{landscape}
 
+First warnings:
 
 .. code-block:: text
 
@@ -302,11 +328,21 @@ For example the output will be something like:
     2026-03-18 11:51:12,278 - ref_trace_analyse.py#107 - WARNING  - DEL: on untracked object of type "frame" at 0x7fa82347c930 on line 16
     8<---- Snip ---->8
     2026-03-18 11:51:12,280 - ref_trace_analyse.py#107 - WARNING  - DEL: on untracked object of type "frame" at 0x6000038409e0 on line 78
+
+Then live objects once the log has completed:
+
+.. code-block:: text
+
     Live Objects [4]:
         0x600001694c90    1 int                                      make_bytes_wrappers              test_cpymemtrace.py#295
         0x6000025fde70    1 list                                     make_bytes_wrappers              test_cpymemtrace.py#293
         0x600003236b30    1 str                                      make_bytes_wrappers              test_cpymemtrace.py#304
         0x6000067033e0    1 tuple                                    make_bytes_wrappers              test_cpymemtrace.py#292
+
+Then previous objects that were created and destroyed during the log lifetime:
+
+.. code-block:: text
+
     Previous Objects [26]:
         0x60000168b0d0 int                                      NEW: random.py#340 DEL: random.py#340
         0x60000168b190 int                                      NEW: random.py#322 DEL: test_cpymemtrace.py#295
@@ -319,6 +355,17 @@ For example the output will be something like:
         0x7fa81fbf2a00 BytesWrapper                             NEW: test_cpymemtrace.py#296 DEL: test_cpymemtrace.py#300
         0x7fa82347c940 BytesWrapper                             NEW: test_cpymemtrace.py#296 DEL: test_cpymemtrace.py#300
         0x7fa823600010 bytes                                    NEW: test_cpymemtrace.py#288 DEL: test_cpymemtrace.py#300
+
+.. raw:: latex
+
+    [Continued on the next page]
+
+    \pagebreak
+
+Then a table of the count of creations and deletions by type:
+
+.. code-block:: text
+
     Type count [10]:
     Type                                          New      Del  New - Del
     BytesWrapper                                    4        4          0
@@ -515,10 +562,14 @@ To write to a specific file, and then read it follow this pattern:
             temp_list = []
             for i in range(16):
                 temp_list.append(b' ' * (1024 ** 2))
-            trace.trace_file_wrapper.write_message_to_log('# Level 0 after populating list.')
+            trace.trace_file_wrapper.write_message_to_log(
+                '# Level 0 after populating list.'
+            )
             while len(temp_list):
                 temp_list.pop()
-            trace.trace_file_wrapper.write_message_to_log('# Level 0 after deleting the list.')
+            trace.trace_file_wrapper.write_message_to_log(
+                '# Level 0 after deleting the list.'
+            )
         file.flush()
         file_data = file.read()
         print()
@@ -529,11 +580,16 @@ To write to a specific file, and then read it follow this pattern:
 
 See ``tests.test_cpymemtrace.test_trace_to_specific_log_file_nested()`` for a more complicated example.
 
+.. _examples-cpymemtrace_decorators:
+
 Decorators
 ------------
 
 Often it is more convenient to use these as decorators of a particular function of interest.
-The decorators take the constructor arguments.
+The decorators take the constructor arguments and will write to teh appropriate file.
+Decorated functions that call other such decorated functions will behave appropriately with each registering
+the profiler and writing to its unique log file.
+
 For example:
 
 .. code-block:: python
@@ -545,5 +601,29 @@ For example:
     )
     def really_important_function():
         pass
+
+Profile, Trace and Reference tracing decorators can be co-mingled.
+For example:
+
+.. code-block:: python
+
+    from pymemtrace import cpymemtrace_decs
+
+    @cpymemtrace_decs.trace(
+        message='Trace the inner function',
+    )
+    def inner_function():
+        pass
+
+    @cpymemtrace_decs.reference_tracing(
+        message='Reference trace the outer function that calls the inner function',
+    )
+    def outer_function():
+        inner_function()
+
+This will result in two specific log files:
+
+- The outer one reference traces both the outer function and the inner function.
+- The inner function is just traced alone.
 
 See ``tests/test_cpymemtrace_decs.py()`` for some examples.
