@@ -339,7 +339,7 @@ For example the output will be something like:
 Stacking Context Managers
 -------------------------------
 
-The Python runtime can only except a single Profiler, a single Tracer and a single Reference Tracer.
+The Python runtime can only accept a single Profiler, a single Tracer and a single Reference Tracer.
 To get round this restriction :py:mod:`pymemtrace.cPyMemTrace` allows the stacking of these objects
 with context managers.
 Each new context manager suspends the actions of the previous one.
