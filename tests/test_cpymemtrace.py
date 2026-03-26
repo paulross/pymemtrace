@@ -247,6 +247,42 @@ def test_reference_trace_basic_post_313():
         # assert message in file_data
 
 
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_trace_basic_dir_gt_313():
+    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
+    with cPyMemTrace.ReferenceTracing() as profiler:
+        b' ' * (1024 ** 2)
+        print()
+        print('test_trace_basic_dir_gt_313():')
+        print(profiler)
+        # assert repr(profiler) == 'cPyMemTrace.ReferenceTracing'
+        dir_profiler = dir(profiler)
+        print(dir_profiler)
+        assert dir_profiler == ['__class__', '__delattr__', '__dir__', '__doc__', '__enter__', '__eq__', '__exit__',
+                                 '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__',
+                                 '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
+                                 '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__',
+                                 '__subclasshook__',
+                                 'log_file_path',
+                                 'write_message_to_log',
+                                 # TODO: Why does un-commenting this cause an abort with debug Python?
+                                 # The abort is in Python/frame.c#48 assert(frame->frame_obj == NULL);
+                                 # 'not_present_at_all',
+                                 ]
+        assert os.path.isfile(profiler.log_file_path())
+    assert dir_profiler == ['__class__', '__delattr__', '__dir__', '__doc__', '__enter__', '__eq__', '__exit__',
+                             '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__',
+                             '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
+                             '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__',
+                             '__subclasshook__',
+                             'log_file_path',
+                             'write_message_to_log',
+                             # TODO: Why does un-commenting this **not** cause an abort with debug Python?
+                             # The abort is in Python/frame.c#48 assert(frame->frame_obj == NULL);
+                             # 'not_present_at_all',
+                             ]
+
+
 @pytest.mark.parametrize(
     'cls',
     (
