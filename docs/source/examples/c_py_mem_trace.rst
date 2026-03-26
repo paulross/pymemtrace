@@ -586,7 +586,7 @@ Decorators
 ------------
 
 Often it is more convenient to use these as decorators of a particular function of interest.
-The decorators take the constructor arguments and will write to teh appropriate file.
+The decorators take the constructor arguments and will write to the appropriate file.
 Decorated functions that call other such decorated functions will behave appropriately with each registering
 the profiler and writing to its unique log file.
 
