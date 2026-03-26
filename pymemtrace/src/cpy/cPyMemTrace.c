@@ -36,8 +36,8 @@
  *
  * So this is useful when tracing Python code ignoring C extensions.
  *
- * Reference Tracing
- * -----------------
+ * Reference Tracing (Python 3.13+)
+ * --------------------------------
  *
  * Created by Paul Ross on 08/03/2026.
  * This contains the Python interface to the C reference tracer.
@@ -116,14 +116,24 @@
 #define Py_T_OBJECT_EX T_OBJECT_EX
 #endif
 
-// Markers for the beginning and end of the log file.
-// Make NULL for no marker(s).
+/**
+ * Markers for the beginning of the log file.
+ * Make NULL for no marker(s).
+ */
 static const char *MARKER_LOG_FILE_START = "SOF";
+
+/**
+ * Markers for the end of the log file.
+ * Make NULL for no marker(s).
+ */
 static const char *MARKER_LOG_FILE_END = "EOF";
 
 // MARK: Python definitions and functions.
-/*
- * Defined in Include/cpython/pystate.h
+
+/**
+ * Defined in \c Include/cpython/pystate.h
+ *
+ * @code
  * #define PyTrace_CALL 0
  * #define PyTrace_EXCEPTION 1
  * #define PyTrace_LINE 2
@@ -132,6 +142,7 @@ static const char *MARKER_LOG_FILE_END = "EOF";
  * #define PyTrace_C_EXCEPTION 5
  * #define PyTrace_C_RETURN 6
  * #define PyTrace_OPCODE 7
+ * @endcode
  *
  * Here these are trimmed to be a maximum of 8 long.
  */
@@ -148,9 +159,22 @@ static const char *WHAT_STRINGS[] = {
 };
 #endif
 
+/**
+ * Empty unsigned char string placeholder.
+ */
 static const unsigned char MT_U_STRING[] = "";
+
+/**
+ * Empty char string placeholder.
+ */
 static const char MT_STRING[] = "";
 
+/**
+ * Extracts a pointer to the Python file name within the frame.
+ *
+ * @param frame The Python frame.
+ * @return A pointer to the Python file name or an empty string on failure.
+ */
 static const unsigned char *
 get_python_file_name(PyFrameObject *frame) {
     if (frame) {
@@ -165,6 +189,14 @@ get_python_file_name(PyFrameObject *frame) {
     return MT_U_STRING;
 }
 
+/**
+ * Extracts a pointer to the Python function name within the frame.
+ *
+ * @param frame The Python frame.
+ * @param what The \c PyTrace_... event ID.
+ * @param arg The Python event, see "Meaning of arg" in https://docs.python.org/3/c-api/profiling.html#c.Py_tracefunc
+ * @return A pointer to the Python function name or an empty string on failure.
+ */
 static const char *
 get_python_function_name(PyFrameObject *frame, int what, PyObject *arg) {
     const char *func_name = NULL;
@@ -184,6 +216,12 @@ get_python_function_name(PyFrameObject *frame, int what, PyObject *arg) {
     return MT_STRING;
 }
 
+/**
+ * Returns the Python line number.
+ *
+ * @param frame The Python frame.
+ * @return The Python line number or zero on failure.
+ */
 int py_frame_get_line_number(PyFrameObject *frame) {
     if (frame) {
         return PyFrame_GetLineNumber(frame);
@@ -192,25 +230,41 @@ int py_frame_get_line_number(PyFrameObject *frame) {
 }
 
 // MARK: cpyTraceFileWrapper object
+
 /**
  * Trace classes could make this available by looking at trace_file_wrapper or profile_file_wrapper.
  */
 typedef struct {
     PyObject_HEAD
     FILE *file;
-    // Store the file path and provide an API that can return it (or None) from profile_wrapper or trace_wrapper.
+    /// Store the file path and provide an API that can return it (or None) from profile_wrapper or trace_wrapper.
     char *log_file_path;
+    /**
+     * The event counter starting from 0 this is incremented for every event.
+     * See https://docs.python.org/3/c-api/profiling.html#c.Py_tracefunc
+     */
     size_t event_number;
+    /**
+     * The current RSS value in bytes.
+     */
     size_t rss;
-    // This determines the granularity of the log file.
-    // <0 - A call to trace_or_profile_function() is logged only if the dRSS is >= the page size given by
-    //      getpagesize() in unistd.h.
-    // 0 - Every call to trace_or_profile_function() is logged.
-    // >0 - A call to trace_or_profile_function() is logged only if the dRSS is >= this value.
-    // Default is -1. See cpyProfileOrTraceObject_init() and TraceObject_init().
+    /**
+     * This determines the granularity of the log file.
+     * <0 - A call to \c trace_or_profile_function() is logged only if the dRSS is >= the page size given by
+     *  \c getpagesize() in \c unistd.h.
+     * 0 - Every call to trace_or_profile_function() is logged.
+     * >0 - A call to trace_or_profile_function() is logged only if the dRSS is >= this value.
+     * Default is -1. See cpyProfileOrTraceObject_init() and TraceObject_init().
+     */
     int d_rss_trigger;
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
+    /**
+     * The event number of the last output to the log file.
+     */
     size_t previous_event_number;
+    /**
+     * Buffer to compose event texts.
+     */
     char event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
 #endif
 } cpyTraceFileWrapper;
@@ -296,6 +350,11 @@ trace_wrapper_write_message_to_log_file(cpyTraceFileWrapper *trace_wrapper, cons
 #endif // PY_MEM_TRACE_WRITE_OUTPUT
 }
 
+/**
+ * Write the last event then teh EOF marker and then close the file.
+ *
+ * @param self The Profiler or Tracer as a \c cpyTraceFileWrapper
+ */
 static void
 cpyTraceFileWrapper_close_file(cpyTraceFileWrapper *self) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
@@ -315,6 +374,7 @@ cpyTraceFileWrapper_close_file(cpyTraceFileWrapper *self) {
 
 /**
  * Deallocate the cpyTraceFileWrapper.
+ *
  * @param self The cpyTraceFileWrapper.
  */
 static void
@@ -330,6 +390,7 @@ cpyTraceFileWrapper_dealloc(cpyTraceFileWrapper *self) {
 
 /**
  * Allocate the cpyTraceFileWrapper.
+ *
  * @param type The cpyTraceFileWrapper type.
  * @param _unused_args
  * @param _unused_kwds
@@ -460,6 +521,9 @@ cpyTraceFileWrapper_write_message_to_log(cpyTraceFileWrapper *self, PyObject *op
     Py_RETURN_NONE;
 }
 
+/**
+ * \c cpyTraceFileWrapper methods.
+ */
 static PyMethodDef cpyTraceFileWrapper_methods[] = {
         /* TODO: Remove this in favour of write_message_to_log()? */
         {
@@ -479,6 +543,9 @@ static PyMethodDef cpyTraceFileWrapper_methods[] = {
 
 // MARK: - cpyTraceFileWrapper declaration
 
+/**
+ * \c cpyTraceFileWrapper declaration.
+ */
 static PyTypeObject cpyTraceFileWrapperType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.cpyTraceFileWrapper",
@@ -507,11 +574,21 @@ struct cpyTraceFileWrapperLinkedListNode {
 };
 typedef struct cpyTraceFileWrapperLinkedListNode tcpyTraceFileWrapperLinkedList;
 
+/**
+ * Linked list of Profilers.
+ * The current one is at the head of this list.
+ */
 static tcpyTraceFileWrapperLinkedList *static_profile_wrappers = NULL;
+
+/**
+ * Linked list of Tracers.
+ * The current one is at the head of this list.
+ */
 static tcpyTraceFileWrapperLinkedList *static_trace_wrappers = NULL;
 
 /**
- * Get the head of the linked list.
+ * Get the head of the linked list which is the current Profiler/Tracer.
+ *
  * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  * @return The head node or NULL if the list is empty.
  */
@@ -524,6 +601,7 @@ cpyTraceFileWrapper *wrapper_ll_get(tcpyTraceFileWrapperLinkedList *linked_list)
 
 /**
  * Push a created trace wrapper on the front of the list.
+ *
  * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  * @param node The node to add. The linked list takes ownership of this pointer.
  */
@@ -540,7 +618,9 @@ void wrapper_ll_push(tcpyTraceFileWrapperLinkedList **h_linked_list, cpyTraceFil
 
 /**
  * Free the first value on the list and adjust the list pointer.
+ *
  * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @return The node at the head of the linked list.
  */
 cpyTraceFileWrapper *
 wrapper_ll_pop(tcpyTraceFileWrapperLinkedList **h_linked_list) {
@@ -556,6 +636,7 @@ wrapper_ll_pop(tcpyTraceFileWrapperLinkedList **h_linked_list) {
 
 /**
  * Return the length of the linked list.
+ *
  * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  * @return The length of the linked list
  */
@@ -570,6 +651,7 @@ size_t wrapper_ll_length(tcpyTraceFileWrapperLinkedList *p_linked_list) {
 
 /**
  * Remove all the items in the linked list.
+ *
  * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  */
 void wrapper_ll_clear(tcpyTraceFileWrapperLinkedList **h_linked_list) {
@@ -631,10 +713,11 @@ trace_or_profile_must_write_next(cpyTraceFileWrapper *trace_wrapper, long d_rss)
 }
 
 /**
- * Create a trace function.
+ * The profile/trace callback function.
  * This is of type \c Py_tracefunc https://docs.python.org/3/c-api/profiling.html#c.Py_tracefunc
  * This is passed to \c PyEval_SetProfile https://docs.python.org/3/c-api/profiling.html#c.PyEval_SetProfile
  * and \c PyEval_SetTrace https://docs.python.org/3/c-api/profiling.html#c.PyEval_SetTrace
+ * respectively.
  *
  * @param pobj The cpyTraceFileWrapper object.
  * @param frame The Python frame.
@@ -677,6 +760,25 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
     return 0;
 }
 
+/**
+ * Create a new profile or trace file wrapper.
+ * If there is an existing wrapper on the linked list then that file will be annotated before that wrapper is suspended.
+ * Caller has to to push this onto the head of the list and register with the appropriate Profile/Trace function.
+ *
+ * @param d_rss_trigger The RSS trigger to use.
+ *  This determines the granularity of the log file.
+ *  <0 - A call to \c trace_or_profile_function() is logged only if the dRSS is >= the page size given by
+ *      \c getpagesize() in \c unistd.h.
+ *  0 - Every call to trace_or_profile_function() is logged.
+ *  >0 - A call to trace_or_profile_function() is logged only if the dRSS is >= this value.
+ * Default is -1. See cpyProfileOrTraceObject_init() and TraceObject_init().
+ * @param message A message to insert at the beginning of the file which is useful when grep'ping a
+ *  large number of files.
+ * @param specific_filename If a specific file name is need then use this. If NULL a generic filename will be created.
+ * @param is_profile Non-zero if this is to be a Profiler, zero if this is to be a Tracer.
+ * @return The new wrapper.
+ *  Caller has to to push this onto the head of the list and register with the appropriate Profile/Trace function.
+ */
 static cpyTraceFileWrapper *
 new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *specific_filename, int is_profile) {
     static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH + 1];
@@ -1178,7 +1280,17 @@ static PyTypeObject cpyTraceObjectType = {
 
 // MARK: Reference Tracing. Python 3.13+
 
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+/**
+ * See https://docs.python.org/3/c-api/profiling.html#reference-tracing
+ */
+#define REFERENCE_TRACING_AVAILABLE PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+
+/**
+ * See: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED
+ */
+#define REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 14
+
+#if REFERENCE_TRACING_AVAILABLE
 
 /**
  *
@@ -1402,13 +1514,16 @@ sys_getsizeof(PyObject* Py_UNUSED(obj)) {
 #endif // #if REFERENCE_TRACING_GET_SIZEOF
 
 /**
- * Buffer for writing lines to the log file.
+ * Buffer for composing lines for the log file.
  */
 static char reference_tracing_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
 
 /**
  * The callback function that is passed to \c PyRefTracer_SetTracer.
  * This writes to the log file.
+ *
+ * Note that this suspends the Reference Tracer whilst calling gCPython functions that might allocate/deallocate
+ * Python objects otherwise there will be infinite recursion as that will call this callback.
  *
  * @param obj The Python object being created or destroyed.
  * @param event The event type
@@ -1433,13 +1548,13 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
         fputs("DEL:", data_alias->log_file);
         data_alias->count_del++;
 #if 0 // Python 3.14 does not seem to support this so cancel support for this event.
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 14
+#if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
         } else if (event == PyRefTracer_TRACKER_REMOVED) {
             // Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
             // call (below) will trigger a call to this callback function.
             // fputs("REM", the_data->log_file);
             return 0;
-#endif // #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 14
+#endif // #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
 #endif // 0
     } else {
         // Ignore unknown events instead of Py_UNREACHABLE();
@@ -1901,7 +2016,7 @@ static PyTypeObject cpyReferenceTracingType = {
         .tp_methods = cpyReferenceTracing_methods,
 };
 
-#endif // #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+#endif // #if REFERENCE_TRACING_AVAILABLE
 
 // MARK: cPyMemTrace methods.
 
@@ -1929,7 +2044,7 @@ trace_wrapper_depth(void) {
     return Py_BuildValue("n", wrapper_ll_length(static_trace_wrappers));
 }
 
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+#if REFERENCE_TRACING_AVAILABLE
 
 static PyObject *
 reference_tracing_wrapper_depth(void) {
@@ -1937,7 +2052,7 @@ reference_tracing_wrapper_depth(void) {
     return Py_BuildValue("n", reference_tracing_ll_length(reference_tracing_ll));
 }
 
-#endif
+#endif // #if REFERENCE_TRACING_AVAILABLE
 
 static PyMethodDef cPyMemTraceMethods[] = {
         {
@@ -1964,14 +2079,14 @@ static PyMethodDef cPyMemTraceMethods[] = {
                 METH_NOARGS,
                 "Return the depth of the trace wrapper stack.",
         },
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+#if REFERENCE_TRACING_AVAILABLE
         {
                 "reference_tracing_wrapper_depth",
                 (PyCFunction) reference_tracing_wrapper_depth,
                 METH_NOARGS,
                 "Return the depth of the Reference Tracing wrapper stack.",
         },
-#endif
+#endif // #if REFERENCE_TRACING_AVAILABLE
         {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
@@ -2031,7 +2146,7 @@ PyInit_cPyMemTrace(void) {
         return NULL;
     }
 
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+#if REFERENCE_TRACING_AVAILABLE
     /* Add the Reference Tracing object. */
     if (PyType_Ready(&cpyReferenceTracingType) < 0) {
         Py_DECREF(m);
@@ -2043,7 +2158,7 @@ PyInit_cPyMemTrace(void) {
         Py_DECREF(m);
         return NULL;
     }
-#endif // #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+#endif // #if REFERENCE_TRACING_AVAILABLE
 
     return m;
 }
@@ -2180,7 +2295,7 @@ debug_cPyMemtrace(int argc, char **argv) {
     }
     /* END: Debug profile wrapper. */
 
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+#if REFERENCE_TRACING_AVAILABLE
     /* Debug Reference Tracing wrapper. */
     {
         if (PyType_Ready(&cpyReferenceTracingType) < 0) {
@@ -2222,7 +2337,7 @@ debug_cPyMemtrace(int argc, char **argv) {
         Py_DECREF(ref_tracing_object);
     }
     /* End: Debug Reference Tracing wrapper. */
-#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+#endif // REFERENCE_TRACING_AVAILABLE
 
 #if 0
     PyObject *bytes_obj = PyBytes_FromStringAndSize(NULL, 1024);
