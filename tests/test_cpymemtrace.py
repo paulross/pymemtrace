@@ -42,6 +42,7 @@ def test_module_dir_post_313():
     assert dir(cPyMemTrace) == [
         'Profile',
         'ReferenceTracing',
+        'ReferenceTracingSimple',
         'Trace',
         '__doc__',
         '__file__',
@@ -263,6 +264,8 @@ def test_trace_basic_dir_gt_313():
                                 '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
                                 '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__',
                                 '__subclasshook__',
+                                'count_del',
+                                'count_new',
                                 'log_file_path',
                                 'resume',
                                 'suspend',
@@ -277,6 +280,8 @@ def test_trace_basic_dir_gt_313():
                             '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
                             '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__',
                             '__subclasshook__',
+                            'count_del',
+                            'count_new',
                             'log_file_path',
                             'resume',
                             'suspend',
@@ -322,6 +327,8 @@ def test_trace_basic_dir_suspend_resume_gt_313():
                             '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
                             '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__',
                             '__subclasshook__',
+                            'count_del',
+                            'count_new',
                             'log_file_path',
                             'resume',
                             'suspend',
@@ -334,16 +341,35 @@ def test_trace_basic_dir_suspend_resume_gt_313():
 
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_trace_basic_list_cmp_suspend_resume_gt_313():
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.ReferenceTracing(message='test_trace_basic_list_cmp_suspend_resume_gt_313()') as profiler:
         b' ' * (1024 ** 2)
         print()
         print('test_trace_basic_list_cmp_suspend_resume_gt_313():')
         print(profiler)
         # profiler.suspend()
-        assert ['a', 'b', 'c', ] == ['a', 'b', 'c',]# 'd', ]
+        result = ['a', 'b', 'c', ] == ['a', 'b', 'c',] #'d', ]
+        # assert ['a', 'b', 'c', ] == ['a', 'b', 'c', 'd', ]
         # profiler.resume()
+        print(f'Result: {result}')
+        print(f'NEW: {profiler.count_new()}')
+        print(f'DEL: {profiler.count_del()}')
         assert os.path.isfile(profiler.log_file_path())
+        assert result
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_trace_basic_list_cmp_ref_trace_simple_suspend_resume_gt_313():
+    with cPyMemTrace.ReferenceTracingSimple() as profiler:
+        print()
+        print('test_trace_basic_list_cmp_suspend_resume_gt_313():')
+        print(profiler)
+        # profiler.suspend()
+        result = ['a', 'b', 'c', ] == ['a', 'b', 'c', ]  # 'd', ]
+        # assert ['a', 'b', 'c', ] == ['a', 'b', 'c', 'd', ]
+        # profiler.resume()
+        print(f'Result: {result}')
+        print(f'NEW: {profiler.count_new()}')
+        print(f'DEL: {profiler.count_del()}')
 
 
 @pytest.mark.parametrize(

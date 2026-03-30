@@ -228,3 +228,18 @@ For example:
 Reference Count Zero
 --------------------
 
+Issues with ``pytest``
+----------------------
+
+``pytest rewrites asserts and this can play havoc with a Reference Tracer.
+
+Compare:
+
+        result = ['a', 'b', 'c', ] == ['a', 'b', 'c', 'd', ]
+        assert result
+
+And:
+
+        assert ['a', 'b', 'c', ] == ['a', 'b', 'c', 'd', ]
+
+
