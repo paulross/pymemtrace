@@ -124,7 +124,8 @@ class ObjectData:
 
 class LogFileResult:
     """Class that can read the log file into an internal representation."""
-    def __init__(self):
+    def __init__(self, ignore_untracked: bool):
+        self.ignore_untracked = ignore_untracked
         self.intro_message_lines = []
         self.header_columns = []
         # The key is the address.
@@ -199,11 +200,13 @@ class LogFileResult:
                 self.prev_objects[obj_repr.address] = []
             self.prev_objects[obj_repr.address].append((self.live_objects[obj_repr.address], obj_repr))
             del self.live_objects[obj_repr.address]
-        else:
+        elif not self.ignore_untracked:
             logger.warning(
                 f'DEL: on untracked object'
                 f' of type "{obj_repr.type}"'
-                f' at 0x{obj_repr.address:012x} on line {line_num}'
+                f' at 0x{obj_repr.address:012x}'
+                f' RefCnt: {obj_repr.ref_cnt}'
+                f' on line {line_num}'
             )
         self.type_count_del[obj_repr.type] += 1
 
@@ -266,9 +269,9 @@ class LogFileResult:
         return ret
 
 
-def process_file(file: typing.TextIO) -> LogFileResult:
+def process_file(file: typing.TextIO, ignore_untracked: bool) -> LogFileResult:
     """Process the file into a LogFileResult and return that."""
-    result = LogFileResult()
+    result = LogFileResult(ignore_untracked=ignore_untracked)
     has_sof = False
     for l, line in enumerate(file):
         line_num = l + 1
@@ -297,10 +300,10 @@ def process_file(file: typing.TextIO) -> LogFileResult:
     return result
 
 
-def process_file_path(file_path: str) -> LogFileResult:
+def process_file_path(file_path: str, ignore_untracked: bool) -> LogFileResult:
     """Process the file path into a LogFileResult and return that."""
     with open(file_path) as file:
-        return process_file(file)
+        return process_file(file, ignore_untracked)
 
 
 def main() -> int:
@@ -316,6 +319,12 @@ def main() -> int:
         help="Show the full Python file path."
              " [default: %(default)s]",
     )
+    parser.add_argument(
+        '-i', "--ignore-untracked",
+        action="store_true",
+        help="Ignore untracked objects."
+             " [default: %(default)s]",
+    )
     parser.add_argument("-l", "--log_level", type=int, dest="log_level", default=20,
                         help="Log Level (debug=10, info=20, warning=30, error=40, critical=50)"
                              " [default: %(default)s]"
@@ -329,7 +338,7 @@ def main() -> int:
     )
     time_start = time.perf_counter()
     print(f'File path: {args.log_path}')
-    result = process_file_path(args.log_path)
+    result = process_file_path(args.log_path, args.ignore_untracked)
     print('\n'.join(result.long_str_list(args.full_path)))
     print(f'Process time: {time.perf_counter() - time_start:.3f} (s)')
     return 0

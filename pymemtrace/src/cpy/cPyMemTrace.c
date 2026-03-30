@@ -1518,6 +1518,7 @@ sys_getsizeof(PyObject* Py_UNUSED(obj)) {
  */
 static char reference_tracing_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
 
+
 /**
  * The callback function that is passed to \c PyRefTracer_SetTracer.
  * This writes to the log file.
@@ -1967,6 +1968,73 @@ cpyReferenceTracing_get_log_file_path(cpyReferenceTracing *self, PyObject *Py_UN
     }
 }
 
+/**
+ * This suspends the current reference tracer.
+ * This notes this action in the log file.
+ * It does **not** pop it off the linked list but leaves it there to be restored by resume().
+ *
+ * @return NULL on failure, None on success.
+ */
+static PyObject *
+cpyReferenceTracing_suspend(void) {
+    struct reference_tracing_data *data = reference_tracing_ll_get_data(reference_tracing_ll);
+    assert(data);
+    assert(data->log_file);
+
+    cpyReferenceTracing_write_c_message_to_log(data, "Suspending reference tracing.");
+    void *data_old = NULL;
+    /* Call PyRefTracer PyRefTracer_GetTracer(void **data) */
+    PyRefTracer tracer_old = PyRefTracer_GetTracer(&data_old);
+    /* Sanity check. */
+    assert(data_old);
+    assert(data_old == data);
+    assert(tracer_old);
+    if (tracer_old != &reference_trace_allocations_callback) {
+        PyErr_SetString(
+                PyExc_RuntimeError,
+                "PyRefTracer_GetTracer() return value is not the expected callback function."
+                );
+        return NULL;
+    }
+    if (PyRefTracer_SetTracer(NULL, NULL)) {
+        PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(NULL, NULL) failed.");
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
+/**
+ * This resumes the current reference tracer by re-registering the head of the linked list.
+ * This notes this action in the log file.
+ *
+ * @return NULL on failure, None on success.
+ */
+static PyObject *
+cpyReferenceTracing_resume(void) {
+    /* If this function is not paired with suspend() then there might be
+     * a Reference Tracer still registered so this call should handle the
+     * reference counts correctly. */
+    if (PyRefTracer_SetTracer(NULL, NULL)) {
+        PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(NULL, NULL) failed.");
+        return NULL;
+    }
+    /* Get the current latest tracer. */
+    struct reference_tracing_data *data = reference_tracing_ll_get_data(reference_tracing_ll);
+    if (data) {
+        cpyReferenceTracing_write_c_message_to_log(data, "Resuming reference tracing.");
+        /* Restore the Reference Tracer. */
+        if (PyRefTracer_SetTracer(&reference_trace_allocations_callback, data)) {
+            PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(tracer, data) failed.");
+            return NULL;
+        }
+        cpyReferenceTracing_write_c_message_to_log(data, "Resuming reference tracing.");
+    } else {
+        PyErr_SetString(PyExc_RuntimeError, "PyRefTracer.resume() when there is no tracer to register.");
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef cpyReferenceTracing_methods[] = {
         {
                 "__enter__",
@@ -1987,6 +2055,18 @@ static PyMethodDef cpyReferenceTracing_methods[] = {
                             (PyCFunction) cpyReferenceTracing_get_log_file_path,
                                                                     METH_NOARGS,
                 "Return the current log file path for the Reference Tracer."
+        },
+        {
+                "suspend",
+                            (PyCFunction) cpyReferenceTracing_suspend,
+                                                                    METH_NOARGS,
+                "Suspend the current Reference Tracer."
+        },
+        {
+                "resume",
+                            (PyCFunction) cpyReferenceTracing_resume,
+                                                                    METH_NOARGS,
+                "Resume the latest Reference Tracer."
         },
         {NULL, NULL, 0, NULL}  /* Sentinel */
 };
@@ -2163,6 +2243,86 @@ PyInit_cPyMemTrace(void) {
     return m;
 }
 
+
+struct simpletracer_data {
+    int create_count;
+    int destroy_count;
+};
+
+static int simpletracer_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void* data) {
+    struct simpletracer_data* the_data = (struct simpletracer_data *)data;
+    if (event == PyRefTracer_CREATE) {
+        the_data->create_count++;
+    } else {
+        the_data->destroy_count++;
+    }
+    return 0;
+}
+
+static int
+test_reftracer(void) {
+    printf("Starting %s() at %s#%d\n", __FUNCTION__, __FILE_NAME__, __LINE__);
+    // Save the current tracer and data to restore it later
+    void* current_data;
+    PyRefTracer current_tracer = PyRefTracer_GetTracer(&current_data);
+
+    struct simpletracer_data tracer_data = {0};
+    void* the_data = &tracer_data;
+    // Install a simple tracer function
+    if (PyRefTracer_SetTracer(simpletracer_callback, the_data) != 0) {
+        goto failed;
+    }
+
+    // Check that the tracer was correctly installed
+    void* data;
+    if (PyRefTracer_GetTracer(&data) != simpletracer_callback || data != the_data) {
+        PyErr_SetString(PyExc_AssertionError, "The reftracer not correctly installed");
+        (void)PyRefTracer_SetTracer(NULL, NULL);
+        goto failed;
+    }
+
+    // Create a bunch of objects
+    PyObject* obj = PyList_New(0);
+    if (obj == NULL) {
+        goto failed;
+    }
+    PyObject* obj2 = PyDict_New();
+    if (obj2 == NULL) {
+        Py_DECREF(obj);
+        goto failed;
+    }
+
+    // Kill all objects
+    Py_DECREF(obj);
+    Py_DECREF(obj2);
+
+    // Remove the tracer
+    (void)PyRefTracer_SetTracer(NULL, NULL);
+
+    // Check that the tracer was removed
+    if (PyRefTracer_GetTracer(&data) != NULL || data != NULL) {
+        PyErr_SetString(PyExc_ValueError, "The reftracer was not correctly removed");
+        goto failed;
+    }
+
+    if (tracer_data.create_count != 2) {
+        PyErr_SetString(PyExc_ValueError, "The object creation was not correctly traced");
+        goto failed;
+    }
+
+    if (tracer_data.destroy_count != 2) {
+        PyErr_SetString(PyExc_ValueError, "The object destruction was not correctly traced");
+        goto failed;
+    }
+    PyRefTracer_SetTracer(current_tracer, current_data);
+    printf("DONE %s() at %s#%d\n", __FUNCTION__, __FILE_NAME__, __LINE__);
+    return 0;
+failed:
+    PyRefTracer_SetTracer(current_tracer, current_data);
+    printf("FAILED %s() at %s#%d\n", __FUNCTION__, __FILE_NAME__, __LINE__);
+    return -1;
+}
+
 int
 debug_cPyMemtrace(int argc, char **argv) {
     printf("Testing cPyMemTrace. argc=%d\n", argc);
@@ -2336,6 +2496,7 @@ debug_cPyMemtrace(int argc, char **argv) {
         }
         Py_DECREF(ref_tracing_object);
     }
+    test_reftracer();
     /* End: Debug Reference Tracing wrapper. */
 #endif // REFERENCE_TRACING_AVAILABLE
 
