@@ -2791,6 +2791,7 @@ PyInit_cPyMemTrace(void) {
     return m;
 }
 
+#if REFERENCE_TRACING_AVAILABLE
 
 struct simpletracer_data {
     int create_count;
@@ -2870,6 +2871,8 @@ failed:
     printf("FAILED %s() at %s#%d\n", __FUNCTION__, __FILE_NAME__, __LINE__);
     return -1;
 }
+
+#endif // REFERENCE_TRACING_AVAILABLE
 
 int
 debug_cPyMemtrace(int argc, char **argv) {
