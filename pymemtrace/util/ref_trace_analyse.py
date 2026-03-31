@@ -125,6 +125,7 @@ class ObjectData:
 class LogFileResult:
     """Class that can read the log file into an internal representation."""
     def __init__(self, ignore_untracked: bool):
+        """If ignore_untracked is True then de-allocations without the respective allocation are ignored."""
         self.ignore_untracked = ignore_untracked
         self.intro_message_lines = []
         self.header_columns = []
@@ -136,6 +137,7 @@ class LogFileResult:
         # Count of type allocation and de-allocation.
         self.type_count_new: typing.Dict[str, int] = collections.defaultdict(int)
         self.type_count_del: typing.Dict[str, int] = collections.defaultdict(int)
+        self.type_count_untracked: typing.Dict[str, int] = collections.defaultdict(int)
 
     def _parse_line(self, line_num: int, line: str) -> typing.Dict[str, typing.Any]:
         """Parse a line of the log file into a dict of the columns of the form: {header: value}."""
@@ -200,14 +202,16 @@ class LogFileResult:
                 self.prev_objects[obj_repr.address] = []
             self.prev_objects[obj_repr.address].append((self.live_objects[obj_repr.address], obj_repr))
             del self.live_objects[obj_repr.address]
-        elif not self.ignore_untracked:
-            logger.warning(
-                f'DEL: on untracked object'
-                f' of type "{obj_repr.type}"'
-                f' at 0x{obj_repr.address:012x}'
-                f' RefCnt: {obj_repr.ref_cnt}'
-                f' on line {line_num}'
-            )
+        else:
+            self.type_count_untracked[obj_repr.type] += 1
+            if not self.ignore_untracked:
+                logger.warning(
+                    f'DEL: on untracked object'
+                    f' of type "{obj_repr.type}"'
+                    f' at 0x{obj_repr.address:012x}'
+                    f' RefCnt: {obj_repr.ref_cnt}'
+                    f' on line {line_num}'
+                )
         self.type_count_del[obj_repr.type] += 1
 
     def add_msg(self, line_num: int, line: str) -> None:
@@ -244,7 +248,15 @@ class LogFileResult:
         if self.intro_message_lines:
             ret.append('Initial Message:')
             ret.extend(self.intro_message_lines)
-        # print(f'TRACE self.intro_message_lines {self.intro_message_lines}')
+
+        if not self.ignore_untracked:
+            ret.append(f'Untracked Objects [{len(self.type_count_untracked)}]:')
+            ret.append(f'{"Type":40} {"Count":>8}')
+            for type_name in sorted(self.type_count_untracked.keys()):
+                ret.append(
+                    f'{type_name:40}'
+                    f' {self.type_count_untracked[type_name]:>8}'
+                )
 
         ret.append(f'Live Objects [{len(self.live_objects)}]:')
         for address in sorted(self.live_objects.keys()):
@@ -270,7 +282,8 @@ class LogFileResult:
 
 
 def process_file(file: typing.TextIO, ignore_untracked: bool) -> LogFileResult:
-    """Process the file into a LogFileResult and return that."""
+    """Process the file into a LogFileResult and return that.
+    If ignore_untracked is True then de-allocations without the respective allocation are ignored."""
     result = LogFileResult(ignore_untracked=ignore_untracked)
     has_sof = False
     for l, line in enumerate(file):
