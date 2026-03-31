@@ -174,17 +174,39 @@ This is in ``test_reftracer()`` in ``pymemtrace/src/cpy/cPyMemTrace.c``:
         return -1;
     }
 
+You can run this in the C project under the debugger and set a breakpoint in the callback function:
+
+.. raw:: latex
+
+    [Continued on the next page]
+
+    \pagebreak
+
+.. raw:: latex
+
+    \begin{landscape}
+
+.. image:: images/reference_tracing_simple_example.png
+    :alt: Callback in the debugger.
+    :width: 1512
+    :align: center
+
+.. raw:: latex
+
+    \end{landscape}
+
+
 A More Useful Reference Tracer
 ------------------------------
 
 Just counting allocations and de-allocations is not very useful.
 :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing` logs each allocation and de-allocation
-with the type and location of the action.
+with the object type and location of the action.
 
 This has a number of pitfalls.
 
-Stack Overflow
---------------
+Guarding Against a Stack Overflow
+---------------------------------
 
 If the Reference Tracing callback function interacts with the CPython runtime then that is free to create
 or destroy arbitrary objects.
@@ -308,3 +330,5 @@ Another way is to use a temporary variable:
     E           assert False
 
 And the log file is a manageable 41kB.
+
+``pytest`` provides a lot of challenges when dealing with Python C extensions.
