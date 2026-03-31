@@ -189,7 +189,13 @@ Reference Tracing
 From Python 3.13 onwards Python supports
 `Reference Tracing <https://docs.python.org/3/c-api/profiling.html#reference-tracing>`_.
 This enables us to track every Python allocation and de-allocation.
-The class that does this is :py:class:`cPyMemTrace.ReferenceTracing`.
+
+:py:mod:`pymemtrace` supports these Reference Tracing classes:
+
+- :py:class:`cPyMemTrace.ReferenceTracingSimple` is a simple tracer that just counts allocations and de-allocations.
+  This is described in detail in :ref:`tech_notes-cpymemtrace_reference_tracing_simple`.
+- A more sophisticated tracer that reports where objects were created :py:class:`cPyMemTrace.ReferenceTracing`.
+  This is very useful for tracking down where objects were allocated but never de-allocated.
 
 Reference tracing works by registering a callback function that is invoked for every Python object allocation
 and de-allocation.
@@ -200,6 +206,9 @@ and de-allocation.
     The Reference Tracing API is quite new and immature.
     Some of the documentation for it is wrong.
     This is described in more detail in :ref:`tech_notes-cpymemtrace_reference_tracing`.
+
+
+
 
 Example of Reference Tracing
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

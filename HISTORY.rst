@@ -4,7 +4,13 @@ History
 0.3.2rc0 (TODO)
 ---------------------
 
-TODO
+* cPyMemTrace:
+    * Write profile/trace/reference tracing context switches to the appropriate log file.
+    * Add cPyMemTrace.ReferenceTracingSimple as an example. Includes documentation and test code.
+    * Add suspend() and resume() methods for Reference Tracing.
+    * Document pytest issues with Reference Tracing.
+    * General documentation improvements.
+* TODO
 
 0.3.1 (2026-03-23)
 ---------------------

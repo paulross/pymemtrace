@@ -57,6 +57,8 @@ This allows arbitrary accumulation of data.
 Reference Tracing is fairy new and, as it intercepts every Python object allocation and de-allocation, is very invasive.
 This provides a number of failure modes.
 
+.. _tech_notes-cpymemtrace_reference_tracing_simple:
+
 A Simple Reference Tracer
 -------------------------
 
@@ -205,11 +207,12 @@ For example:
         assert(data_old);
         assert(tracer_old);
         assert(tracer_old == &reference_trace_callback);
+        /* Switch off Reference Tracing. */
         if (PyRefTracer_SetTracer(NULL, NULL)) {
             PyErr_SetString(
                 PyExc_RuntimeError, "PyRefTracer_SetTracer(NULL, NULL) failed."
             );
-            return err_code;
+            return -1;
         }
 
         /* Now we can interact with CPython ... */
@@ -220,26 +223,88 @@ For example:
                 PyExc_RuntimeError,
                 "PyRefTracer_SetTracer(tracer_old, data_old) failed."
             );
-            return err_code;
+            return -2;
         }
         return 0;
     }
 
-Reference Count Zero
---------------------
 
 Issues with ``pytest``
 ----------------------
 
-``pytest rewrites asserts and this can play havoc with a Reference Tracer.
+``pytest`` rewrites asserts and this can play havoc with a Reference Tracer.
+Consider this innocuous test:
 
-Compare:
+.. code-block:: python
 
-        result = ['a', 'b', 'c', ] == ['a', 'b', 'c', 'd', ]
-        assert result
+    @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+    def test_trace_basic_list_cmp_suspend_resume_gt_313():
+        with cPyMemTrace.ReferenceTracing() as profiler:
+            assert ['a', 'b', 'c', ] == ['a', 'b', 'c', 'd', ]
 
-And:
+With a debug version of Python 3.13.2 his generates a huge (177MB) log file before aborting.
+The abort happens here:
 
-        assert ['a', 'b', 'c', ] == ['a', 'b', 'c', 'd', ]
+.. code-block:: text
 
+    8   python.exe  0x10f024d91 _PyFrame_MakeAndSetFrameObject.cold.3 + 33 (frame.c:48)
 
+The source for ``Python/frame.c`` shows the assert itself.
+
+.. code-block:: text
+
+    41     // GH-97002: There was a time when a frame object could be created when we
+    42     // are allocating the new frame object f above, so frame->frame_obj would
+    43     // be assigned already. That path does not exist anymore. We won't call any
+    44     // Python code in this function and garbage collection will not run.
+    45     // Notice that _PyFrame_New_NoTrack() can potentially raise a MemoryError,
+    46     // but it won't allocate a traceback until the frame unwinds, so we are safe
+    47     // here.
+    48     assert(frame->frame_obj == NULL);
+
+There are a huge  number of objects recorded in the log file 550 are live and 12,000+ have allocations and
+the respective de-allocation.
+
+There are two workarounds for this.
+
+Firstly used two Reference Tracing methods:
+
+- :py:meth:`~pymemtrace.cPyMemTrace.ReferenceTracing.suspend()` temporarily stops tracing.
+- :py:meth:`~pymemtrace.cPyMemTrace.ReferenceTracing.resume()` resumes tracing.
+
+.. code-block:: python
+
+    @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+    def test_trace_basic_list_cmp_suspend_resume_gt_313():
+        with cPyMemTrace.ReferenceTracing() as profiler:
+            profiler.suspend()
+            assert ['a', 'b', 'c', ] == ['a', 'b', 'c', 'd', ]
+            profiler.resume()
+
+Then pytest correctly reports:
+
+.. code-block:: text
+
+    >           assert ['a', 'b', 'c', ] == ['a', 'b', 'c', 'd', ]
+    E           AssertionError: assert ['a', 'b', 'c'] == ['a', 'b', 'c', 'd']
+
+And the log file is a manageable 11kB.
+
+Another way is to use a temporary variable:
+
+.. code-block:: python
+
+    @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+    def test_trace_basic_list_cmp_suspend_resume_gt_313():
+        with cPyMemTrace.ReferenceTracing() as profiler:
+            result = ['a', 'b', 'c', ] == ['a', 'b', 'c','d', ]
+            assert result
+
+``pytest`` correctly reports:
+
+.. code-block:: text
+
+    >           assert result
+    E           assert False
+
+And the log file is a manageable 41kB.

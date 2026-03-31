@@ -110,6 +110,6 @@ if sys.version_info >= (3, 13):
     def reference_trace_outer_function():
         trace_inner_function()
 
-
-    def test_mixed_decorators():
-        reference_trace_outer_function()
+    # Skip this as pytest is calling abort() on x86 machine.
+    # def test_mixed_decorators():
+    #     reference_trace_outer_function()

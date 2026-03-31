@@ -1740,7 +1740,7 @@ static PyMethodDef cpyReferenceTracingSimple_methods[] = {
                 "resume",
                             (PyCFunction) cpyReferenceTracingSimple_resume,
                                                                           METH_NOARGS,
-                "Resume the latest Reference Tracer."
+                "Resume the current Reference Tracer."
         },
         {
                 "count_new",
