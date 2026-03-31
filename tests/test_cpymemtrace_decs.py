@@ -68,7 +68,7 @@ def test_trace_decorator_outer_function_kwargs():
     _trace_decorator_inner_function_kwargs()
 
 
-# cpymemtrace_decs.reference_tracing 
+# cpymemtrace_decs.reference_tracing
 if sys.version_info >= (3, 13):
     @cpymemtrace_decs.reference_tracing()
     def test_reference_tracing_decorator_basic():
@@ -82,33 +82,34 @@ if sys.version_info >= (3, 13):
         create_list_of_strings(4, 20 * 1024 ** 2, 50 * 1024 ** 2)
 
 
-@cpymemtrace_decs.reference_tracing(
-    message='_reference_tracing_decorator_inner_function_kwargs()',
-)
-def _reference_tracing_decorator_inner_function_kwargs():
-    create_list_of_strings(4, 20 * 1024 ** 2, 50 * 1024 ** 2)
+if sys.version_info >= (3, 13):
+    @cpymemtrace_decs.reference_tracing(
+        message='_reference_tracing_decorator_inner_function_kwargs()',
+    )
+    def _reference_tracing_decorator_inner_function_kwargs():
+        create_list_of_strings(4, 20 * 1024 ** 2, 50 * 1024 ** 2)
 
 
-@cpymemtrace_decs.reference_tracing(
-    message='test_reference_tracing_decorator_outer_function_kwargs()',
-)
-def test_reference_tracing_decorator_outer_function_kwargs():
-    _reference_tracing_decorator_inner_function_kwargs()
+    @cpymemtrace_decs.reference_tracing(
+        message='test_reference_tracing_decorator_outer_function_kwargs()',
+    )
+    def test_reference_tracing_decorator_outer_function_kwargs():
+        _reference_tracing_decorator_inner_function_kwargs()
 
 
-@cpymemtrace_decs.trace(
-    message='Trace the inner function',
-)
-def trace_inner_function():
-    pass
+    @cpymemtrace_decs.trace(
+        message='Trace the inner function',
+    )
+    def trace_inner_function():
+        pass
 
 
-@cpymemtrace_decs.reference_tracing(
-    message='Reference trace the outer function that calls the inner function',
-)
-def reference_trace_outer_function():
-    trace_inner_function()
+    @cpymemtrace_decs.reference_tracing(
+        message='Reference trace the outer function that calls the inner function',
+    )
+    def reference_trace_outer_function():
+        trace_inner_function()
 
 
-def test_mixed_decorators():
-    reference_trace_outer_function()
+    def test_mixed_decorators():
+        reference_trace_outer_function()
