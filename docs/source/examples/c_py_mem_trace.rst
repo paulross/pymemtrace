@@ -183,6 +183,8 @@ And the log file looks like this:
 
 There is some discussion about the performance of :py:mod:`pymemtrace.cPyMemTrace` here :ref:`tech_notes-cpymemtrace`
 
+.. _examples-cpymemtrace-reference-tracing:
+
 Reference Tracing
 -----------------
 

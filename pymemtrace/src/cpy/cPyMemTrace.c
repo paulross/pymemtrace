@@ -2025,7 +2025,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     struct reference_tracing_data *data_alias = (struct reference_tracing_data *) data;
     assert(data_alias->log_file);
 
-    int err_code = -1;
+    const int ERROR_CODE = -1;
     /* Write the event type. */
     if (event == PyRefTracer_CREATE) {
         // Write the creation of an object.
@@ -2065,10 +2065,11 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     assert(tracer_old);
     assert(tracer_old == &reference_trace_allocations_callback);
     if (PyRefTracer_SetTracer(NULL, NULL)) {
-        PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(NULL, NULL) failed.");
-        return err_code;
+        /* Do not set an exception.
+         * See: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer */
+        fprintf(stderr, "PyRefTracer_SetTracer(NULL, NULL) failed.\n");
+        return ERROR_CODE;
     }
-    err_code--;
     /* Now we can call into Python code. */
     PyFrameObject *frame = PyEval_GetFrame();
     Py_XINCREF(frame);
@@ -2129,8 +2130,10 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     fflush(data_alias->log_file);
     /* Restore the Reference Tracer. */
     if (PyRefTracer_SetTracer(tracer_old, data_old)) {
-        PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(tracer_old, data_old) failed.");
-        return err_code;
+        /* Do not set an exception.
+         * See: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer */
+        fprintf(stderr, "PyRefTracer_SetTracer(tracer_old, data_old) failed.\n");
+        return ERROR_CODE;
     }
     return 0;
 }

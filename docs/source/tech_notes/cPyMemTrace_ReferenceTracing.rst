@@ -202,18 +202,20 @@ A More Useful Reference Tracer
 Just counting allocations and de-allocations is not very useful.
 :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing` logs each allocation and de-allocation
 with the object type and location of the action.
+See :ref:`examples-cpymemtrace-reference-tracing` for how this is used and the results of tracing.
 
-This has a number of pitfalls.
+This, however, has a number of pitfalls.
 
 Guarding Against a Stack Overflow
 ---------------------------------
 
 If the Reference Tracing callback function interacts with the CPython runtime then that is free to create
 or destroy arbitrary objects.
-This leads to recursive behaviour which can lead to a stack overflow.
+Each of these actions will call the callback function and this behaves recursively which will lead
+to a stack overflow.
 
 The solution is that the callback function should immediately suspend Reference Tracing before interacting
-with the CPython API.
+with the CPython API then restore the Reference Tracing when done.
 For example:
 
 .. code-block:: c
@@ -223,29 +225,33 @@ For example:
         assert(obj);
         assert(data);
 
+        const int ERROR_CODE = -1;
+        /* Get the Reference Tracer. */
         void *data_old = NULL;
         PyRefTracer tracer_old = PyRefTracer_GetTracer(&data_old);
+
         /* Sanity check. */
-        assert(data_old);
         assert(tracer_old);
         assert(tracer_old == &reference_trace_callback);
+        assert(data_old);
+        assert(data_old == data);
+
         /* Switch off Reference Tracing. */
         if (PyRefTracer_SetTracer(NULL, NULL)) {
-            PyErr_SetString(
-                PyExc_RuntimeError, "PyRefTracer_SetTracer(NULL, NULL) failed."
-            );
-            return -1;
+            /* Do not set an exception. See:
+             * https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer */
+            fprintf(stderr, "PyRefTracer_SetTracer(NULL, NULL) failed.\n");
+            return ERROR_CODE;
         }
 
         /* Now we can interact with CPython ... */
 
-        /* Restore the Reference Tracer. */
+        /* Restore the Reference Tracer before returning. */
         if (PyRefTracer_SetTracer(tracer_old, data_old)) {
-            PyErr_SetString(
-                PyExc_RuntimeError,
-                "PyRefTracer_SetTracer(tracer_old, data_old) failed."
-            );
-            return -2;
+            /* Do not set an exception. See:
+             * https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer */
+            fprintf(stderr, "PyRefTracer_SetTracer(tracer_old, data_old) failed.\n");
+            return ERROR_CODE;
         }
         return 0;
     }
