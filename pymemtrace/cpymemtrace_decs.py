@@ -9,12 +9,12 @@ def profile(*dec_args, **dec_kwargs):
 
     def profile_inner(fn):
         @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
+        def profile_wrapper(*args, **kwargs):
             with cPyMemTrace.Profile(*dec_args, **dec_kwargs):
                 result = fn(*args, **kwargs)
             return result
 
-        return wrapper
+        return profile_wrapper
 
     return profile_inner
 
@@ -24,12 +24,12 @@ def trace(*dec_args, **dec_kwargs):
 
     def trace_inner(fn):
         @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
+        def trace_wrapper(*args, **kwargs):
             with cPyMemTrace.Trace(*dec_args, **dec_kwargs):
                 result = fn(*args, **kwargs)
             return result
 
-        return wrapper
+        return trace_wrapper
 
     return trace_inner
 
@@ -40,11 +40,11 @@ if sys.version_info >= (3, 13):
 
         def reference_tracing_inner(fn):
             @functools.wraps(fn)
-            def wrapper(*args, **kwargs):
+            def reference_tracingwrapper(*args, **kwargs):
                 with cPyMemTrace.ReferenceTracing(*dec_args, **dec_kwargs):
                     result = fn(*args, **kwargs)
                 return result
 
-            return wrapper
+            return reference_tracingwrapper
 
         return reference_tracing_inner
