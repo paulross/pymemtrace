@@ -256,6 +256,11 @@ For example:
         return 0;
     }
 
+.. warning::
+
+    Python 3.15 introduces the
+    `PyRefTracer_TRACKER_REMOVED <https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED>`_
+    event that will cause this function, as written above, to be re-entrant.
 
 Issues with ``pytest``
 ----------------------

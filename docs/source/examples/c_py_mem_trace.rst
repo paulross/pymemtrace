@@ -209,9 +209,6 @@ and de-allocation.
     Some of the documentation for it is wrong.
     This is described in more detail in :ref:`tech_notes-cpymemtrace_reference_tracing`.
 
-
-
-
 Example of Reference Tracing
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -446,6 +443,19 @@ For example:
         pass
     # The log file "20241107_195847_11_62264_P_0_PY3.13.0b3.log" is closed.
 
+Or pictorially, when the inner reference tracer is active the linked list looks like this:
+
+.. code-block:: text
+
+    List Node       File Name                                       File State
+    ---------       ---------                                       ----------
+
+    Head Node ----> "20241107_195847_12_62264_P_1_PY3.13.0b3.log"   Writing
+        |
+    Next Node ----> "20241107_195847_11_62264_P_0_PY3.13.0b3.log"   Suspended
+        |
+    NULL Node
+
 The outer log file ``20241107_195847_11_62264_P_0_PY3.13.0b3.log`` will have this annotation to show
 the context switch and back:
 
@@ -454,6 +464,9 @@ the context switch and back:
     MSG:  3  +1  9.869994  # Detaching this profile file wrapper. New file:
     MSG:  3  +1  9.869996  # pymemtrace/20241107_195847_12_62264_P_1_PY3.13.0b3.log
     MSG:  3  +1  9.870580  # Re-attaching this profile file wrapper.
+
+The same effect is obtained when using decorators which allows a decorated function to call another decorated function.
+See :ref:`examples-cpymemtrace-decorators-stacking`.
 
 The :py:mod:`pymemtrace.cPyMemTrace` module has these functions to give you the stack depth for that tracer:
 
@@ -464,6 +477,14 @@ The :py:mod:`pymemtrace.cPyMemTrace` module has these functions to give you the 
 - :py:meth:`pymemtrace.cPyMemTrace.reference_tracing_wrapper_depth` for the
   :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing` stack.
 
+
+.. warning::
+
+    The :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing` has methods
+    :py:meth:`~pymemtrace.cPyMemTrace.ReferenceTracing.suspend()` that temporarily stops tracing
+    and :py:meth:`~pymemtrace.cPyMemTrace.ReferenceTracing.resume()` resumes tracing.
+    If these are called out-of-order (say on the outer tracer when the inner tracer is active)
+    then a RuntimeError will be thrown.
 
 Writing Messages to a Log File
 ------------------------------
@@ -623,6 +644,11 @@ For example:
     def really_important_function():
         pass
 
+.. _examples-cpymemtrace-decorators-mingling:
+
+Mingling Decorators
+^^^^^^^^^^^^^^^^^^^
+
 Profile, Trace and Reference tracing decorators can be co-mingled.
 For example:
 
@@ -648,3 +674,34 @@ This will result in two specific log files:
 - The inner function is just traced alone.
 
 See ``tests/test_cpymemtrace_decs.py()`` for some examples.
+
+.. _examples-cpymemtrace-decorators-stacking:
+
+Stacking Decorators
+^^^^^^^^^^^^^^^^^^^
+
+Decorators allow a decorated function to call another decorated function.
+For example:
+
+.. code-block:: python
+
+    from pymemtrace import cpymemtrace_decs
+
+    @cpymemtrace_decs.reference_tracing(
+        message='Reference trace the inner function',
+    )
+    def inner_function():
+        pass
+
+    @cpymemtrace_decs.reference_tracing(
+        message='Reference trace the outer function that calls the inner function',
+    )
+    def outer_function():
+        inner_function()
+
+This will result in two specific log files, one for the inner function and one for the outer which does not
+include events for the inner function.
+
+.. todo::
+
+    Maybe write a merge script that takes a log file and merges it with all the descendents.
