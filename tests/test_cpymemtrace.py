@@ -364,10 +364,13 @@ def test_trace_basic_list_cmp_ref_trace_simple_suspend_resume_gt_313():
         print('test_trace_basic_list_cmp_suspend_resume_gt_313():')
         print(profiler)
         # profiler.suspend()
-        result = ['a', 'b', 'c', ] == ['a', 'b', 'c', ]  # 'd', ]
-        # assert ['a', 'b', 'c', ] == ['a', 'b', 'c', 'd', ]
+        # result = ['a', 'b', 'c', ] == ['a', 'b', 'c', ]  # 'd', ]
+        with pytest.raises(AssertionError) as err:
+            assert ['a', 'b', 'c', ] == ['a', 'b', 'c', 'd', ]
+        # print(f'TRACE: {err.value.args[0]}')
+        assert err.value.args[0].startswith("assert ['a', 'b', 'c'] == ['a', 'b', 'c', 'd']\n")
         # profiler.resume()
-        print(f'Result: {result}')
+        # print(f'Result: {result}')
         print(f'NEW: {profiler.count_new()}')
         print(f'DEL: {profiler.count_del()}')
 
