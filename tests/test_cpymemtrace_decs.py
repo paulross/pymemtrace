@@ -81,7 +81,6 @@ if sys.version_info >= (3, 13):
     def test_reference_tracing_decorator_kwargs():
         create_list_of_strings(4, 20 * 1024 ** 2, 50 * 1024 ** 2)
 
-
 if sys.version_info >= (3, 13):
     @cpymemtrace_decs.reference_tracing(
         message='_reference_tracing_decorator_inner_function_kwargs()',
@@ -101,15 +100,47 @@ if sys.version_info >= (3, 13):
         message='Trace the inner function',
     )
     def trace_inner_function():
+        # pass
+        create_list_of_strings(4, 20 * 1024 ** 2, 50 * 1024 ** 2)
+
+
+    @cpymemtrace_decs.reference_tracing(
+        message='Reference trace the outer function that calls the inner function',
+    )
+    def reference_trace_outer_function_A():
+        trace_inner_function()
+
+
+    # Skip this as pytest is calling abort() on x86 machine.
+    def _mixed_decorators_A():
+        reference_trace_outer_function_A()
+
+
+    @cpymemtrace_decs.reference_tracing(
+        message='Reference trace the inner function',
+    )
+    def reference_trace_inner_function():
         pass
 
 
     @cpymemtrace_decs.reference_tracing(
         message='Reference trace the outer function that calls the inner function',
     )
-    def reference_trace_outer_function():
-        trace_inner_function()
+    def reference_trace_outer_function_B():
+        reference_trace_inner_function()
+
 
     # Skip this as pytest is calling abort() on x86 machine.
-    # def test_mixed_decorators():
-    #     reference_trace_outer_function()
+    def _reference_tracing_decorators_B():
+        reference_trace_outer_function_B()
+
+
+def main():
+    if sys.version_info >= (3, 13):
+        _mixed_decorators_A()
+        # _reference_tracing_decorators_B()
+    # test_trace_decorator_outer_function_kwargs()
+
+
+if __name__ == '__main__':
+    exit(main())
