@@ -381,18 +381,14 @@ Here is an example log file lightly edited:
     DEL:     0.764892   0x600002836db0      0 range           test_cpymemtrace.py             252 test_function  33738752         0
     8<---- Snip ---->8
     NEW:     0.765234   0x7f890a500010      1 bytes           test_cpymemtrace.py             243 create_bytes   33742848         0
-    DEL:     0.765281   0x600003559fd0      0 frame           test_cpymemtrace.py             253 test_function  33742848         0
     DEL:     0.765293   0x600001bb3510      0 int             test_cpymemtrace.py             253 test_function  33742848         0
     NEW:     0.765362   0x600001bd6290      1 int             Python-3.13.2/Lib/random.py     340 randint        26435584  -7307264
     NEW:     0.765427   0x600001bd5c50      1 int             Python-3.13.2/Lib/random.py     317 randrange      26435584         0
-    DEL:     0.765475   0x600003147a40      0 frame           Python-3.13.2/Lib/random.py     322 randrange      26435584         0
     8<---- Snip ---->8
     NEW:     0.766302   0x7f890a601010      1 bytes           test_cpymemtrace.py             243 create_bytes   27488256   1052672
-    DEL:     0.766407   0x600003541880      0 frame           test_cpymemtrace.py             253 test_function  27488256         0
     DEL:     0.766443   0x600001bd5c50      0 int             test_cpymemtrace.py             253 test_function  27488256         0
     8<---- Snip ---->8
     NEW:     0.768496   0x7f890a803010      1 bytes           test_cpymemtrace.py             243 create_bytes   29593600   1052672
-    DEL:     0.768532   0x600003541880      0 frame           test_cpymemtrace.py             253 test_function  29593600         0
     DEL:     0.768540   0x600001bb7650      0 int             test_cpymemtrace.py             253 test_function  29593600         0
     DEL:     0.768586   0x600001bb3390      0 range_iterator  test_cpymemtrace.py             252 test_function  29593600         0
     DEL:     0.768727   0x7f890a702010      0 bytes           test_cpymemtrace.py             258 test_function  29593600         0

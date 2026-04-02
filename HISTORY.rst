@@ -5,11 +5,13 @@ History
 ---------------------
 
 * cPyMemTrace:
+    * Fix the issue with Reference Tracing where handling type "frame" was causing pytest and
+      CPython runtime assert failures.
     * Write profile/trace/reference tracing context switches to the appropriate log file.
     * Add cPyMemTrace.ReferenceTracingSimple as an example. Includes documentation and test code.
     * Add suspend() and resume() methods for Reference Tracing.
     * Document pytest issues with Reference Tracing.
-    * General documentation improvements.
+* General documentation improvements.
 * TODO
 
 0.3.1 (2026-03-23)

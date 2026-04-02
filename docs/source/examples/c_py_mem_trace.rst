@@ -205,9 +205,15 @@ and de-allocation.
 .. warning::
 
     Reference Tracing is highly invasive and can lead to some undesirable side effects.
-    The Reference Tracing API is quite new and immature.
+    The Reference Tracing API is quite new.
     Some of the documentation for it is wrong.
     This is described in more detail in :ref:`tech_notes-cpymemtrace_reference_tracing`.
+
+.. note::
+
+    The Reference Tracing callback function ignores PyObject's of type "frame" as this can play havoc with the
+    Python runtime.
+    See :ref:`tech_notes-cpymemtrace_reference_tracing_pytest` for an example that revealed this problem.
 
 Example of Reference Tracing
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -265,25 +271,21 @@ The log file will look like this (abridged).
     8<---- Snip ---->8
     NEW:     0.816531   0x7fa81fbf2a00      1 BytesWrapper    test_cpymemtrace.py             296 make_bytes_wrappers  38207488         0
     NEW:     0.816590   0x7fa823903010      1 bytes           test_cpymemtrace.py             288 __init__             38207488         0
-    DEL:     0.816634   0x60000385cf90      0 frame           test_cpymemtrace.py             296 make_bytes_wrappers  38207488         0
     DEL:     0.816645   0x6000025e34a0      0 tuple           test_cpymemtrace.py             296 make_bytes_wrappers  38207488         0
     8<---- Snip ---->8
     NEW:     0.817109   0x7fa81e7aa280      1 BytesWrapper    test_cpymemtrace.py             296 make_bytes_wrappers  38207488         0
     NEW:     0.817162   0x7fa823600010      1 bytes           test_cpymemtrace.py             288 __init__             38207488         0
-    DEL:     0.817203   0x6000038593a0      0 frame           test_cpymemtrace.py             296 make_bytes_wrappers  38207488         0
     NEW:     0.817250   0x60000169c110      1 int             Python-3.13.2/Lib/random.py     340 randint              38207488         0
     8<---- Snip ---->8
     DEL:     0.817495   0x60000168b350      0 int             test_cpymemtrace.py             295 make_bytes_wrappers  38207488         0
     NEW:     0.817513   0x7fa82347c940      1 BytesWrapper    test_cpymemtrace.py             296 make_bytes_wrappers  38207488         0
     NEW:     0.817602   0x7fa823701010      1 bytes           test_cpymemtrace.py             288 __init__             38207488         0
-    DEL:     0.817675   0x600003849540      0 frame           test_cpymemtrace.py             296 make_bytes_wrappers  38207488         0
     NEW:     0.817762   0x600001694d90      1 int             Python-3.13.2/Lib/random.py     340 randint              38207488         0
     NEW:     0.817885   0x600001694c90      1 int             Python-3.13.2/Lib/random.py     317 randrange            38207488         0
     8<---- Snip ---->8
     DEL:     0.818299   0x60000169c510      0 int             test_cpymemtrace.py             295 make_bytes_wrappers  38207488         0
     NEW:     0.818333   0x7fa81fafbe60      1 BytesWrapper    test_cpymemtrace.py             296 make_bytes_wrappers  38207488         0
     NEW:     0.818525   0x7fa823802010      1 bytes           test_cpymemtrace.py             288 __init__             38207488         0
-    DEL:     0.818701   0x6000038409e0      0 frame           test_cpymemtrace.py             296 make_bytes_wrappers  38207488         0
     DEL:     0.818776   0x60000169c210      0 range_iterator  test_cpymemtrace.py             294 make_bytes_wrappers  38207488         0
     DEL:     0.818860   0x7fa81fafbe60      0 BytesWrapper    test_cpymemtrace.py             300 make_bytes_wrappers  38207488         0
     DEL:     0.818875   0x7fa823802010      0 bytes           test_cpymemtrace.py             300 make_bytes_wrappers  38207488         0
@@ -342,10 +344,6 @@ First warnings:
 .. code-block:: text
 
     2026-03-18 11:51:12,278 - ref_trace_analyse.py#107 - WARNING  - DEL: on untracked object of type "builtin_function_or_method" at 0x60000670f980 on line 3
-    2026-03-18 11:51:12,278 - ref_trace_analyse.py#107 - WARNING  - DEL: on untracked object of type "frame" at 0x600007cc44d0 on line 13
-    2026-03-18 11:51:12,278 - ref_trace_analyse.py#107 - WARNING  - DEL: on untracked object of type "frame" at 0x7fa82347c930 on line 16
-    8<---- Snip ---->8
-    2026-03-18 11:51:12,280 - ref_trace_analyse.py#107 - WARNING  - DEL: on untracked object of type "frame" at 0x6000038409e0 on line 78
 
 Then live objects once the log has completed:
 
@@ -389,7 +387,6 @@ Then a table of the count of creations and deletions by type:
     BytesWrapper                                    4        4          0
     builtin_function_or_method                      4        5         -1
     bytes                                           4        4          0
-    frame                                           0       16        -16
     int                                            19       18          1
     8<---- Snip ---->8
     list                                            1        0          1
@@ -443,7 +440,18 @@ For example:
         pass
     # The log file "20241107_195847_11_62264_P_0_PY3.13.0b3.log" is closed.
 
-Or pictorially, when the inner reference tracer is active the linked list looks like this:
+Or pictorially, when the outer reference tracer is active the linked list looks like this:
+
+.. code-block:: text
+
+    List Node       File Name                                       File State
+    ---------       ---------                                       ----------
+
+    Head Node ----> "20241107_195847_11_62264_P_0_PY3.13.0b3.log"   Writing
+        |
+    NULL Node
+
+And when the inner reference tracer is active the linked list looks like this:
 
 .. code-block:: text
 
@@ -629,8 +637,6 @@ Decorators
 
 Often it is more convenient to use these as decorators of a particular function of interest.
 The decorators take the constructor arguments and will write to the appropriate file.
-Decorated functions that call other such decorated functions will behave appropriately with each registering
-the profiler and writing to its unique log file.
 
 For example:
 
@@ -681,6 +687,8 @@ Stacking Decorators
 ^^^^^^^^^^^^^^^^^^^
 
 Decorators allow a decorated function to call another decorated function.
+Decorated functions that call other such decorated functions will behave appropriately with each registering
+the profiler and writing to its unique log file.
 For example:
 
 .. code-block:: python

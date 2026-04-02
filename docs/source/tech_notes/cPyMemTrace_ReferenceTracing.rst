@@ -262,8 +262,16 @@ For example:
     `PyRefTracer_TRACKER_REMOVED <https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED>`_
     event that will cause this function, as written above, to be re-entrant.
 
+.. _tech_notes-cpymemtrace_reference_tracing_pytest:
+
 Issues with ``pytest``
 ----------------------
+
+.. note::
+
+    This section is included for historical interest as this problem, and others, has been avoided
+    by ignoring PyObject's that are of type "frame".
+    That was playing havoc with the Python runtime.
 
 ``pytest`` rewrites asserts and this can play havoc with a Reference Tracer.
 Consider this innocuous test:
