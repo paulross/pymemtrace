@@ -180,6 +180,11 @@ class LogFileResult:
         line_dict = self._parse_line(line_num, line)
         assert line_dict['HDR:'] == 'NEW:'
         obj_repr = self._create_object(line_num, line_dict)
+        if obj_repr.ref_cnt != 0:
+            logger.warning(
+                f'NEW: object has Reference count of {obj_repr.ref_cnt} instead of 1.'
+                f' Line: {line_num}'
+            )
         if obj_repr.address in self.live_objects:
             # raise ValueError(
             logger.error(
@@ -197,6 +202,11 @@ class LogFileResult:
         line_dict = self._parse_line(line_num, line)
         assert line_dict['HDR:'] == 'DEL:'
         obj_repr = self._create_object(line_num, line_dict)
+        if obj_repr.ref_cnt != 0:
+            logger.warning(
+                f'DEL: object has Reference count of {obj_repr.ref_cnt} instead of zero.'
+                f' Line: {line_num}'
+            )
         if obj_repr.address in self.live_objects:
             if obj_repr.address not in self.prev_objects:
                 self.prev_objects[obj_repr.address] = []
