@@ -1358,10 +1358,10 @@ static struct cReferenceTracingSimpleLinkedListNode *reference_tracing_simple_ll
  * @param linked_list The linked list.
  * @return The head node or NULL if the list is empty.
  */
-struct reference_tracing_simple_data *
-reference_tracing_simple_ll_get_data(struct cReferenceTracingSimpleLinkedListNode *linked_list) {
-    if (linked_list) {
-        return linked_list->data;
+static struct reference_tracing_simple_data *
+reference_tracing_simple_ll_get_data(void) {
+    if (reference_tracing_simple_ll) {
+        return reference_tracing_simple_ll->data;
     }
     return NULL;
 }
@@ -1372,21 +1372,18 @@ reference_tracing_simple_ll_get_data(struct cReferenceTracingSimpleLinkedListNod
  * @param linked_list The linked list reference_trace_wrappers.
  * @param node The node to add. The linked list takes ownership of this pointer.
  */
-void
-reference_tracing_simple_ll_push(
-        struct cReferenceTracingSimpleLinkedListNode **h_linked_list,
-        struct reference_tracing_simple_data *data
-) {
+static void
+reference_tracing_simple_ll_push(struct reference_tracing_simple_data *data) {
     struct cReferenceTracingSimpleLinkedListNode *new_node = malloc(
             sizeof(struct cReferenceTracingSimpleLinkedListNode)
     );
     new_node->data = data;
     new_node->next = NULL;
-    if (*h_linked_list) {
+    if (reference_tracing_simple_ll) {
         // Push to front.
-        new_node->next = *h_linked_list;
+        new_node->next = reference_tracing_simple_ll;
     }
-    *h_linked_list = new_node;
+    reference_tracing_simple_ll = new_node;
 }
 
 /**
@@ -1395,11 +1392,11 @@ reference_tracing_simple_ll_push(
  *
  * @param linked_list The linked list of <tt>struct cReferenceTracingLinkedListNode</tt>.
  */
-struct reference_tracing_simple_data *
-reference_tracing_simple_ll_pop(struct cReferenceTracingSimpleLinkedListNode **h_linked_list) {
-    assert(*h_linked_list);
-    struct cReferenceTracingSimpleLinkedListNode *tmp = *h_linked_list;
-    *h_linked_list = (*h_linked_list)->next;
+static struct reference_tracing_simple_data *
+reference_tracing_simple_ll_pop(void) {
+    assert(reference_tracing_simple_ll);
+    struct cReferenceTracingSimpleLinkedListNode *tmp = reference_tracing_simple_ll;
+    reference_tracing_simple_ll = reference_tracing_simple_ll->next;
     struct reference_tracing_simple_data *ret = tmp->data;
     free(tmp);
     /* NOTE: Caller has to fclose the ->log_file. */
@@ -1409,21 +1406,24 @@ reference_tracing_simple_ll_pop(struct cReferenceTracingSimpleLinkedListNode **h
     return ret;
 }
 
+#if 0
 /**
  * Return the length of the Reference Tracing linked list.
  *
  * @param linked_list The linked list.
  * @return The length of the linked list
  */
-size_t
-reference_tracing_simple_ll_length(struct cReferenceTracingSimpleLinkedListNode *p_linked_list) {
+static size_t
+reference_tracing_simple_ll_length(void) {
     size_t ret = 0;
+    struct cReferenceTracingSimpleLinkedListNode *p_linked_list = reference_tracing_simple_ll;
     while (p_linked_list) {
         ret++;
         p_linked_list = p_linked_list->next;
     }
     return ret;
 }
+#endif
 
 /**
  * The callback function that is passed to \c PyRefTracer_SetTracer.
@@ -1559,7 +1559,7 @@ cpyReferenceTracingSimple_enter(cpyReferenceTracingSimple *self) {
     }
 
     /* Push the data onto the head of the linked list. */
-    reference_tracing_simple_ll_push(&reference_tracing_simple_ll, self->data);
+    reference_tracing_simple_ll_push(self->data);
     /* Register the existing tracer. */
     if (PyRefTracer_SetTracer(&reference_tracing_simple_callback, self->data)) {
         return NULL;
@@ -1594,16 +1594,14 @@ cpyReferenceTracingSimple_exit(cpyReferenceTracingSimple *self, PyObject *Py_UNU
         // PyRefTracer_SetTracer() on __enter__
 
         /* Pops the node off the linked list. */
-        struct reference_tracing_simple_data *data = reference_tracing_simple_ll_pop(
-                &reference_tracing_simple_ll
-        );
+        struct reference_tracing_simple_data *data = reference_tracing_simple_ll_pop();
         assert(data == self->data);
         if (!data) {
             PyErr_SetString(PyExc_RuntimeError, "__exit__ when nothing is on the linked list.");
             return NULL;
         }
         /* Register the previous tracer from the linked list. */
-        data = reference_tracing_simple_ll_get_data(reference_tracing_simple_ll);
+        data = reference_tracing_simple_ll_get_data();
         if (data) {
             PyRefTracer_SetTracer(&reference_tracing_simple_callback, data);
         }
@@ -1669,9 +1667,7 @@ cpyReferenceTracingSimple_resume(void) {
         return NULL;
     }
     /* Get the current latest tracer. */
-    struct reference_tracing_simple_data *data = reference_tracing_simple_ll_get_data(
-            reference_tracing_simple_ll
-    );
+    struct reference_tracing_simple_data *data = reference_tracing_simple_ll_get_data();
     if (data) {
         /* Restore the Reference Tracer. */
         if (PyRefTracer_SetTracer(&reference_tracing_simple_callback, data)) {
@@ -1689,9 +1685,7 @@ static PyObject *
 cpyReferenceTracingSimple_count_new(void) {
     assert(!PyErr_Occurred());
     /* Get the current latest tracer. */
-    struct reference_tracing_simple_data *data = reference_tracing_simple_ll_get_data(
-            reference_tracing_simple_ll
-    );
+    struct reference_tracing_simple_data *data = reference_tracing_simple_ll_get_data();
     if (data) {
         return PyLong_FromLong(data->count_new);
     }
@@ -1707,9 +1701,7 @@ static PyObject *
 cpyReferenceTracingSimple_count_del(void) {
     assert(!PyErr_Occurred());
     /* Get the current latest tracer. */
-    struct reference_tracing_simple_data *data = reference_tracing_simple_ll_get_data(
-            reference_tracing_simple_ll
-    );
+    struct reference_tracing_simple_data *data = reference_tracing_simple_ll_get_data();
     if (data) {
         return PyLong_FromLong(data->count_del);
     }
