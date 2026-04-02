@@ -1848,10 +1848,10 @@ static struct cReferenceTracingLinkedListNode *reference_tracing_ll = NULL;
  * @param linked_list The linked list.
  * @return The head node or NULL if the list is empty.
  */
-struct reference_tracing_data *
-reference_tracing_ll_get_data(struct cReferenceTracingLinkedListNode *linked_list) {
-    if (linked_list) {
-        return linked_list->data;
+static struct reference_tracing_data *
+reference_tracing_ll_get_data(void) {
+    if (reference_tracing_ll) {
+        return reference_tracing_ll->data;
     }
     return NULL;
 }
@@ -1863,20 +1863,17 @@ reference_tracing_ll_get_data(struct cReferenceTracingLinkedListNode *linked_lis
  * @param node The node to add. The linked list takes ownership of this pointer.
  */
 void
-reference_tracing_ll_push(
-        struct cReferenceTracingLinkedListNode **h_linked_list,
-        struct reference_tracing_data *data
-) {
+reference_tracing_ll_push(struct reference_tracing_data *data) {
     struct cReferenceTracingLinkedListNode *new_node = malloc(
             sizeof(struct cReferenceTracingLinkedListNode)
     );
     new_node->data = data;
     new_node->next = NULL;
-    if (*h_linked_list) {
+    if (reference_tracing_ll) {
         // Push to front.
-        new_node->next = *h_linked_list;
+        new_node->next = reference_tracing_ll;
     }
-    *h_linked_list = new_node;
+    reference_tracing_ll = new_node;
 }
 
 /**
@@ -1885,11 +1882,11 @@ reference_tracing_ll_push(
  *
  * @param linked_list The linked list of <tt>struct cReferenceTracingLinkedListNode</tt>.
  */
-struct reference_tracing_data *
-reference_tracing_ll_pop(struct cReferenceTracingLinkedListNode **h_linked_list) {
-    assert(*h_linked_list);
-    struct cReferenceTracingLinkedListNode *tmp = *h_linked_list;
-    *h_linked_list = (*h_linked_list)->next;
+static struct reference_tracing_data *
+reference_tracing_ll_pop(void) {
+    assert(reference_tracing_ll);
+    struct cReferenceTracingLinkedListNode *tmp = reference_tracing_ll;
+    reference_tracing_ll = reference_tracing_ll->next;
     struct reference_tracing_data *ret = tmp->data;
     free(tmp);
     /* NOTE: Caller has to fclose the ->log_file. */
@@ -1905,9 +1902,10 @@ reference_tracing_ll_pop(struct cReferenceTracingLinkedListNode **h_linked_list)
  * @param linked_list The linked list.
  * @return The length of the linked list
  */
-size_t
-reference_tracing_ll_length(struct cReferenceTracingLinkedListNode *p_linked_list) {
+static size_t
+reference_tracing_ll_length(void) {
     size_t ret = 0;
+    struct cReferenceTracingLinkedListNode *p_linked_list = reference_tracing_ll;
     while (p_linked_list) {
         ret++;
         p_linked_list = p_linked_list->next;
@@ -2341,7 +2339,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
         new_log_filename = PyBytes_AS_STRING(self->py_specific_filename);
     } else {
         /* Default to a standard log file name in the current working directory. */
-        size_t ll_depth = reference_tracing_ll_length(reference_tracing_ll);
+        size_t ll_depth = reference_tracing_ll_length();
         int err_code = create_filename_within_cwd('O', ll_depth, file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH);
         if (err_code <= 0) {
             PyErr_Format(
@@ -2365,7 +2363,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
             );
 #endif
     /* Write suspension message in the old file. */
-    struct reference_tracing_data *data_old = reference_tracing_ll_get_data(reference_tracing_ll);
+    struct reference_tracing_data *data_old = reference_tracing_ll_get_data();
     if (data_old) {
         cpyReferenceTracing_write_c_message_to_log(
                 data_old, "Detaching this Reference Tracing file wrapper. New file:"
@@ -2392,7 +2390,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     );
 #endif // REFERENCE_TRACING_GET_SIZEOF
     /* Push the data onto the head of the linked list. */
-    reference_tracing_ll_push(&reference_tracing_ll, self->data);
+    reference_tracing_ll_push(self->data);
     /* Register the existing tracer. */
     if (PyRefTracer_SetTracer(&reference_trace_allocations_callback, self->data)) {
         return NULL;
@@ -2428,7 +2426,7 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
     }
     if (self->data) {
         /* Pops the node off the linked list. */
-        struct reference_tracing_data *data = reference_tracing_ll_pop(&reference_tracing_ll);
+        struct reference_tracing_data *data = reference_tracing_ll_pop();
         assert(data == self->data);
         if (!data) {
             PyErr_SetString(PyExc_RuntimeError, "__exit__ when nothing is on the linked list.");
@@ -2441,7 +2439,7 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
         fclose(self->data->log_file);
         self->data->log_file = NULL;
         /* Register the previous tracer from the linked list. */
-        data = reference_tracing_ll_get_data(reference_tracing_ll);
+        data = reference_tracing_ll_get_data();
         if (data) {
             /* Report re-attaching the reference tracer. */
             cpyReferenceTracing_write_c_message_to_log(data, "Re-attaching this trace file wrapper.");
@@ -2478,7 +2476,7 @@ cpyReferenceTracing_get_log_file_path(cpyReferenceTracing *self, PyObject *Py_UN
 static PyObject *
 cpyReferenceTracing_suspend(void) {
     assert(!PyErr_Occurred());
-    struct reference_tracing_data *data = reference_tracing_ll_get_data(reference_tracing_ll);
+    struct reference_tracing_data *data = reference_tracing_ll_get_data();
     if (!data) {
         PyErr_Format(
             PyExc_RuntimeError,
@@ -2547,7 +2545,7 @@ cpyReferenceTracing_resume(void) {
         return NULL;
     }
     /* Get the current latest tracer. */
-    struct reference_tracing_data *data = reference_tracing_ll_get_data(reference_tracing_ll);
+    struct reference_tracing_data *data = reference_tracing_ll_get_data();
     if (data) {
         cpyReferenceTracing_write_c_message_to_log(data, "Resuming reference tracing.");
         /* Restore the Reference Tracer. */
@@ -2572,9 +2570,7 @@ static PyObject *
 cpyReferenceTracing_count_new(void) {
     assert(!PyErr_Occurred());
     /* Get the current latest tracer. */
-    struct reference_tracing_data *data = reference_tracing_ll_get_data(
-            reference_tracing_ll
-    );
+    struct reference_tracing_data *data = reference_tracing_ll_get_data();
     if (data) {
         return PyLong_FromLong(data->count_new);
     }
@@ -2590,9 +2586,7 @@ static PyObject *
 cpyReferenceTracing_count_del(void) {
     assert(!PyErr_Occurred());
     /* Get the current latest tracer. */
-    struct reference_tracing_data *data = reference_tracing_ll_get_data(
-            reference_tracing_ll
-    );
+    struct reference_tracing_data *data = reference_tracing_ll_get_data();
     if (data) {
         return PyLong_FromLong(data->count_del);
     }
@@ -2710,7 +2704,7 @@ trace_wrapper_depth(void) {
 static PyObject *
 reference_tracing_wrapper_depth(void) {
     assert(!PyErr_Occurred());
-    return Py_BuildValue("n", reference_tracing_ll_length(reference_tracing_ll));
+    return Py_BuildValue("n", reference_tracing_ll_length());
 }
 
 #endif // #if REFERENCE_TRACING_AVAILABLE
