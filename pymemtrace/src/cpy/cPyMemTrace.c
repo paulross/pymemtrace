@@ -2013,6 +2013,9 @@ static char reference_tracing_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
  * Note that this suspends the Reference Tracer whilst calling gCPython functions that might allocate/deallocate
  * Python objects otherwise there will be infinite recursion as that will call this callback.
  *
+ * Objects of type "frame" are ignored as this causes great confusion with other trace functions, pytest
+ * and the Python runtime generally.
+ *
  * @param obj The Python object being created or destroyed.
  * @param event The event type
  * @param data The opaque data structure that is a <tt>struct reference_tracing_data</tt>.
@@ -2020,6 +2023,11 @@ static char reference_tracing_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
  */
 static int
 reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void *data) {
+    /* Ignore objects of type "frame" as this causes a lot of confusion within the Python runtime. */
+    if (strcmp(Py_TYPE(obj)->tp_name, "frame") == 0) {
+        return 0;
+    }
+
     assert(obj);
     assert(data);
     struct reference_tracing_data *data_alias = (struct reference_tracing_data *) data;
