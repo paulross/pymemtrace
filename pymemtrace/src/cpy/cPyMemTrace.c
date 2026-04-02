@@ -2469,9 +2469,22 @@ cpyReferenceTracing_get_log_file_path(cpyReferenceTracing *self, PyObject *Py_UN
  */
 static PyObject *
 cpyReferenceTracing_suspend(void) {
+    assert(!PyErr_Occurred());
     struct reference_tracing_data *data = reference_tracing_ll_get_data(reference_tracing_ll);
-    assert(data);
-    assert(data->log_file);
+    if (!data) {
+        PyErr_Format(
+            PyExc_RuntimeError,
+            "%s()#%d Head of list is NULL.", __FUNCTION__, __LINE__
+        );
+        return NULL;
+    }
+    if (!data->log_file) {
+        PyErr_Format(
+                PyExc_RuntimeError,
+                "%s()#%d Head of list, the file pointer is NULL.", __FUNCTION__, __LINE__
+        );
+        return NULL;
+    }
 
     cpyReferenceTracing_write_c_message_to_log(data, "Suspending reference tracing.");
     void *data_old = NULL;
@@ -2479,17 +2492,28 @@ cpyReferenceTracing_suspend(void) {
     PyRefTracer tracer_old = PyRefTracer_GetTracer(&data_old);
     /* Sanity check. */
     assert(data_old);
-    assert(data_old == data);
+    if (data_old != data) {
+        PyErr_Format(
+                PyExc_RuntimeError,
+                "%s()#%d Head of list tracer does not match the registered one.", __FUNCTION__, __LINE__
+        );
+        return NULL;
+    }
     assert(tracer_old);
     if (tracer_old != &reference_trace_allocations_callback) {
-        PyErr_SetString(
+        PyErr_Format(
                 PyExc_RuntimeError,
-                "PyRefTracer_GetTracer() return value is not the expected callback function."
+                "%s()#%d PyRefTracer_GetTracer() return value is not the expected callback function.",
+                __FUNCTION__, __LINE__
                 );
         return NULL;
     }
     if (PyRefTracer_SetTracer(NULL, NULL)) {
-        PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(NULL, NULL) failed.");
+        PyErr_Format(
+                PyExc_RuntimeError,
+                "%s()#%d PyRefTracer_SetTracer(NULL, NULL) failed.",
+                __FUNCTION__, __LINE__
+        );
         return NULL;
     }
     Py_RETURN_NONE;
@@ -2507,7 +2531,11 @@ cpyReferenceTracing_resume(void) {
      * a Reference Tracer still registered so this call should handle the
      * reference counts correctly. */
     if (PyRefTracer_SetTracer(NULL, NULL)) {
-        PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(NULL, NULL) failed.");
+        PyErr_Format(
+                PyExc_RuntimeError,
+                "%s()#%d PyRefTracer_SetTracer(NULL, NULL) failed.",
+                __FUNCTION__, __LINE__
+        );
         return NULL;
     }
     /* Get the current latest tracer. */
@@ -2517,6 +2545,11 @@ cpyReferenceTracing_resume(void) {
         /* Restore the Reference Tracer. */
         if (PyRefTracer_SetTracer(&reference_trace_allocations_callback, data)) {
             PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(tracer, data) failed.");
+            PyErr_Format(
+                    PyExc_RuntimeError,
+                    "%s()#%d PyRefTracer_SetTracer(tracer, data) failed.",
+                    __FUNCTION__, __LINE__
+            );
             return NULL;
         }
         cpyReferenceTracing_write_c_message_to_log(data, "Resuming reference tracing.");
@@ -2794,6 +2827,8 @@ PyInit_cPyMemTrace(void) {
     return m;
 }
 
+// MARK: Debug code.
+
 #if REFERENCE_TRACING_AVAILABLE
 
 struct simpletracer_data {
@@ -2998,7 +3033,7 @@ debug_cPyMemtrace(int argc, char **argv) {
         /* Context manager example:
          *  with cPyMemTrace.Profile(message=message) as profiler:
          *      # profiler will have refcount of 2, one from the ctor, one from __enter__.
-         *  # profiler has a refcount of 1 as __exit__ decrements self..
+         *  # profiler has a refcount of 1 as __exit__ decrements self.
          *  del profiler
          *  # profiler has a refcount of 0 and is deallocated.
          */
