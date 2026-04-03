@@ -228,6 +228,10 @@ class LogFileResult:
         """Add a line starting "MSG:"."""
         pass
 
+    def add_err(self, line_num: int, line: str) -> None:
+        """Add a line starting "ERR:"."""
+        logger.error(f'Line {line_num} {line}')
+
     def long_str_list(self, show_full_path: bool) -> typing.List[str]:
         """Return the analysis as a list of strings suitable for printing."""
         def _str_from_object_file(obj: ObjectData, show_full_path: bool) -> str:
@@ -318,6 +322,8 @@ def process_file(file: typing.TextIO, ignore_untracked: bool) -> LogFileResult:
                     result.add_del(line_num, line)
                 elif line.startswith('MSG:'):
                     result.add_msg(line_num, line)
+                elif line.startswith('ERR:'):
+                    result.add_err(line_num, line)
                 else:
                     logger.error(f'Line {line_num}: Can not process line "{line}"')
     return result

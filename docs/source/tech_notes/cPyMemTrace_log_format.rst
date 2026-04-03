@@ -282,7 +282,7 @@ The log file from the Reference Tracing object (Python 3.13+) has the following 
    * - ``SOF``
      - None
      - There will be only one of these at the start of the data.
-   * - ``HEDR:``
+   * - ``HDR:``
      - Space seperated list of column titles.
      - Example ``HDR:  Clock  Address  RefCnt Type  File  Line Function  RSS  dRSS``.
        Only one of these. This names the columns. See table below for a description of the columns.
@@ -292,10 +292,14 @@ The log file from the Reference Tracing object (Python 3.13+) has the following 
    * - ``DEL:``
      - When an object is deallocated.
      -
-   * - ``MESG:``
+   * - ``MSG:``
      - An arbitrary message.
      - This contains the ``Clock`` column (see table below) followed by the text message.
        The text message will be preceded with a "# " and any newlines in the message *will* be preserved.
+   * - ``ERR:``
+     - An arbitrary message.
+     - This contains the ``Clock`` column (see table below) followed by the text message.
+       The error message will be preceded with a "# " and any newlines in the message *will* be preserved.
    * - ``EOF``
      - None
      - The last line in the log file.

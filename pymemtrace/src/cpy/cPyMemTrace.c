@@ -2014,6 +2014,33 @@ sys_getsizeof(PyObject* Py_UNUSED(obj)) {
 static char reference_tracing_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
 
 /**
+ * Format and write a prefix and message to the log file.
+ * The prefix is typically "MSG" or "ERR"
+ *
+ * @param data The <tt>struct reference_tracing_data</tt>
+ * @param message The message.
+ * @return Number of bytes written.
+ */
+static int
+cpyReferenceTracing_write_c_prefix_and_message_to_log(struct reference_tracing_data *data, char *prefix, char *message) {
+    assert(data);
+    assert(data->log_file);
+    /* I suspect that this is undefined if the write buffer is the read buffer. */
+    assert(message != reference_tracing_event_text);
+
+    double clock_time = (double) clock() / CLOCKS_PER_SEC;
+    int ret = snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+                       "%s: %12.6f # %s",
+                       prefix,
+                       clock_time,
+                       message
+    );
+    fputs((const char *) reference_tracing_event_text, data->log_file);
+    fputc('\n', data->log_file);
+    return ret;
+}
+
+/**
  * Format and write a message to the log file.
  *
  * @param data The <tt>struct reference_tracing_data</tt>
@@ -2022,21 +2049,19 @@ static char reference_tracing_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
  */
 static int
 cpyReferenceTracing_write_c_message_to_log(struct reference_tracing_data *data, char *message) {
-    assert(data);
-    assert(data->log_file);
-    /* I suspect that this is undefined if the write buffer is the read buffer. */
-    assert(message != reference_tracing_event_text);
+    return cpyReferenceTracing_write_c_prefix_and_message_to_log(data, "MSG", message);
+}
 
-    double clock_time = (double) clock() / CLOCKS_PER_SEC;
-    int ret = snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-                       "%s %12.6f # %s",
-                       "MSG:",
-                       clock_time,
-                       message
-    );
-    fputs((const char *) reference_tracing_event_text, data->log_file);
-    fputc('\n', data->log_file);
-    return ret;
+/**
+ * Format and write an error message to the log file.
+ *
+ * @param data The <tt>struct reference_tracing_data</tt>
+ * @param message The error message.
+ * @return Number of bytes written.
+ */
+static int
+cpyReferenceTracing_write_c_error_message_to_log(struct reference_tracing_data *data, char *message) {
+    return cpyReferenceTracing_write_c_prefix_and_message_to_log(data, "ERR", message);
 }
 
 /**
@@ -2078,28 +2103,6 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     }
 
     const int ERROR_CODE = -1;
-    /* Write the event type. */
-    if (event == PyRefTracer_CREATE) {
-        // Write the creation of an object.
-        fputs("NEW:", data_alias->log_file);
-        data_alias->count_new++;
-    } else if (event == PyRefTracer_DESTROY) {
-        // Write the destruction of an object.
-        fputs("DEL:", data_alias->log_file);
-        data_alias->count_del++;
-#if 0 // Python 3.14 does not seem to support this so cancel support for this event.
-#if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
-        } else if (event == PyRefTracer_TRACKER_REMOVED) {
-            // Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
-            // call (below) will trigger a call to this callback function.
-            // fputs("REM", the_data->log_file);
-            return 0;
-#endif // #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
-#endif // 0
-    } else {
-        // Ignore unknown events instead of Py_UNREACHABLE();
-    }
-    /* Write the rest of the event line. */
     double clock_time = (double) clock() / CLOCKS_PER_SEC;
     /* RSS stuff. */
     size_t rss = getCurrentRSS_alternate();
@@ -2119,9 +2122,35 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     if (PyRefTracer_SetTracer(NULL, NULL)) {
         /* Do not set an exception.
          * See: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer */
-        fprintf(stderr, "PyRefTracer_SetTracer(NULL, NULL) failed.\n");
+//        fprintf(stderr, "PyRefTracer_SetTracer(NULL, NULL) failed.\n");
+        cpyReferenceTracing_write_c_error_message_to_log(
+                data_alias,
+                "PyRefTracer_SetTracer(NULL, NULL) failed."
+        );
         return ERROR_CODE;
     }
+    /* Write the event type. */
+    if (event == PyRefTracer_CREATE) {
+        // Write the creation of an object.
+        fputs("NEW:", data_alias->log_file);
+        data_alias->count_new++;
+    } else if (event == PyRefTracer_DESTROY) {
+        // Write the destruction of an object.
+        fputs("DEL:", data_alias->log_file);
+        data_alias->count_del++;
+#if 0 // Python 3.14 does not support this so cancel support for this event.
+        #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
+        } else if (event == PyRefTracer_TRACKER_REMOVED) {
+            // Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
+            // call (below) will trigger a call to this callback function.
+            // fputs("REM", the_data->log_file);
+            return 0;
+#endif // #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
+#endif // 0
+    } else {
+        // Ignore unknown events instead of Py_UNREACHABLE();
+    }
+    /* Write the rest of the event line. */
     /* Now we can call into Python code. */
     PyFrameObject *frame = PyEval_GetFrame();
     Py_XINCREF(frame);
@@ -2184,7 +2213,11 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     if (PyRefTracer_SetTracer(tracer_old, data_old)) {
         /* Do not set an exception.
          * See: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer */
-        fprintf(stderr, "PyRefTracer_SetTracer(tracer_old, data_old) failed.\n");
+        cpyReferenceTracing_write_c_error_message_to_log(
+                data_alias,
+                "PyRefTracer_SetTracer(tracer_old, data_old) failed."
+        );
+//        fprintf(stderr, "PyRefTracer_SetTracer(tracer_old, data_old) failed.\n");
         return ERROR_CODE;
     }
     return 0;
