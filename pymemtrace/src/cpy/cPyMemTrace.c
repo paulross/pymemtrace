@@ -2291,7 +2291,7 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
 }
 
 /**
- * Initialise the Reference Tracer, open the log file and write the preamble.
+ * Initialise the Reference Tracer.
  *
  * @param self
  * @param args
