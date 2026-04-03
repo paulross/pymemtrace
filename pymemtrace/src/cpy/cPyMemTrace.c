@@ -1807,8 +1807,7 @@ static PyTypeObject cpyReferenceTracingSimpleType = {
 struct reference_tracing_data {
     /* File name will be const char *create_filename('O', int reference_tracing_data_depth) */
     FILE *log_file;
-    /* These counters give an overall state of the allocations and de-allocations.
-     * On __exit__ these will be reported to the log file. */
+    /* These counters give an overall state of the allocations and de-allocations. */
     size_t count_new;
     size_t count_del;
     /* Allow computation of dRSS. */
