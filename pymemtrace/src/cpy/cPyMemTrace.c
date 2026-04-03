@@ -820,7 +820,7 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
             }
         }
 #if DEBUG
-        fprintf(stdout, "DEBUG: Profile/Trace opening log file %s\n", file_path_buffer);
+        fprintf(stdout, "DEBUG: Profile/Trace opening log file \"%s\"\n", file_path_buffer);
 #endif
         trace_wrapper->file = fopen(file_path_buffer, "w");
         if (trace_wrapper->file) {
@@ -2405,20 +2405,13 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
         new_log_filename = file_path_buffer;
     }
 #if DEBUG
-    fprintf(stdout, "DEBUG: Referenc Tracing opening log file %s\n", new_log_filename);
+    fprintf(stdout, "DEBUG: Reference Tracing opening log file \"%s\"\n", new_log_filename);
 #endif
     self->data->log_file = fopen(new_log_filename, "w");
     if (!self->data->log_file) {
         PyErr_Format(PyExc_IOError, "Can not open log file %s", new_log_filename);
         return NULL;
     }
-#if DEBUG
-    fprintf(
-            stdout,
-            "DEBUG: Reference Tracing opening log file \"%s\"\n",
-            PyBytes_AS_STRING(self->py_specific_filename)
-            );
-#endif
     /* Write suspension message in the old file. */
     struct reference_tracing_data *data_old = reference_tracing_ll_get_data();
     if (data_old) {
