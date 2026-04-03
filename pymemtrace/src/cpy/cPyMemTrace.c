@@ -1406,9 +1406,8 @@ reference_tracing_simple_ll_pop(void) {
     return ret;
 }
 
-#if 0
 /**
- * Return the length of the Reference Tracing linked list.
+ * Return the length of the Reference Tracing Simple linked list.
  *
  * @param linked_list The linked list.
  * @return The length of the linked list
@@ -1423,7 +1422,6 @@ reference_tracing_simple_ll_length(void) {
     }
     return ret;
 }
-#endif
 
 /**
  * The callback function that is passed to \c PyRefTracer_SetTracer.
@@ -2694,6 +2692,12 @@ trace_wrapper_depth(void) {
 #if REFERENCE_TRACING_AVAILABLE
 
 static PyObject *
+reference_tracing_simple_wrapper_depth(void) {
+    assert(!PyErr_Occurred());
+    return Py_BuildValue("n", reference_tracing_simple_ll_length());
+}
+
+static PyObject *
 reference_tracing_wrapper_depth(void) {
     assert(!PyErr_Occurred());
     return Py_BuildValue("n", reference_tracing_ll_length());
@@ -2727,6 +2731,12 @@ static PyMethodDef cPyMemTraceMethods[] = {
                 "Return the depth of the trace wrapper stack.",
         },
 #if REFERENCE_TRACING_AVAILABLE
+        {
+                "reference_tracing_simple_wrapper_depth",
+                (PyCFunction) reference_tracing_simple_wrapper_depth,
+                METH_NOARGS,
+                "Return the depth of the Reference Tracing Simple wrapper stack.",
+        },
         {
                 "reference_tracing_wrapper_depth",
                 (PyCFunction) reference_tracing_wrapper_depth,
