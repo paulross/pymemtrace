@@ -2404,6 +2404,9 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
         self->py_specific_filename = (PyObject *) PyBytes_FromString(file_path_buffer);
         new_log_filename = file_path_buffer;
     }
+#if DEBUG
+    fprintf(stdout, "DEBUG: Referenc Tracing opening log file %s\n", new_log_filename);
+#endif
     self->data->log_file = fopen(new_log_filename, "w");
     if (!self->data->log_file) {
         PyErr_Format(PyExc_IOError, "Can not open log file %s", new_log_filename);
