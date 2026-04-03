@@ -1453,7 +1453,7 @@ reference_tracing_simple_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent eve
     return 0;
 }
 
-// MARK: cpyReferenceTracing object
+// MARK: cpyReferenceTracingSimple object
 
 /**
  * The Python Reference Tracing Simple wrapper.
@@ -1903,10 +1903,30 @@ reference_tracing_ll_length(void) {
     return ret;
 }
 
+// MARK: cpyReferenceTracing object
+
 static const char NO_FUNCTION_NAME[] = "<no function name>";
 #if 0
 static const char NO_FILE_NAME[] = "<no file name>";
 #endif
+
+/**
+ * From Python/object.h:
+ *
+ * @code
+ *  PyRefTracer_CREATE = 0,
+ *  PyRefTracer_DESTROY = 1,
+ *  PyRefTracer_TRACKER_REMOVED = 2,
+ * @endcode
+ *
+ * Note: PyRefTracer_TRACKER_REMOVED is Python 3.15+
+ */
+static const char *REFERENCE_TRACING_EVENT_NAME_STRINGS[] = {
+        "PyRefTracer_CREATE",
+        "PyRefTracer_DESTROY",
+        /* Python 3.15+ */
+        "PyRefTracer_TRACKER_REMOVED",
+};
 
 #define REFERENCE_TRACING_GET_SIZEOF 0
 #define REFERENCE_TRACING_GET_SIZEOF_TRACE 1
@@ -1993,6 +2013,31 @@ sys_getsizeof(PyObject* Py_UNUSED(obj)) {
  */
 static char reference_tracing_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
 
+/**
+ * Format and write a message to the log file.
+ *
+ * @param data The <tt>struct reference_tracing_data</tt>
+ * @param message The message.
+ * @return Number of bytes written.
+ */
+static int
+cpyReferenceTracing_write_c_message_to_log(struct reference_tracing_data *data, char *message) {
+    assert(data);
+    assert(data->log_file);
+    /* I suspect that this is undefined if the write buffer is the read buffer. */
+    assert(message != reference_tracing_event_text);
+
+    double clock_time = (double) clock() / CLOCKS_PER_SEC;
+    int ret = snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+                       "%s %12.6f # %s",
+                       "MSG:",
+                       clock_time,
+                       message
+    );
+    fputs((const char *) reference_tracing_event_text, data->log_file);
+    fputc('\n', data->log_file);
+    return ret;
+}
 
 /**
  * The callback function that is passed to \c PyRefTracer_SetTracer.
@@ -2011,15 +2056,26 @@ static char reference_tracing_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
  */
 static int
 reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void *data) {
-    /* Ignore objects of type "frame" as this causes a lot of confusion within the Python runtime. */
-    if (strcmp(Py_TYPE(obj)->tp_name, "frame") == 0) {
-        return 0;
-    }
-
     assert(obj);
     assert(data);
     struct reference_tracing_data *data_alias = (struct reference_tracing_data *) data;
     assert(data_alias->log_file);
+    assert(event >= 0 && event <= 3);
+
+    /* Ignore objects of type "frame" as this causes a lot of confusion within the Python runtime. */
+    if (PyFrame_Check(obj)) {
+        static char reference_tracing_frame_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
+        snprintf(reference_tracing_frame_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+                 "Ignoring frame object at %16p Ref count %16ld File: %-80s Line: %4d Event: %s",
+                 (void *) obj,
+                 Py_REFCNT(obj),
+                 get_python_file_name((PyFrameObject *)obj),
+                 py_frame_get_line_number((PyFrameObject *)obj),
+                 REFERENCE_TRACING_EVENT_NAME_STRINGS[event]
+        );
+        cpyReferenceTracing_write_c_message_to_log(data_alias, reference_tracing_frame_event_text);
+        return 0;
+    }
 
     const int ERROR_CODE = -1;
     /* Write the event type. */
@@ -2134,7 +2190,6 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     return 0;
 }
 
-// MARK: cpyReferenceTracing object
 /**
  * The Python Reference Tracing wrapper.
  */
@@ -2251,30 +2306,6 @@ static PyMemberDef cpyReferenceTracing_members[] = {
 };
 
 // MARK: - cpyReferenceTracing methods
-
-/**
- * Format and write a message to the log file.
- *
- * @param data The <tt>struct reference_tracing_data</tt>
- * @param message The message.
- * @return Number of bytes written.
- */
-static int
-cpyReferenceTracing_write_c_message_to_log(struct reference_tracing_data *data, char *message) {
-    assert(data);
-    assert(data->log_file);
-
-    double clock_time = (double) clock() / CLOCKS_PER_SEC;
-    int ret = snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-                       "%s %12.6f # %s",
-                       "MSG:",
-                       clock_time,
-                       message
-    );
-    fputs((const char *) reference_tracing_event_text, data->log_file);
-    fputc('\n', data->log_file);
-    return ret;
-}
 
 /**
  * Write any string to the existing logfile.

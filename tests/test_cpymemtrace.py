@@ -51,6 +51,7 @@ def test_module_dir_post_313():
         '__package__',
         '__spec__',
         'profile_wrapper_depth',
+        'reference_tracing_simple_wrapper_depth',
         'reference_tracing_wrapper_depth',
         'rss',
         'rss_peak',
