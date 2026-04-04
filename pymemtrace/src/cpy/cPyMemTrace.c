@@ -1286,9 +1286,13 @@ static PyTypeObject cpyTraceObjectType = {
 #define REFERENCE_TRACING_AVAILABLE PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
 
 /**
+ * Note: The Python documentation wrongly states that \c PyRefTracer_TRACKER_REMOVED
+ * was added in Python 3.14.
+ * It was added in Python 3.15.
+ *
  * See: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED
  */
-#define REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 14
+#define REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 15
 
 // MARK: ReferenceTracingSimple
 
@@ -2101,6 +2105,19 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
         return 0;
     }
 
+#if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
+    if (event == PyRefTracer_TRACKER_REMOVED) {
+        /* Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
+         * call (below) will trigger a call to this callback function.
+         * We clould guard against this by checking the result of
+         * PyRefTracer_GetTracer with some more logic but we are not that interested
+         * in removing tracers at this level.
+         * That is handled by the context managers (and decorators).
+         */
+        return 0;
+    }
+#endif // #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
+
     const int ERROR_CODE = -1;
     double clock_time = (double) clock() / CLOCKS_PER_SEC;
     /* RSS stuff. */
@@ -2137,17 +2154,9 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
         // Write the destruction of an object.
         fputs("DEL:", data_alias->log_file);
         data_alias->count_del++;
-#if 0 // Python 3.14 does not support this so cancel support for this event.
-        #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
-        } else if (event == PyRefTracer_TRACKER_REMOVED) {
-            // Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
-            // call (below) will trigger a call to this callback function.
-            // fputs("REM", the_data->log_file);
-            return 0;
-#endif // #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
-#endif // 0
     } else {
-        // Ignore unknown events instead of Py_UNREACHABLE();
+        // Unknown event. Note PyRefTracer_TRACKER_REMOVED is handled above.
+        Py_UNREACHABLE();
     }
     /* Write the rest of the event line. */
     /* Now we can call into Python code. */
