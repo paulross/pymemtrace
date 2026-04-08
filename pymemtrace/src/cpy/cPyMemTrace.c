@@ -162,12 +162,12 @@ static const char *WHAT_STRINGS[] = {
 /**
  * Empty unsigned char string placeholder.
  */
-static const unsigned char MT_U_STRING[] = "";
+//static const unsigned char MT_U_STRING[] = "";
 
 /**
  * Empty char string placeholder.
  */
-static const char MT_STRING[] = "";
+//static const char MT_STRING[] = "";
 
 /**
  * Extracts a pointer to the Python file name within the frame.
@@ -175,18 +175,27 @@ static const char MT_STRING[] = "";
  * @param frame The Python frame.
  * @return A pointer to the Python file name or an empty string on failure.
  */
-static const unsigned char *
-get_python_file_name(PyFrameObject *frame) {
+static const char *
+py_frame_get_python_file_name(PyFrameObject *Py_UNUSED(frame)) {
+    return NULL;
+#if 0
+    static char file_name[PYMEMTRACE_FILE_NAME_MAX_LENGTH];
+    file_name[0] = '\0';
     if (frame) {
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
         /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
-        const unsigned char *file_name = PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_filename);
+//        const unsigned char *file_name = PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_filename);
+        PyCodeObject *code_obj = PyFrame_GetCode(frame);
+        if (code_obj) {
+            strcpy(file_name, (const char *) PyUnicode_1BYTE_DATA(code_obj->co_filename));
+        }
+        Py_XDECREF(code_obj);
 #else
         const unsigned char *file_name = PyUnicode_1BYTE_DATA(frame->f_code->co_filename);
 #endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-        return file_name;
     }
-    return MT_U_STRING;
+    return file_name;
+#endif
 }
 
 /**
@@ -198,22 +207,60 @@ get_python_file_name(PyFrameObject *frame) {
  * @return A pointer to the Python function name or an empty string on failure.
  */
 static const char *
-get_python_function_name(PyFrameObject *frame, int what, PyObject *arg) {
-    const char *func_name = NULL;
+py_frame_get_python_function_name_with_profile_trace_args(PyFrameObject *frame, int what, PyObject *arg) {
+    static char func_name[PYMEMTRACE_FUNCTION_NAME_MAX_LENGTH];
+    func_name[0] = '\0';
     if (frame) {
+        assert(PyFrame_Check(frame));
         if (what == PyTrace_C_CALL || what == PyTrace_C_EXCEPTION || what == PyTrace_C_RETURN) {
-            func_name = PyEval_GetFuncName(arg);
+            strcpy(func_name, PyEval_GetFuncName(arg));
         } else {
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
             /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
-            func_name = (const char *) PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_name);
+            PyCodeObject *code_obj = PyFrame_GetCode(frame);
+            if (code_obj) {
+                strcpy(func_name, (const char *) PyUnicode_1BYTE_DATA(code_obj->co_name));
+            }
+            Py_XDECREF(code_obj);
 #else
-            func_name = (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name);
+            if (frame->f_code) {
+            strcpy(func_name, (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name));
+        }
 #endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
         }
-        return func_name;
     }
-    return MT_STRING;
+    return func_name;
+}
+
+/**
+ * Returns the function name in a static C buffer.
+ *
+ * @param frame
+ * @return
+ */
+static const char *
+py_frame_get_python_function_name(PyFrameObject *frame) {
+    static char func_name[PYMEMTRACE_FUNCTION_NAME_MAX_LENGTH];
+//    func_name[0] = '\0';
+    strcpy(func_name, "<UNKNOWN_FUNCTION_NAME>");
+    if (frame) {
+        assert(PyFrame_Check(frame));
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+        /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding
+         * Note: PyFrame_GetCode returns a strong reference.
+         * See: https://docs.python.org/3/c-api/frame.html#c.PyFrame_GetCode */
+        PyCodeObject *code_obj = PyFrame_GetCode(frame);
+        if (code_obj) {
+            strcpy(func_name, (const char *) PyUnicode_1BYTE_DATA(code_obj->co_name));
+        }
+        Py_XDECREF(code_obj);
+#else
+        if (frame->f_code) {
+            strcpy(func_name, (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name));
+        }
+#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+    }
+    return func_name;
 }
 
 /**
@@ -224,6 +271,7 @@ get_python_function_name(PyFrameObject *frame, int what, PyObject *arg) {
  */
 int py_frame_get_line_number(PyFrameObject *frame) {
     if (frame) {
+        assert(PyFrame_Check(frame));
         return PyFrame_GetLineNumber(frame);
     }
     return 0;
@@ -289,14 +337,17 @@ trace_wrapper_write_frame_data_to_event_text(cpyTraceFileWrapper *trace_wrapper,
     snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
              "%-12zu +%-6ld %-12.6f %-8s %-80s %4d %-32s %12zu %12ld",
              trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
-             clock_time, WHAT_STRINGS[what], get_python_file_name(frame), py_frame_get_line_number(frame),
-             get_python_function_name(frame, what, arg), rss, d_rss);
+             clock_time, WHAT_STRINGS[what],
+             py_frame_get_python_file_name(frame),
+             py_frame_get_line_number(frame),
+             py_frame_get_python_function_name_with_profile_trace_args(frame, what, arg),
+             rss, d_rss);
 #else
     snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
              "%-12zu +%-6ld %-8s %-80s %4d %-32s %12zu %12ld",
              trace_wrapper->event_number, trace_wrapper->event_number - trace_wrapper->previous_event_number,
-             WHAT_STRINGS[what], get_python_file_name(frame), py_frame_get_line_number(frame),
-             get_python_function_name(frame, what, arg), rss, d_rss);
+             WHAT_STRINGS[what], py_frame_get_python_file_name(frame), py_frame_get_line_number(frame),
+             py_frame_get_python_function_name(frame, what, arg), rss, d_rss);
 #endif // PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(trace_wrapper);
 }
@@ -1908,8 +1959,8 @@ reference_tracing_ll_length(void) {
 
 // MARK: cpyReferenceTracing object
 
-static const char NO_FUNCTION_NAME[] = "<no function name>";
 #if 0
+static const char NO_FUNCTION_NAME[] = "<no function name>";
 static const char NO_FILE_NAME[] = "<no file name>";
 #endif
 
@@ -2097,13 +2148,20 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
                  "Ignoring frame object at %16p Ref count %16ld File: %-80s Line: %4d Event: %s",
                  (void *) obj,
                  Py_REFCNT(obj),
-                 get_python_file_name((PyFrameObject *)obj),
-                 py_frame_get_line_number((PyFrameObject *)obj),
+//                 py_frame_get_python_file_name((PyFrameObject *)obj),
+                 "WTF frame...",
+//                 py_frame_get_line_number((PyFrameObject *)obj),
+                 -1,
                  REFERENCE_TRACING_EVENT_NAME_STRINGS[event]
         );
         cpyReferenceTracing_write_c_message_to_log(data_alias, reference_tracing_frame_event_text);
         return 0;
     }
+//    fprintf(
+//            data_alias->log_file,
+//            "%s()%d DEBUG TYPE is %s\n",
+//            __FUNCTION__, __LINE__, Py_TYPE(obj)->tp_name
+//            );
 
 #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
     if (event == PyRefTracer_TRACKER_REMOVED) {
@@ -2162,18 +2220,8 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     /* Now we can call into Python code. */
     PyFrameObject *frame = PyEval_GetFrame();
     Py_XINCREF(frame);
-    /* Get the function name. This does not use get_python_function_name(). */
-    const char *func_name = NULL;
-    if (frame) {
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-        /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
-        func_name = (const char *) PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_name);
-#else
-        func_name = (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name);
-#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-    } else {
-        func_name = NO_FUNCTION_NAME;
-    }
+    /* Get the function name. This does not use get_python_function_name()
+     * as that needs a profile/trace event "what" and a PyObject *argument. */
 #if REFERENCE_TRACING_GET_SIZEOF
     long object_size = sys_getsizeof(obj);
     // Should match:
@@ -2187,7 +2235,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
              Py_REFCNT(obj),
              object_size,
              Py_TYPE(obj)->tp_name,
-             get_python_file_name(frame),
+             py_frame_get_python_file_name(frame),
              py_frame_get_line_number(frame),
              func_name,
              rss,
@@ -2204,9 +2252,11 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
              (void *) obj,
              Py_REFCNT(obj),
              Py_TYPE(obj)->tp_name,
-             get_python_file_name(frame),
-             py_frame_get_line_number(frame),
-             func_name,
+//             py_frame_get_python_file_name(frame),
+             "WTF...",
+//             py_frame_get_line_number(frame),
+             -2,
+             py_frame_get_python_function_name(frame),
              rss,
              d_rss
     );
@@ -3167,6 +3217,14 @@ debug_cPyMemtrace(int argc, char **argv) {
     printf("sys_getsizeof() result: %ld\n", getsize);
     Py_DECREF(bytes_obj);
 #endif
+
+    PyFrameObject *frame = PyEval_GetFrame();
+    if (frame) {
+        PyCodeObject *a = PyFrame_GetCode(frame);
+        PyObject_Print((PyObject *)a, stdout, Py_PRINT_RAW);
+        PyCodeObject *b = PyFrame_GetCode(frame);
+        PyObject_Print((PyObject *)b, stdout, Py_PRINT_RAW);
+    }
 
     /* Cleanup. */
     PyConfig_Clear(&config);

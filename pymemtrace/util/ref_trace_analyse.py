@@ -181,7 +181,7 @@ class LogFileResult:
         assert line_dict['HDR:'] == 'NEW:'
         obj_repr = self._create_object(line_num, line_dict)
         if obj_repr.ref_cnt != 1:
-            logger.warning(
+            logger.debug(
                 f'NEW: object type "{obj_repr.type}"'
                 f' has Reference count of {obj_repr.ref_cnt} instead of unity.'
                 f' Line: {line_num}'
@@ -204,7 +204,7 @@ class LogFileResult:
         assert line_dict['HDR:'] == 'DEL:'
         obj_repr = self._create_object(line_num, line_dict)
         if obj_repr.ref_cnt != 0:
-            logger.warning(
+            logger.debug(
                 f'DEL: object type "{obj_repr.type}"'
                 f' has Reference count of {obj_repr.ref_cnt} instead of zero.'
                 f' Line: {line_num}'
@@ -304,6 +304,8 @@ def process_file(file: typing.TextIO, ignore_untracked: bool) -> LogFileResult:
     has_sof = False
     for l, line in enumerate(file):
         line_num = l + 1
+        if line_num % 10000 == 0:
+            logger.info(f'Reading line {line_num:16,d}')
         assert line.endswith('\n')
         if line == 'SOF\n':
             has_sof = True

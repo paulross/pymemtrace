@@ -7,6 +7,7 @@
 
 #define PYMEMTRACE_PATH_NAME_MAX_LENGTH 4096
 #define PYMEMTRACE_FILE_NAME_MAX_LENGTH 1024
+#define PYMEMTRACE_FUNCTION_NAME_MAX_LENGTH 1024
 
 char *create_filename(char trace_type, size_t trace_stack_depth);
 const char *current_working_directory(void);
