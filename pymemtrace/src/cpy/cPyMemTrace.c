@@ -2119,6 +2119,37 @@ cpyReferenceTracing_write_c_error_message_to_log(struct reference_tracing_data *
 }
 
 /**
+ * Returns non-zero if the Python object is one of the selected builtins.
+ *
+ * @param op
+ * @return
+ */
+static int
+reference_trace_is_builtin(PyObject *op) {
+    if (
+            0
+            /* Structural */
+            || PyFrame_Check(op)
+            || PyCode_Check(op)
+            /* Numeric */
+            || PyFloat_Check(op)
+            || PyLong_Check(op)
+            /* Common */
+            || PyUnicode_Check(op)
+            || PyBytes_Check(op)
+            || PyTuple_Check(op)
+            || PyList_Check(op)
+            || PyDict_Check(op)
+            || PySet_Check(op)
+            /* Other. */
+            || PyExceptionInstance_Check(op)
+            ) {
+        return 1;
+    }
+    return 0;
+}
+
+/**
  * The callback function that is passed to \c PyRefTracer_SetTracer.
  * This writes to the log file.
  *
@@ -2136,10 +2167,15 @@ cpyReferenceTracing_write_c_error_message_to_log(struct reference_tracing_data *
 static int
 reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void *data) {
     assert(obj);
+    if (reference_trace_is_builtin(obj)) {
+        return 0;
+    }
+
     assert(data);
     struct reference_tracing_data *data_alias = (struct reference_tracing_data *) data;
     assert(data_alias->log_file);
     assert(event >= 0 && event <= 3);
+
 
     /* Ignore objects of type "frame" as this causes a lot of confusion within the Python runtime. */
     if (PyFrame_Check(obj)) {
