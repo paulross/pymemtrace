@@ -169,6 +169,12 @@ static const char *WHAT_STRINGS[] = {
  */
 //static const char MT_STRING[] = "";
 
+#if 0
+static const char *
+py_frame_get_python_file_name(PyFrameObject *Py_UNUSED(frame)) {
+    return NULL;
+}
+#endif
 /**
  * Extracts a pointer to the Python file name within the frame.
  *
@@ -176,14 +182,16 @@ static const char *WHAT_STRINGS[] = {
  * @return A pointer to the Python file name or an empty string on failure.
  */
 static const char *
-py_frame_get_python_file_name(PyFrameObject *Py_UNUSED(frame)) {
-    return NULL;
-#if 0
+py_frame_get_python_file_name(PyFrameObject *frame) {
     static char file_name[PYMEMTRACE_FILE_NAME_MAX_LENGTH];
-    file_name[0] = '\0';
+//    file_name[0] = '\0';
+    strcpy(file_name, "<UNKNOWN_FILE_NAME>");
     if (frame) {
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-        /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
+        /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding
+         * Note: PyFrame_GetCode returns a strong reference.
+         * See: https://docs.python.org/3/c-api/frame.html#c.PyFrame_GetCode
+         * */
 //        const unsigned char *file_name = PyUnicode_1BYTE_DATA(PyFrame_GetCode(frame)->co_filename);
         PyCodeObject *code_obj = PyFrame_GetCode(frame);
         if (code_obj) {
@@ -195,7 +203,6 @@ py_frame_get_python_file_name(PyFrameObject *Py_UNUSED(frame)) {
 #endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
     }
     return file_name;
-#endif
 }
 
 /**
@@ -209,14 +216,18 @@ py_frame_get_python_file_name(PyFrameObject *Py_UNUSED(frame)) {
 static const char *
 py_frame_get_python_function_name_with_profile_trace_args(PyFrameObject *frame, int what, PyObject *arg) {
     static char func_name[PYMEMTRACE_FUNCTION_NAME_MAX_LENGTH];
-    func_name[0] = '\0';
+//    func_name[0] = '\0';
+    strcpy(func_name, "<UNKNOWN_FUNCTION_NAME>");
     if (frame) {
         assert(PyFrame_Check(frame));
         if (what == PyTrace_C_CALL || what == PyTrace_C_EXCEPTION || what == PyTrace_C_RETURN) {
             strcpy(func_name, PyEval_GetFuncName(arg));
         } else {
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-            /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding */
+            /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding
+             * Note: PyFrame_GetCode returns a strong reference.
+             * See: https://docs.python.org/3/c-api/frame.html#c.PyFrame_GetCode
+             * */
             PyCodeObject *code_obj = PyFrame_GetCode(frame);
             if (code_obj) {
                 strcpy(func_name, (const char *) PyUnicode_1BYTE_DATA(code_obj->co_name));
@@ -224,8 +235,8 @@ py_frame_get_python_function_name_with_profile_trace_args(PyFrameObject *frame, 
             Py_XDECREF(code_obj);
 #else
             if (frame->f_code) {
-            strcpy(func_name, (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name));
-        }
+                strcpy(func_name, (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name));
+            }
 #endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
         }
     }
@@ -1867,6 +1878,7 @@ struct reference_tracing_data {
     size_t count_del;
     /* Allow computation of dRSS. */
     size_t rss;
+    int include_builtins;
 };
 
 /**
@@ -2128,9 +2140,6 @@ static int
 reference_trace_is_builtin(PyObject *op) {
     if (
             0
-            /* Structural */
-            || PyFrame_Check(op)
-            || PyCode_Check(op)
             /* Numeric */
             || PyFloat_Check(op)
             || PyLong_Check(op)
@@ -2141,6 +2150,9 @@ reference_trace_is_builtin(PyObject *op) {
             || PyList_Check(op)
             || PyDict_Check(op)
             || PySet_Check(op)
+            /* Structural */
+            || PyFrame_Check(op)
+            || PyCode_Check(op)
             /* Other. */
             || PyExceptionInstance_Check(op)
             ) {
@@ -2167,15 +2179,14 @@ reference_trace_is_builtin(PyObject *op) {
 static int
 reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void *data) {
     assert(obj);
-    if (reference_trace_is_builtin(obj)) {
-        return 0;
-    }
-
     assert(data);
     struct reference_tracing_data *data_alias = (struct reference_tracing_data *) data;
     assert(data_alias->log_file);
     assert(event >= 0 && event <= 3);
 
+    if (data_alias->include_builtins == 0 && reference_trace_is_builtin(obj)) {
+        return 0;
+    }
 
     /* Ignore objects of type "frame" as this causes a lot of confusion within the Python runtime. */
     if (PyFrame_Check(obj)) {
@@ -2184,10 +2195,10 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
                  "Ignoring frame object at %16p Ref count %16ld File: %-80s Line: %4d Event: %s",
                  (void *) obj,
                  Py_REFCNT(obj),
-//                 py_frame_get_python_file_name((PyFrameObject *)obj),
-                 "WTF frame...",
-//                 py_frame_get_line_number((PyFrameObject *)obj),
-                 -1,
+                 py_frame_get_python_file_name((PyFrameObject *)obj),
+//                 "WTF frame...",
+                 py_frame_get_line_number((PyFrameObject *)obj),
+//                 -1,
                  REFERENCE_TRACING_EVENT_NAME_STRINGS[event]
         );
         cpyReferenceTracing_write_c_message_to_log(data_alias, reference_tracing_frame_event_text);
@@ -2288,10 +2299,10 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
              (void *) obj,
              Py_REFCNT(obj),
              Py_TYPE(obj)->tp_name,
-//             py_frame_get_python_file_name(frame),
-             "WTF...",
-//             py_frame_get_line_number(frame),
-             -2,
+             py_frame_get_python_file_name(frame),
+//             "WTF...",
+             py_frame_get_line_number(frame),
+//             -2,
              py_frame_get_python_function_name(frame),
              rss,
              d_rss
@@ -2377,6 +2388,7 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
         self->data->log_file = NULL;
         self->data->count_new = 0;
         self->data->count_del = 0;
+        self->data->include_builtins = 0;
         self->py_specific_filename = NULL;
         self->message = NULL;
     }
@@ -2396,11 +2408,12 @@ static int
 cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kwds) {
     assert(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
-    static char *kwlist[] = {"message", "filepath", NULL};
+    static char *kwlist[] = {"message", "filepath", "ignore_builtins", NULL};
     char *message = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sO&", kwlist, &message, PyUnicode_FSConverter,
-                                     &self->py_specific_filename)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sO&p", kwlist, &message, PyUnicode_FSConverter,
+                                     &self->py_specific_filename,
+                                     &(self->data->include_builtins))) {
         assert(PyErr_Occurred());
         return -1;
     }
@@ -2803,6 +2816,7 @@ static PyTypeObject cpyReferenceTracingType = {
                   "\n  By default this writes to a file in the current working directory named"
                   " ``\"YYYYMMDD_HHMMMSS_<int>_<PID>_O_<depth>_PY<Python Version>.log\"``"
                   " For example ``\"20241107_195847_12_62264_O_0_PY3.13.0b3.log\"``"
+                  "\n\n- ``include_builtins``: Include builtin types. By default some builtins are ignored."
                   "\n",
         .tp_basicsize = sizeof(cpyReferenceTracing),
         .tp_itemsize = 0,
