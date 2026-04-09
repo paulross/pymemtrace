@@ -2408,7 +2408,7 @@ static int
 cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kwds) {
     assert(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
-    static char *kwlist[] = {"message", "filepath", "ignore_builtins", NULL};
+    static char *kwlist[] = {"message", "filepath", "include_builtins", NULL};
     char *message = NULL;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sO&p", kwlist, &message, PyUnicode_FSConverter,
