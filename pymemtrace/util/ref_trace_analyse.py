@@ -138,6 +138,7 @@ class LogFileResult:
         self.type_count_new: typing.Dict[str, int] = collections.defaultdict(int)
         self.type_count_del: typing.Dict[str, int] = collections.defaultdict(int)
         self.type_count_untracked: typing.Dict[str, int] = collections.defaultdict(int)
+        self.count_new = self.count_del = self.count_msg = 0
 
     def _parse_line(self, line_num: int, line: str) -> typing.Dict[str, typing.Any]:
         """Parse a line of the log file into a dict of the columns of the form: {header: value}."""
@@ -197,6 +198,7 @@ class LogFileResult:
             )
         self.live_objects[obj_repr.address] = obj_repr
         self.type_count_new[obj_repr.type] += 1
+        self.count_new += 1
 
     def add_del(self, line_num: int, line: str) -> None:
         """Add a line starting "DEL:"."""
@@ -225,16 +227,17 @@ class LogFileResult:
                     f' on line {line_num}'
                 )
         self.type_count_del[obj_repr.type] += 1
+        self.count_del += 1
 
     def add_msg(self, line_num: int, line: str) -> None:
         """Add a line starting "MSG:"."""
-        pass
+        self.count_msg += 1
 
     def add_err(self, line_num: int, line: str) -> None:
         """Add a line starting "ERR:"."""
         logger.error(f'Line {line_num} {line}')
 
-    def long_str_list(self, show_full_path: bool) -> typing.List[str]:
+    def long_str_list(self, show_full_path: bool, ignore_historical: bool) -> typing.List[str]:
         """Return the analysis as a list of strings suitable for printing."""
         def _str_from_object_file(obj: ObjectData, show_full_path: bool) -> str:
             if show_full_path:
@@ -280,11 +283,12 @@ class LogFileResult:
             ret.append(f'    {_str_from_object(obj, show_full_path)}')
 
         ret.append(f'Previous Objects [{len(self.prev_objects)}]:')
-        for address in sorted(self.prev_objects.keys()):
-            for obj_pair in self.prev_objects[address]:
-                ret.append(f'    {_str_from_object_pair(obj_pair, show_full_path)}')
-        all_types = sorted(set(self.type_count_new.keys()) | set(self.type_count_del.keys()))
+        if not ignore_historical:
+            for address in sorted(self.prev_objects.keys()):
+                for obj_pair in self.prev_objects[address]:
+                    ret.append(f'    {_str_from_object_pair(obj_pair, show_full_path)}')
 
+        all_types = sorted(set(self.type_count_new.keys()) | set(self.type_count_del.keys()))
         ret.append(f'Type count [{len(all_types)}]:')
         ret.append(f'{"Type":40} {"New":>8} {"Del":>8} {"New - Del":>10}')
         for type_name in all_types:
@@ -302,6 +306,7 @@ def process_file(file: typing.TextIO, ignore_untracked: bool) -> LogFileResult:
     If ignore_untracked is True then de-allocations without the respective allocation are ignored."""
     result = LogFileResult(ignore_untracked=ignore_untracked)
     has_sof = False
+    line_num = 0
     for l, line in enumerate(file):
         line_num = l + 1
         if line_num % 10000 == 0:
@@ -330,6 +335,13 @@ def process_file(file: typing.TextIO, ignore_untracked: bool) -> LogFileResult:
                     result.add_err(line_num, line)
                 else:
                     logger.error(f'Line {line_num}: Can not process line "{line}"')
+    logger.info(
+        f'Lines: {line_num:,d}'
+        f' NEW: {result.count_new:,d}'
+        f' DEL: {result.count_del:,d}'
+        f' NEW - DEL: {result.count_new - result.count_del:,d}'
+        f' MSG: {result.count_msg:,d}'
+    )
     return result
 
 
@@ -353,9 +365,15 @@ def main() -> int:
              " [default: %(default)s]",
     )
     parser.add_argument(
-        '-i', "--ignore-untracked",
+        "--ignore-untracked",
         action="store_true",
         help="Ignore untracked objects."
+             " [default: %(default)s]",
+    )
+    parser.add_argument(
+        "--ignore-historical",
+        action="store_true",
+        help="Ignore objects that were deleted correctly."
              " [default: %(default)s]",
     )
     parser.add_argument("-l", "--log_level", type=int, dest="log_level", default=20,
@@ -372,7 +390,7 @@ def main() -> int:
     time_start = time.perf_counter()
     print(f'File path: {args.log_path}')
     result = process_file_path(args.log_path, args.ignore_untracked)
-    print('\n'.join(result.long_str_list(args.full_path)))
+    print('\n'.join(result.long_str_list(args.full_path, args.ignore_historical)))
     print(f'Process time: {time.perf_counter() - time_start:.3f} (s)')
     return 0
 
