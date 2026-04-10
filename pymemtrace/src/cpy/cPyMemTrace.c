@@ -2149,6 +2149,66 @@ cpyReferenceTracing_write_c_error_message_to_log(struct reference_tracing_data *
  */
 static int
 reference_trace_is_builtin(PyObject *op) {
+    assert(op);
+    if (
+            0
+            /* Numeric */
+            || PyFloat_Check(op)
+            || PyLong_Check(op)
+            || PyBool_Check(op)
+            || PyComplex_Check(op)
+            /* Common */
+            || PyUnicode_Check(op)
+            || PyBytes_Check(op)
+            || PyByteArray_Check(op)
+            || PyTuple_Check(op)
+            || PyList_Check(op)
+
+            || PyDict_Check(op)
+            || PyDictKeys_Check(op)
+            || PyDictValues_Check(op)
+            || PyDictItems_Check(op)
+            /* Include/cpython/odictobject.h:21:#define PyODict_Check */
+            || PyODict_Check(op)
+
+            || PyFrozenSet_Check(op)
+            || PyAnySet_Check(op)
+            || PySet_Check(op)
+            ) {
+        return 1;
+    }
+    fprintf(stdout, "TRACE reference_trace_is_builtin() \"%s\"\n", Py_TYPE(op)->tp_name);
+    if (
+            0
+            /* Datetime stuff. This needs #include "datetime.h" */
+//            || PyDate_Check(op)
+//            || PyDateTime_Check(op)
+
+//            || PyTime_Check(op)
+//            || PyDelta_Check(op)
+//            || PyTZInfo_Check(op)
+            ) {
+        return 1;
+    }
+    /* It might be tempting to look at Py_TYPE(op)->tp_name
+     * for builtins like "tuple_iterator" that have no API
+     * to check them but this might pick up user defined
+     * objects of interest that has the same name. */
+//    if (strcmp(Py_TYPE(op)->tp_name, "tuple_iterator") == 0):
+//        return 1;
+//    }
+    return 0;
+#if 0
+    fprintf(stdout, "TRACE reference_trace_is_builtin() \"%s\"\n", Py_TYPE(op)->tp_name);
+
+    /* Hack. */
+    if (strcmp(Py_TYPE(op)->tp_name, "_GeneratorContextManager") == 0) {
+        return 1;
+    }
+    if (strcmp(Py_TYPE(op)->tp_name, "ProcessLoggingThread") == 0) {
+        return 1;
+    }
+
     if (
             0
             /* Numeric */
@@ -2238,6 +2298,7 @@ reference_trace_is_builtin(PyObject *op) {
 //        return 1;
 //    }
     return 0;
+#endif
 }
 
 /**
