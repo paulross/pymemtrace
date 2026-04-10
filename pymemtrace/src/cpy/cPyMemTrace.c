@@ -53,6 +53,8 @@
 #include <Python.h>
 #include "structmember.h"
 #include "frameobject.h"
+/* Used in reference_trace_is_builtin() */
+#include "datetime.h"
 
 #include <stdio.h>
 #include <time.h>
@@ -175,6 +177,7 @@ py_frame_get_python_file_name(PyFrameObject *Py_UNUSED(frame)) {
     return NULL;
 }
 #endif
+
 /**
  * Extracts a pointer to the Python file name within the frame.
  *
@@ -2090,7 +2093,8 @@ static char reference_tracing_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
  * @return Number of bytes written.
  */
 static int
-cpyReferenceTracing_write_c_prefix_and_message_to_log(struct reference_tracing_data *data, char *prefix, char *message) {
+cpyReferenceTracing_write_c_prefix_and_message_to_log(struct reference_tracing_data *data, char *prefix,
+                                                      char *message) {
     assert(data);
     assert(data->log_file);
     /* I suspect that this is undefined if the write buffer is the read buffer. */
@@ -2135,6 +2139,11 @@ cpyReferenceTracing_write_c_error_message_to_log(struct reference_tracing_data *
 /**
  * Returns non-zero if the Python object is one of the selected builtins.
  *
+ * Search the source code for public APIs:
+ * @code
+ *  grep -nrI "#define Py.*_Check(" . | grep "\.h"
+ * @endcode
+ *
  * @param op
  * @return
  */
@@ -2145,21 +2154,89 @@ reference_trace_is_builtin(PyObject *op) {
             /* Numeric */
             || PyFloat_Check(op)
             || PyLong_Check(op)
+            || PyBool_Check(op)
+            || PyComplex_Check(op)
             /* Common */
             || PyUnicode_Check(op)
             || PyBytes_Check(op)
+            || PyByteArray_Check(op)
             || PyTuple_Check(op)
             || PyList_Check(op)
+
             || PyDict_Check(op)
+            || PyDictKeys_Check(op)
+            || PyDictValues_Check(op)
+            || PyDictItems_Check(op)
+            /* Include/cpython/odictobject.h:21:#define PyODict_Check */
+            || PyODict_Check(op)
+
+            || PyFrozenSet_Check(op)
+            || PyAnySet_Check(op)
             || PySet_Check(op)
+
+            /* "slice" and "range" */
+            || PySlice_Check(op)
+            || PyRange_Check(op)
+
+            /* Include/cpython/classobject.h */
+            || PyMethod_Check(op)
+            || PyInstanceMethod_Check(op)
+            || PyCell_Check(op)
+
+            /* Include/cpython/methodobject.h */
+            || PyCMethod_Check(op)
+            /* Include/cpython/funcobject.h */
+            || PyFunction_Check(op)
+
+            /* All iterators ? */
+            || PySeqIter_Check(op)
+            || PyCallIter_Check(op)
+
+            /* Include/cpython/genobject.h */
+            || PyGen_Check(op)
+
             /* Structural */
             || PyFrame_Check(op)
+            || PyFrameLocalsProxy_Check(op)
             || PyCode_Check(op)
+            || PyModule_Check(op)
+
             /* Other. */
+            || PyExceptionClass_Check(op)
             || PyExceptionInstance_Check(op)
+            || PyWeakref_Check(op)
+
+            /* "traceback" */
+            || PyTraceBack_Check(op)
+
+            /* "builtin_function_or_method" */
+            || PyCFunction_Check(op)
+
+            || PyPickleBuffer_Check(op)
+            /* Include/memoryobject.h:11:#define PyMemoryView_Check */
+            || PyMemoryView_Check(op)
             ) {
         return 1;
     }
+    if (
+            0
+            /* Datetime stuff. This needs #include "datetime.h" */
+            || PyDate_Check(op)
+            || PyDate_Check(op)
+            || PyDateTime_Check(op)
+            || PyTime_Check(op)
+            || PyDelta_Check(op)
+            || PyTZInfo_Check(op)
+            ) {
+        return 1;
+    }
+    /* It might be tempting to look at Py_TYPE(op)->tp_name
+     * for builtins like "tuple_iterator" that have no API
+     * to check them but this might pick up user defined
+     * objects of interest that has the same name. */
+//    if (strcmp(Py_TYPE(op)->tp_name, "tuple_iterator") == 0):
+//        return 1;
+//    }
     return 0;
 }
 
@@ -2647,8 +2724,8 @@ cpyReferenceTracing_suspend(void) {
     struct reference_tracing_data *data = reference_tracing_ll_get_data();
     if (!data) {
         PyErr_Format(
-            PyExc_RuntimeError,
-            "%s()#%d Head of list is NULL.", __FUNCTION__, __LINE__
+                PyExc_RuntimeError,
+                "%s()#%d Head of list is NULL.", __FUNCTION__, __LINE__
         );
         return NULL;
     }
@@ -2679,7 +2756,7 @@ cpyReferenceTracing_suspend(void) {
                 PyExc_RuntimeError,
                 "%s()#%d PyRefTracer_GetTracer() return value is not the expected callback function.",
                 __FUNCTION__, __LINE__
-                );
+        );
         return NULL;
     }
     if (PyRefTracer_SetTracer(NULL, NULL)) {
@@ -2801,14 +2878,14 @@ static PyMethodDef cpyReferenceTracing_methods[] = {
         },
         {
                 "count_new",
-                (PyCFunction) cpyReferenceTracing_count_new,
-                METH_NOARGS,
+                            (PyCFunction) cpyReferenceTracing_count_new,
+                                                                    METH_NOARGS,
                 "Return the count of new allocations."
         },
         {
                 "count_del",
-                (PyCFunction) cpyReferenceTracing_count_del,
-                METH_NOARGS,
+                            (PyCFunction) cpyReferenceTracing_count_del,
+                                                                    METH_NOARGS,
                 "Return the count of deleted allocations."
         },
         {NULL, NULL, 0, NULL}  /* Sentinel */
@@ -3019,8 +3096,8 @@ struct simpletracer_data {
     int destroy_count;
 };
 
-static int simpletracer_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void* data) {
-    struct simpletracer_data* the_data = (struct simpletracer_data *)data;
+static int simpletracer_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data) {
+    struct simpletracer_data *the_data = (struct simpletracer_data *) data;
     if (event == PyRefTracer_CREATE) {
         the_data->create_count++;
     } else {
@@ -3033,30 +3110,30 @@ static int
 test_reftracer(void) {
     printf("Starting %s() at %s#%d\n", __FUNCTION__, __FILE_NAME__, __LINE__);
     // Save the current tracer and data to restore it later
-    void* current_data;
+    void *current_data;
     PyRefTracer current_tracer = PyRefTracer_GetTracer(&current_data);
 
     struct simpletracer_data tracer_data = {0};
-    void* the_data = &tracer_data;
+    void *the_data = &tracer_data;
     // Install a simple tracer function
     if (PyRefTracer_SetTracer(simpletracer_callback, the_data) != 0) {
         goto failed;
     }
 
     // Check that the tracer was correctly installed
-    void* data;
+    void *data;
     if (PyRefTracer_GetTracer(&data) != simpletracer_callback || data != the_data) {
         PyErr_SetString(PyExc_AssertionError, "The reftracer not correctly installed");
-        (void)PyRefTracer_SetTracer(NULL, NULL);
+        (void) PyRefTracer_SetTracer(NULL, NULL);
         goto failed;
     }
 
     // Create a bunch of objects
-    PyObject* obj = PyList_New(0);
+    PyObject *obj = PyList_New(0);
     if (obj == NULL) {
         goto failed;
     }
-    PyObject* obj2 = PyDict_New();
+    PyObject *obj2 = PyDict_New();
     if (obj2 == NULL) {
         Py_DECREF(obj);
         goto failed;
@@ -3067,7 +3144,7 @@ test_reftracer(void) {
     Py_DECREF(obj2);
 
     // Remove the tracer
-    (void)PyRefTracer_SetTracer(NULL, NULL);
+    (void) PyRefTracer_SetTracer(NULL, NULL);
 
     // Check that the tracer was removed
     if (PyRefTracer_GetTracer(&data) != NULL || data != NULL) {
@@ -3087,7 +3164,7 @@ test_reftracer(void) {
     PyRefTracer_SetTracer(current_tracer, current_data);
     printf("DONE %s() at %s#%d\n", __FUNCTION__, __FILE_NAME__, __LINE__);
     return 0;
-failed:
+    failed:
     PyRefTracer_SetTracer(current_tracer, current_data);
     printf("FAILED %s() at %s#%d\n", __FUNCTION__, __FILE_NAME__, __LINE__);
     return -1;
@@ -3282,9 +3359,9 @@ debug_cPyMemtrace(int argc, char **argv) {
     PyFrameObject *frame = PyEval_GetFrame();
     if (frame) {
         PyCodeObject *a = PyFrame_GetCode(frame);
-        PyObject_Print((PyObject *)a, stdout, Py_PRINT_RAW);
+        PyObject_Print((PyObject *) a, stdout, Py_PRINT_RAW);
         PyCodeObject *b = PyFrame_GetCode(frame);
-        PyObject_Print((PyObject *)b, stdout, Py_PRINT_RAW);
+        PyObject_Print((PyObject *) b, stdout, Py_PRINT_RAW);
     }
 
     /* Cleanup. */
