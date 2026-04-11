@@ -2279,23 +2279,6 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
         return 0;
     }
 
-//    /* Ignore objects of type "frame" as this causes a lot of confusion within the Python runtime. */
-//    if (PyFrame_Check(obj)) {
-//        static char reference_tracing_frame_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
-//        snprintf(reference_tracing_frame_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-//                 "Ignoring frame object at %16p Ref count %16ld File: %-80s Line: %4d Event: %s",
-//                 (void *) obj,
-//                 Py_REFCNT(obj),
-//                 py_frame_get_python_file_name((PyFrameObject *)obj),
-////                 "WTF frame...",
-//                 py_frame_get_line_number((PyFrameObject *)obj),
-////                 -1,
-//                 REFERENCE_TRACING_EVENT_NAME_STRINGS[event]
-//        );
-//        cpyReferenceTracing_write_c_message_to_log(data_alias, reference_tracing_frame_event_text);
-//        return 0;
-//    }
-
     /* This does not seem to help in reporting craches. */
 //    fprintf(
 //            data_alias->log_file,
