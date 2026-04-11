@@ -398,6 +398,86 @@ Then a table of the count of creations and deletions by type:
 
     \end{landscape}
 
+Managing the Log File Output
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+`Reference Tracing <https://docs.python.org/3/c-api/profiling.html#reference-tracing>`_ is highly invasive.
+Events are created for all object allocations and de-allocations and this means the log file can be enormous.
+:py:class:`cPyMemTrace.ReferenceTracing` supports a nuber of constructor arguments to make the log file more useful,
+and much smaller.
+
+.. list-table:: **ReferenceTracing Default Filtering**
+   :widths: 15 20 50
+   :header-rows: 1
+
+   * - Object Type
+     - Action
+     - Notes
+   * - ``Frame`` or ``Code``
+     - Always ignored.
+     - During development it was discovered that handling these types often created a ``SIGSEGV`` or
+       an assertion failure with debug versions of Python.
+   * - Builtin Objects
+     - By default these are ignored
+     - If ``include_builtins=True`` is set then these will be reported.
+       Typically this makes the running time and the log file size 2x to 4x bigger.
+       The builtin types are those C types that have a ``Py*_Check()`` function.
+       These include all numeric types, containers (tuple, list, dict, set, frozenset), strings, bytes and so on.
+       See ``reference_trace_is_builtin()`` in ``pymemtrace/src/cpy/cPyMemTrace.c`` for the specific criteria [#]_.
+
+For example this will log all the builtin actions:
+
+.. code-block:: python
+
+    @cpymemtrace_decs.reference_tracing(
+        message="some_function() include_builtins=True",
+        include_builtins=True,
+    )
+    def some_function():
+        pass
+
+Further filtering can be specified by the user providing a sequence (list, tuple, set etc.) of strings.
+Then if the ``tp_name`` appears in the sequence the event will be either recorded in or excluded from the log:
+
+.. list-table:: **ReferenceTracing User Filtering**
+   :widths: 30 70
+   :header-rows: 1
+
+   * - Option
+     - Notes
+   * - ``exclude_tp_names=[...]``
+     - Ignore these types if their ``tp_name`` appears in this sequence.
+       ``reference_trace_type_include_matches()`` handles this logic.
+   * - ``include_tp_names=[...]``
+     - Only write these events to the log if their ``tp_name`` appears in this sequence.
+       The ``exclude_tp_names=[...]`` option takes precedence.
+       ``reference_trace_type_exclude_matches()`` handles this logic.
+
+For example this will eliminate tuple and list iterators from the log:
+
+.. code-block:: python
+
+    @cpymemtrace_decs.reference_tracing(
+        message="some_function() exclude tuple and list iterators",
+        exclude_tp_names=['tuple_iterator', 'list_iterator',],
+    )
+    def some_function():
+        pass
+
+This example will *only* log the events of ``MySpecialType``:
+
+.. code-block:: python
+
+    @cpymemtrace_decs.reference_tracing(
+        message="some_function() only MySpecialType",
+        include_tp_names=['MySpecialType',],
+    )
+    def some_function():
+        pass
+
+See the code in ``reference_trace_include_this_object()`` in ``pymemtrace/src/cpy/cPyMemTrace.c``
+for the implementation of all this logic.
+
 Stacking Context Managers
 -------------------------------
 
@@ -713,3 +793,6 @@ include events for the inner function.
 .. todo::
 
     Maybe write a merge script that takes a log file and merges it with all the descendents.
+
+.. rubric:: Footnotes
+.. [#] A handy way to find these is to use ``grep -nrI "#define Py.*_Check(" . | grep "\.h"`` on the Python source.

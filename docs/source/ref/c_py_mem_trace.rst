@@ -27,20 +27,18 @@ Class ``pymemtrace.cPyMemTrace.Trace``
     :special-members:
     :private-members:
 
+Class ``pymemtrace.cPyMemTrace.ReferenceTracingSimple``
+-------------------------------------------------------
+
+.. autoclass:: pymemtrace.cPyMemTrace.ReferenceTracingSimple
+    :members:
+    :special-members:
+    :private-members:
 
 Class ``pymemtrace.cPyMemTrace.ReferenceTracing``
 -------------------------------------------------
 
 .. autoclass:: pymemtrace.cPyMemTrace.ReferenceTracing
-    :members:
-    :special-members:
-    :private-members:
-
-
-Class ``pymemtrace.cPyMemTrace.ReferenceTracingSimple``
--------------------------------------------------------
-
-.. autoclass:: pymemtrace.cPyMemTrace.ReferenceTracingSimple
     :members:
     :special-members:
     :private-members:

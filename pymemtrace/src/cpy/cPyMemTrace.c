@@ -2167,7 +2167,6 @@ reference_trace_is_builtin(PyObject *op) {
             || PyByteArray_Check(op)
             || PyTuple_Check(op)
             || PyList_Check(op)
-
             || PyDict_Check(op)
             || PyDictKeys_Check(op)
             || PyDictValues_Check(op)
@@ -2296,6 +2295,37 @@ reference_trace_type_include_matches(struct reference_tracing_data *data_alias, 
 }
 
 /**
+ * Return 1 if this object should be included. Zero if it should be excluded.
+ * This makes a choice based on the state of the data_alias and the type of the object.
+ *
+ * @param data_alias
+ * @param obj
+ * @return
+ */
+static int
+reference_trace_include_this_object(struct reference_tracing_data * data_alias, PyObject *obj) {
+    /* Experience shows that frame and code objects are tricky to handle
+     * in that getting the file/line/function
+     * often causing a SIGSEGV so we always ignore them. */
+    if (PyFrame_Check(obj) || PyCode_Check(obj)) {
+        return 0;
+    }
+    /* Remove builtin types using the specific Python C API. */
+    if (data_alias->include_builtins == 0 && reference_trace_is_builtin(obj)) {
+        return 0;
+    }
+    /* Remove types by type name if they are in the exclusion sequence. */
+    if (data_alias->exclude_tp_names && reference_trace_type_exclude_matches(data_alias, obj)) {
+        return 0;
+    }
+    /* Remove types by type name if they are not in the inclusion sequence. */
+    if (data_alias->include_tp_names && !reference_trace_type_include_matches(data_alias, obj)) {
+        return 0;
+    }
+    return 1;
+}
+
+/**
  * The callback function that is passed to \c PyRefTracer_SetTracer.
  * This writes to the log file.
  *
@@ -2318,22 +2348,26 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     assert(data_alias->log_file);
     assert(event >= 0 && event <= 3);
 
-    /* Experience shows that frame and code objects are tricky to handle
-     * in that getting the file/line/function
-     * often causing a SIGSEGV so we always ignore them. */
-    if (PyFrame_Check(obj) || PyCode_Check(obj)) {
-        return 0;
-    }
-    /* Remove builtin types using the specific Python C API. */
-    if (data_alias->include_builtins == 0 && reference_trace_is_builtin(obj)) {
-        return 0;
-    }
-    /* Remove types by type name if they are in the exclusion sequence. */
-    if (data_alias->exclude_tp_names && reference_trace_type_exclude_matches(data_alias, obj)) {
-        return 0;
-    }
-    /* Remove types by type name if they are not in the inclusion sequence. */
-    if (data_alias->include_tp_names && !reference_trace_type_include_matches(data_alias, obj)) {
+//    /* Experience shows that frame and code objects are tricky to handle
+//     * in that getting the file/line/function
+//     * often causing a SIGSEGV so we always ignore them. */
+//    if (PyFrame_Check(obj) || PyCode_Check(obj)) {
+//        return 0;
+//    }
+//    /* Remove builtin types using the specific Python C API. */
+//    if (data_alias->include_builtins == 0 && reference_trace_is_builtin(obj)) {
+//        return 0;
+//    }
+//    /* Remove types by type name if they are in the exclusion sequence. */
+//    if (data_alias->exclude_tp_names && reference_trace_type_exclude_matches(data_alias, obj)) {
+//        return 0;
+//    }
+//    /* Remove types by type name if they are not in the inclusion sequence. */
+//    if (data_alias->include_tp_names && !reference_trace_type_include_matches(data_alias, obj)) {
+//        return 0;
+//    }
+
+    if (!reference_trace_include_this_object(data_alias, obj)) {
         return 0;
     }
 
@@ -2990,7 +3024,10 @@ static PyTypeObject cpyReferenceTracingType = {
                   "\n  By default this writes to a file in the current working directory named"
                   " ``\"YYYYMMDD_HHMMMSS_<int>_<PID>_O_<depth>_PY<Python Version>.log\"``"
                   " For example ``\"20241107_195847_12_62264_O_0_PY3.13.0b3.log\"``"
-                  "\n\n- ``include_builtins``: Include builtin types. By default some builtins are ignored."
+                  "\n\n- ``include_builtins``: Include builtin types. By default most builtins are ignored."
+                  "\n\n- ``exclude_tp_names``: A sequence of strings of type names to exclude in the output."
+                  "\n\n- ``include_tp_names``: A sequence of strings of type names to include in the output."
+                  " ``exclude_tp_names`` takes precedence of this."
                   "\n",
         .tp_basicsize = sizeof(cpyReferenceTracing),
         .tp_itemsize = 0,
