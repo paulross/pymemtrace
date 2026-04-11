@@ -13,7 +13,9 @@ History
     * Add cPyMemTrace.ReferenceTracingSimple as an example. Includes documentation and test code.
     * Add suspend() and resume() methods for Reference Tracing.
     * Document pytest issues with Reference Tracing (now historical information).
-* General documentation improvements.
+* General documentation improvements, now 142 PDF A4 pages.
+* Supported Python versions are: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14
+* Development Status :: 5 - Production/Stable
 * TODO
 
 0.3.1 (2026-03-23)
