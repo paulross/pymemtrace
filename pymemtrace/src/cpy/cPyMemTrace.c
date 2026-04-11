@@ -2174,19 +2174,64 @@ reference_trace_is_builtin(PyObject *op) {
             || PyFrozenSet_Check(op)
             || PyAnySet_Check(op)
             || PySet_Check(op)
+
+            /* "slice" and "range" */
+            || PySlice_Check(op)
+            || PyRange_Check(op)
+
+            /* Include/cpython/classobject.h */
+            || PyMethod_Check(op)
+            || PyInstanceMethod_Check(op)
+            || PyCell_Check(op)
+
+            /* Include/cpython/methodobject.h */
+            || PyCMethod_Check(op)
+            /* Include/cpython/funcobject.h */
+            || PyFunction_Check(op)
+
+            /* All iterators ? */
+            || PySeqIter_Check(op)
+            || PyCallIter_Check(op)
+
+            /* Include/cpython/genobject.h */
+            || PyGen_Check(op)
+
+            /* Structural */
+            || PyFrame_Check(op)
+            || PyFrameLocalsProxy_Check(op)
+            || PyCode_Check(op)
+            || PyModule_Check(op)
+
+            /* Other. */
+            || PyExceptionClass_Check(op)
+            || PyExceptionInstance_Check(op)
+            || PyWeakref_Check(op)
+
+            /* "traceback" */
+            || PyTraceBack_Check(op)
+
+            /* "builtin_function_or_method" */
+            || PyCFunction_Check(op)
+
+            || PyPickleBuffer_Check(op)
+            /* Include/memoryobject.h:11:#define PyMemoryView_Check */
+            || PyMemoryView_Check(op)
             ) {
         return 1;
     }
     fprintf(stdout, "TRACE reference_trace_is_builtin() \"%s\"\n", Py_TYPE(op)->tp_name);
+    /* Required aa datetime is a capsule. */
+    if (PyDateTimeAPI == NULL) {
+        PyDateTime_IMPORT;
+    }
     if (
             0
             /* Datetime stuff. This needs #include "datetime.h" */
-//            || PyDate_Check(op)
-//            || PyDateTime_Check(op)
-
-//            || PyTime_Check(op)
-//            || PyDelta_Check(op)
-//            || PyTZInfo_Check(op)
+            || PyDate_Check(op)
+            || PyDateTime_Check(op)
+            || PyTime_Check(op)
+            || PyDelta_Check(op)
+            || PyTZInfo_Check(op)
             ) {
         return 1;
     }
