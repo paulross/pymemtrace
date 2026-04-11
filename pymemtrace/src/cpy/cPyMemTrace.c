@@ -1882,6 +1882,8 @@ struct reference_tracing_data {
     /* Allow computation of dRSS. */
     size_t rss;
     int include_builtins;
+    /* A Python sequence of strings of typenames to exclude. */
+    PyObject *exclude_tp_names;
 };
 
 /**
@@ -2219,7 +2221,7 @@ reference_trace_is_builtin(PyObject *op) {
             ) {
         return 1;
     }
-    fprintf(stdout, "TRACE reference_trace_is_builtin() \"%s\"\n", Py_TYPE(op)->tp_name);
+//    fprintf(stdout, "TRACE reference_trace_is_builtin() \"%s\"\n", Py_TYPE(op)->tp_name);
     /* Required aa datetime is a capsule. */
     if (PyDateTimeAPI == NULL) {
         PyDateTime_IMPORT;
@@ -2243,6 +2245,29 @@ reference_trace_is_builtin(PyObject *op) {
 //        return 1;
 //    }
     return 0;
+}
+
+/**
+ * Returns 1 if the exclude_tp_names sequence contains the object type name, 0 otherwise.
+ *
+ * @param data_alias
+ * @param obj
+ * @return
+ */
+static int
+reference_trace_type_matches(struct reference_tracing_data *data_alias, PyObject *obj) {
+    assert(data_alias);
+    assert(data_alias->exclude_tp_names);
+    assert(PySequence_Check(data_alias->exclude_tp_names));
+    assert(obj);
+
+    int ret = 0;
+    PyObject *obj_tp_name = Py_BuildValue("s", Py_TYPE(obj)->tp_name);
+    if (PySequence_Contains(data_alias->exclude_tp_names, obj_tp_name) == 1) {
+        ret = 1;
+    }
+    Py_DECREF(obj_tp_name);
+    return ret;
 }
 
 /**
@@ -2274,8 +2299,12 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     if (PyFrame_Check(obj) || PyCode_Check(obj)) {
         return 0;
     }
-
+    /* Remove builtin types using the specific Python C API. */
     if (data_alias->include_builtins == 0 && reference_trace_is_builtin(obj)) {
+        return 0;
+    }
+    /* Remove types by type name. */
+    if (data_alias->exclude_tp_names && reference_trace_type_matches(data_alias, obj)) {
         return 0;
     }
 
@@ -2434,6 +2463,7 @@ cpyReferenceTracing_dealloc(cpyReferenceTracing *self) {
             fclose(self->data->log_file);
             self->data->log_file = NULL;
         }
+        Py_XDECREF(self->data->exclude_tp_names);
         free(self->data);
         self->data = NULL;
     }
@@ -2465,6 +2495,7 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
         self->data->count_new = 0;
         self->data->count_del = 0;
         self->data->include_builtins = 0;
+        self->data->exclude_tp_names = NULL;
         self->py_specific_filename = NULL;
         self->message = NULL;
     }
@@ -2484,12 +2515,15 @@ static int
 cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kwds) {
     assert(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
-    static char *kwlist[] = {"message", "filepath", "include_builtins", NULL};
+    static char *kwlist[] = {"message", "filepath", "include_builtins", "exclude_tp_names", NULL};
     char *message = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sO&p", kwlist, &message, PyUnicode_FSConverter,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sO&pO", kwlist, &message, PyUnicode_FSConverter,
                                      &self->py_specific_filename,
-                                     &(self->data->include_builtins))) {
+                                     &(self->data->include_builtins),
+                                     &(self->data->exclude_tp_names)
+                                     )
+                                     ) {
         assert(PyErr_Occurred());
         return -1;
     }
@@ -2502,6 +2536,19 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
                          Py_TYPE(self)->tp_name);
             return -2;
         }
+    }
+    if (self->data->exclude_tp_names) {
+        /* Check that the exclude_tp_names supports the sequence protocol. */
+        if (!PySequence_Check(self->data->exclude_tp_names)) {
+            PyErr_Format(
+                    PyExc_MemoryError,
+                    "cpyReferenceTracing_init() exclude_tp_names must be a sequence, not type %s.",
+                    Py_TYPE(self->data->exclude_tp_names)->tp_name
+                    );
+            return -3;
+        }
+        /* PyArg_ParseTupleAndKeywords returns a borrowed reference with "O" format. */
+        Py_INCREF(self->data->exclude_tp_names);
     }
     assert(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
