@@ -5,21 +5,24 @@ History
 ---------------------
 
 * cPyMemTrace:
+    * Much more reliable processing of Reference Tracing events.
+    * User filtering of Reference Tracing events to include/exclude specific events.
     * Fix the issue with Reference Tracing where handling type "frame" was causing pytest and
       CPython runtime assert failures.
     * Write profile/trace/reference tracing context switches to the appropriate log file.
     * Add cPyMemTrace.ReferenceTracingSimple as an example. Includes documentation and test code.
     * Add suspend() and resume() methods for Reference Tracing.
-    * Document pytest issues with Reference Tracing.
+    * Document pytest issues with Reference Tracing (now historical information).
 * General documentation improvements.
 * TODO
 
 0.3.1 (2026-03-23)
 ---------------------
 
-* cPyMemTrace:
+* pymemtrace:
     * Add decorator for pymemtrace.process.
     * pymemtrace.process can now summarise JSON in the log to stdout.
+* cPyMemTrace:
     * Add decorators for Python functions for Profile, Trace and ReferenceTracing.
     * Fix a SIGSEGV when bad keyword arguments were passed to cPyMemTrace.ReferenceTracing.
 

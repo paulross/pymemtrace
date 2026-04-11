@@ -3027,7 +3027,7 @@ static PyTypeObject cpyReferenceTracingType = {
                   "\n\n- ``include_builtins``: Include builtin types. By default most builtins are ignored."
                   "\n\n- ``exclude_tp_names``: A sequence of strings of type names to exclude in the output."
                   "\n\n- ``include_tp_names``: A sequence of strings of type names to include in the output."
-                  " ``exclude_tp_names`` takes precedence of this."
+                  " ``exclude_tp_names`` takes precedence over this."
                   "\n",
         .tp_basicsize = sizeof(cpyReferenceTracing),
         .tp_itemsize = 0,

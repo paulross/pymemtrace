@@ -1,10 +1,10 @@
 .. _examples-cpymemtrace:
 
 ``pymemtrace.cPyMemTrace`` Examples
-===============================================
+*************************************
 
 Introduction
---------------------------------
+===============================================
 
 :py:mod:`pymemtrace.cPyMemTrace` contains several Python profilers written in C using CPython's C API.
 
@@ -30,6 +30,9 @@ Introduction
 
     These techniques are described here: :ref:`examples-cpymemtrace_decorators`.
 
+Profilers and Tracers
+===============================================
+
 For each class of *profiler* the Python runtime only supports one instance at any point of time.
 :py:mod:`pymemtrace.cPyMemTrace` handles this by using three linked lists of *profilers* that are pushed
 or pop'd according to the users code.
@@ -43,6 +46,9 @@ Each of these *profilers* writes their data to a log file with a name of the for
 See :ref:`tech_notes-cpymemtrace_log_file_name` for the log file name and, for the log file format,
 :ref:`tech_notes-cpymemtrace_profile_trace_log_file_format`
 or :ref:`tech_notes-cpymemtrace_reference_tracing_log_file_format`.
+
+Profile/Trace Events
+------------------------
 
 The events that the :py:class:`pymemtrace.cPyMemTrace.Profile` and
 :py:class:`pymemtrace.cPyMemTrace.Trace` respond to are:
@@ -186,7 +192,7 @@ There is some discussion about the performance of :py:mod:`pymemtrace.cPyMemTrac
 .. _examples-cpymemtrace-reference-tracing:
 
 Reference Tracing
------------------
+===============================================
 
 From Python 3.13 onwards Python supports
 `Reference Tracing <https://docs.python.org/3/c-api/profiling.html#reference-tracing>`_.
@@ -216,7 +222,7 @@ and de-allocation.
     See :ref:`tech_notes-cpymemtrace_reference_tracing_pytest` for an example that revealed this problem.
 
 Example of Reference Tracing
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+---------------------------------------
 
 Here we create an example class that just allocates memory:
 
@@ -307,7 +313,7 @@ The file format is described here :ref:`tech_notes-cpymemtrace_reference_tracing
 
 
 Analysing the Log With ``ref_trace_analyse.py``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+---------------------------------------------------
 
 This log file can be very large so to help understand it there is a script
 :py:mod:`pymemtrace.util.ref_trace_analyse` that can analyse it.
@@ -399,7 +405,7 @@ Then a table of the count of creations and deletions by type:
     \end{landscape}
 
 Managing the Log File Output
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+------------------------------
 
 `Reference Tracing <https://docs.python.org/3/c-api/profiling.html#reference-tracing>`_ is highly invasive.
 Events are created for all object allocations and de-allocations and this means the log file can be enormous.
@@ -477,6 +483,12 @@ This example will *only* log the events of ``MySpecialType``:
 
 See the code in ``reference_trace_include_this_object()`` in ``pymemtrace/src/cpy/cPyMemTrace.c``
 for the implementation of all this logic.
+
+
+Common Features
+=====================
+
+This describes the common features of these three tracing techniques.
 
 Stacking Context Managers
 -------------------------------
