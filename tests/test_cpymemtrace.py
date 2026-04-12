@@ -175,7 +175,7 @@ def test_profile_start_message_to_log_file(cls):
     with open(log_path) as file:
         file_data = file.read()
         print()
-        print(f'File data [{len(file_data)}]: {file_data}')
+        print(f'File data [{len(file_data)}]:\n{file_data}')
         assert file_data.startswith(message)
     # Clean up on exit removes log file path
     assert profiler.log_file_path() is None
@@ -199,7 +199,7 @@ def test_profile_inline_message_to_log_file_pre_313(cls):
     with open(log_file_path) as file:
         file_data = file.read()
         print()
-        print(f'File data [{len(file_data)}]: {file_data}')
+        print(f'File data [{len(file_data)}]:\n{file_data}')
         assert message in file_data
 
 
@@ -220,7 +220,7 @@ def test_profile_inline_message_to_log_file_post_313(cls):
     with open(log_file_path) as file:
         file_data = file.read()
         print()
-        print(f'File data [{len(file_data)}]: {file_data}')
+        print(f'File data [{len(file_data)}]:\n{file_data}')
         assert message in file_data
 
 
