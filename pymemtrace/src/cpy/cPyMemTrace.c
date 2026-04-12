@@ -2145,19 +2145,33 @@ cpyReferenceTracing_write_c_error_message_to_log(struct reference_tracing_data *
 }
 
 /**
+ * Used as a sanity check when \c reference_trace_allocations_callback() is running.
+ * Called functions can test against this to make sure that they have been called
+ * when Reference Tracing is on or off.
+ */
+static int reference_tracing_call_back_is_active = 0;
+
+/**
  * Returns non-zero if the Python object is one of the selected builtins.
+ * This function call is designed to be cheap but requires any of the code
+ * here to NOT allocate/de-allocate Python objects as that will make
+ * \c the reference_trace_allocations_callback() re-entrant.
  *
- * Search the source code for public APIs:
+ * Note that this is Python version specific as some code, such as
+ * the \c datetime API change in Python 3.15.
+ *
+ * To search the source code for public APIs:
  * @code
  *  grep -nrI "#define Py.*_Check(" . | grep "\.h"
  * @endcode
  *
- * @param op
- * @return
+ * @param op The Python object to check.
+ * @return 1 if a builtin, 0 otherwise.
  */
 static int
-reference_trace_is_builtin(PyObject *op) {
+reference_trace_is_builtin_pre_suspend(PyObject *op) {
     assert(op);
+    assert(reference_tracing_call_back_is_active);
     if (
             0
             /* Numeric */
@@ -2226,7 +2240,14 @@ reference_trace_is_builtin(PyObject *op) {
             ) {
         return 1;
     }
-//    fprintf(stdout, "TRACE reference_trace_is_builtin() \"%s\"\n", Py_TYPE(op)->tp_name);
+    /* Python 3.15 change this datetime import API so that the
+     * PyDateTimeAPI == NULL
+     * test is invalid and PyDateTime_IMPORT might allocate/deallocate Python objects
+     * which makes the reference_trace_allocations_callback() re-entrant.
+     * See: https://docs.python.org/3.15/whatsnew/3.15.html#changed-c-apis
+     * And: https://github.com/python/cpython/issues/141563
+     * */
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 15
     /* Required aa datetime is a capsule. */
     if (PyDateTimeAPI == NULL) {
         PyDateTime_IMPORT;
@@ -2242,13 +2263,48 @@ reference_trace_is_builtin(PyObject *op) {
             ) {
         return 1;
     }
-    /* It might be tempting to look at Py_TYPE(op)->tp_name
-     * for builtins like "tuple_iterator" that have no API
-     * to check them but this might pick up user defined
-     * objects of interest that has the same name. */
-//    if (strcmp(Py_TYPE(op)->tp_name, "tuple_iterator") == 0):
-//        return 1;
-//    }
+#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 15
+    return 0;
+}
+
+/**
+ * Returns non-zero if the Python object is one of the selected builtins.
+ * This function call is meant to be used after the Reference Tracing callback
+ * has been suspended.
+ * That means that any calls here may allocate/de-allocate Python objects.
+ *
+ * Note that this is Python version specific as some code, such as
+ * the \c datetime API change in Python 3.15.
+ *
+ * @param op The Python object to check.
+ * @return 1 if a builtin, 0 otherwise.
+ */
+static int
+reference_trace_is_builtin_post_suspend(PyObject *op) {
+    assert(op);
+    assert(!reference_tracing_call_back_is_active);
+    /* Python 3.15 change this datetime import API so that the
+     * PyDateTimeAPI == NULL
+     * test is invalid and PyDateTime_IMPORT might allocate/deallocate Python objects
+     * which makes the reference_trace_allocations_callback() re-entrant.
+     * See: https://docs.python.org/3.15/whatsnew/3.15.html#changed-c-apis
+     * And: https://github.com/python/cpython/issues/141563
+     * */
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 15
+    /* Required aa datetime is a capsule. */
+    PyDateTime_IMPORT;
+    if (
+            0
+            /* Datetime stuff. This needs #include "datetime.h" */
+            || PyDate_Check(op)
+            || PyDateTime_Check(op)
+            || PyTime_Check(op)
+            || PyDelta_Check(op)
+            || PyTZInfo_Check(op)
+            ) {
+        return 1;
+    }
+#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 15
     return 0;
 }
 
@@ -2265,6 +2321,7 @@ reference_trace_type_exclude_matches(struct reference_tracing_data *data_alias, 
     assert(data_alias->exclude_tp_names);
     assert(PySequence_Check(data_alias->exclude_tp_names));
     assert(obj);
+    assert(!reference_tracing_call_back_is_active);
 
     int ret = 0;
     PyObject *obj_tp_name = Py_BuildValue("s", Py_TYPE(obj)->tp_name);
@@ -2288,6 +2345,7 @@ reference_trace_type_include_matches(struct reference_tracing_data *data_alias, 
     assert(data_alias->include_tp_names);
     assert(PySequence_Check(data_alias->include_tp_names));
     assert(obj);
+    assert(!reference_tracing_call_back_is_active);
 
     int ret = 0;
     PyObject *obj_tp_name = Py_BuildValue("s", Py_TYPE(obj)->tp_name);
@@ -2315,11 +2373,31 @@ reference_trace_type_include_matches(struct reference_tracing_data *data_alias, 
  */
 static int
 reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void *data) {
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13 && PY_MINOR_VERSION < 15
+    assert(event == PyRefTracer_CREATE || event == PyRefTracer_DESTROY);
+#endif
+
+#if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
+    assert(event == PyRefTracer_CREATE || event == PyRefTracer_DESTROY || event == PyRefTracer_TRACKER_REMOVED);
+    if (event == PyRefTracer_TRACKER_REMOVED) {
+        /* Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
+         * call (below) will trigger a call to this callback function.
+         * We clould guard against this by checking the result of
+         * PyRefTracer_GetTracer with some more logic but we are not that interested
+         * in removing tracers at this level.
+         * That is handled by the context managers (and decorators).
+         */
+        return 0;
+    }
+#endif // #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
+
     assert(obj);
     assert(data);
     struct reference_tracing_data *data_alias = (struct reference_tracing_data *) data;
     assert(data_alias->log_file);
     assert(event >= 0 && event <= 3);
+
+    reference_tracing_call_back_is_active = 1;
 
     /* This does not seem to help in reporting crashes. */
 //    fprintf(
@@ -2337,9 +2415,10 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     /* Remove builtin types using the specific Python C API.
      * This does not allocate or deallocate any Python objects,
      * so we do not need to suspend tracing. */
-    if (data_alias->include_builtins == 0 && reference_trace_is_builtin(obj)) {
+    if (data_alias->include_builtins == 0 && reference_trace_is_builtin_pre_suspend(obj)) {
         return 0;
     }
+
     /* From now on we might call the Python API that might allocate or deallocate
      * Python objects, so we do need to suspend tracing as not doing so will
      * recursively call this callback function causing a SIGABRT. */
@@ -2354,7 +2433,8 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     assert(tracer_old == &reference_trace_allocations_callback);
     if (PyRefTracer_SetTracer(NULL, NULL)) {
         /* Do not set an exception.
-         * See: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer */
+         * See: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer
+         * */
 //        fprintf(stderr, "PyRefTracer_SetTracer(NULL, NULL) failed.\n");
         cpyReferenceTracing_write_c_error_message_to_log(
                 data_alias,
@@ -2362,39 +2442,57 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
         );
         return ERROR_CODE;
     }
+    reference_tracing_call_back_is_active = 0;
 
-    /* Handle user requested exclusion or inclusion. */
-    /* Remove types by type name if they are in the exclusion sequence. */
-    int must_exclude = data_alias->exclude_tp_names && reference_trace_type_exclude_matches(data_alias, obj);
-    /* Remove types by type name if they are not in the inclusion sequence. */
-    int must_not_include = data_alias->include_tp_names && !reference_trace_type_include_matches(data_alias, obj);
-    if (must_exclude || must_not_include) {
+    /* NOTE: Some of this code is a bit repetitive. */
+
+    /* Handle builtin calls that must be done when tracing is suspended. */
+    if (data_alias->include_builtins == 0 && reference_trace_is_builtin_post_suspend(obj)) {
         /* Restore the Reference Tracer. */
         if (PyRefTracer_SetTracer(tracer_old, data_old)) {
             /* Do not set an exception.
              * See: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer */
             cpyReferenceTracing_write_c_error_message_to_log(
                     data_alias,
-                    "PyRefTracer_SetTracer(tracer_old, data_old) failed."
+                    "reference_trace_is_builtin_post_suspend(): PyRefTracer_SetTracer(tracer_old, data_old) failed."
             );
-//        fprintf(stderr, "PyRefTracer_SetTracer(tracer_old, data_old) failed.\n");
             return ERROR_CODE;
         }
+        reference_tracing_call_back_is_active = 1;
         return 0;
     }
 
-#if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
-    if (event == PyRefTracer_TRACKER_REMOVED) {
-        /* Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
-         * call (below) will trigger a call to this callback function.
-         * We clould guard against this by checking the result of
-         * PyRefTracer_GetTracer with some more logic but we are not that interested
-         * in removing tracers at this level.
-         * That is handled by the context managers (and decorators).
-         */
+    /* Handle user requested exclusion or inclusion. */
+    /* Remove types by type name if they are in the exclusion sequence. */
+    if (data_alias->exclude_tp_names && reference_trace_type_exclude_matches(data_alias, obj)) {
+        /* Restore the Reference Tracer. */
+        if (PyRefTracer_SetTracer(tracer_old, data_old)) {
+            /* Do not set an exception.
+             * See: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer */
+            cpyReferenceTracing_write_c_error_message_to_log(
+                    data_alias,
+                    "reference_trace_type_exclude_matches(): PyRefTracer_SetTracer(tracer_old, data_old) failed."
+            );
+            return ERROR_CODE;
+        }
+        reference_tracing_call_back_is_active = 1;
         return 0;
     }
-#endif // #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
+    /* Remove types by type name if they are not in the inclusion sequence. */
+    if (data_alias->include_tp_names && !reference_trace_type_include_matches(data_alias, obj)) {
+        /* Restore the Reference Tracer. */
+        if (PyRefTracer_SetTracer(tracer_old, data_old)) {
+            /* Do not set an exception.
+             * See: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer */
+            cpyReferenceTracing_write_c_error_message_to_log(
+                    data_alias,
+                    "reference_trace_type_include_matches: PyRefTracer_SetTracer(tracer_old, data_old) failed."
+            );
+            return ERROR_CODE;
+        }
+        reference_tracing_call_back_is_active = 1;
+        return 0;
+    }
 
     double clock_time = (double) clock() / CLOCKS_PER_SEC;
     /* RSS stuff. */
@@ -2452,9 +2550,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
              Py_REFCNT(obj),
              Py_TYPE(obj)->tp_name,
              py_frame_get_python_file_name(frame),
-//             "WTF...",
              py_frame_get_line_number(frame),
-//             -2,
              py_frame_get_python_function_name(frame),
              rss,
              d_rss
@@ -2477,6 +2573,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
 //        fprintf(stderr, "PyRefTracer_SetTracer(tracer_old, data_old) failed.\n");
         return ERROR_CODE;
     }
+    reference_tracing_call_back_is_active = 1;
     return 0;
 }
 

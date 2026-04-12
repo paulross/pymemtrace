@@ -429,7 +429,7 @@ and much smaller.
        Typically this makes the running time and the log file size 2x to 4x bigger.
        The builtin types are those C types that have a ``Py*_Check()`` function.
        These include all numeric types, containers (tuple, list, dict, set, frozenset), strings, bytes and so on.
-       See ``reference_trace_is_builtin()`` in ``pymemtrace/src/cpy/cPyMemTrace.c`` for the specific criteria [#]_.
+       See ``reference_trace_is_builtin_pre_suspend()`` in ``pymemtrace/src/cpy/cPyMemTrace.c`` for the specific criteria [#]_.
 
 For example this will log all the builtin actions:
 
