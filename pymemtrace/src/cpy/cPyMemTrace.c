@@ -202,7 +202,7 @@ py_frame_get_python_file_name(PyFrameObject *frame) {
         }
         Py_XDECREF(code_obj);
 #else
-        const unsigned char *file_name = PyUnicode_1BYTE_DATA(frame->f_code->co_filename);
+        strcpy(file_name, (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_filename));
 #endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
     }
     return file_name;
@@ -242,37 +242,6 @@ py_frame_get_python_function_name_with_profile_trace_args(PyFrameObject *frame, 
             }
 #endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
         }
-    }
-    return func_name;
-}
-
-/**
- * Returns the function name in a static C buffer.
- *
- * @param frame
- * @return
- */
-static const char *
-py_frame_get_python_function_name(PyFrameObject *frame) {
-    static char func_name[PYMEMTRACE_FUNCTION_NAME_MAX_LENGTH];
-//    func_name[0] = '\0';
-    strcpy(func_name, "<UNKNOWN_FUNCTION_NAME>");
-    if (frame) {
-        assert(PyFrame_Check(frame));
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-        /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding
-         * Note: PyFrame_GetCode returns a strong reference.
-         * See: https://docs.python.org/3/c-api/frame.html#c.PyFrame_GetCode */
-        PyCodeObject *code_obj = PyFrame_GetCode(frame);
-        if (code_obj) {
-            strcpy(func_name, (const char *) PyUnicode_1BYTE_DATA(code_obj->co_name));
-        }
-        Py_XDECREF(code_obj);
-#else
-        if (frame->f_code) {
-            strcpy(func_name, (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name));
-        }
-#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
     }
     return func_name;
 }
@@ -1386,6 +1355,41 @@ static PyTypeObject cpyTraceObjectType = {
  * Following the pattern above this is implemented as context managers with a linked list of logger.
  */
 
+// This is only used by Reference Tracing as Profile/Trace use
+// py_frame_get_python_function_name_with_profile_trace_args()
+#if REFERENCE_TRACING_AVAILABLE
+/**
+ * Returns the function name in a static C buffer.
+ *
+ * @param frame
+ * @return
+ */
+static const char *
+py_frame_get_python_function_name(PyFrameObject *frame) {
+    static char func_name[PYMEMTRACE_FUNCTION_NAME_MAX_LENGTH];
+//    func_name[0] = '\0';
+    strcpy(func_name, "<UNKNOWN_FUNCTION_NAME>");
+    if (frame) {
+        assert(PyFrame_Check(frame));
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+        /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding
+         * Note: PyFrame_GetCode returns a strong reference.
+         * See: https://docs.python.org/3/c-api/frame.html#c.PyFrame_GetCode */
+        PyCodeObject *code_obj = PyFrame_GetCode(frame);
+        if (code_obj) {
+            strcpy(func_name, (const char *) PyUnicode_1BYTE_DATA(code_obj->co_name));
+        }
+        Py_XDECREF(code_obj);
+#else
+        if (frame->f_code) {
+            strcpy(func_name, (const char *) PyUnicode_1BYTE_DATA(frame->f_code->co_name));
+        }
+#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+    }
+    return func_name;
+}
+#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+
 /**
  * The will be the opaque <tt>void *data</tt> structure registered with
  * PyRefTracer_SetTracer function:
@@ -2295,37 +2299,6 @@ reference_trace_type_include_matches(struct reference_tracing_data *data_alias, 
 }
 
 /**
- * Return 1 if this object should be included. Zero if it should be excluded.
- * This makes a choice based on the state of the data_alias and the type of the object.
- *
- * @param data_alias
- * @param obj
- * @return
- */
-static int
-reference_trace_include_this_object(struct reference_tracing_data * data_alias, PyObject *obj) {
-    /* Experience shows that frame and code objects are tricky to handle
-     * in that getting the file/line/function
-     * often causing a SIGSEGV so we always ignore them. */
-    if (PyFrame_Check(obj) || PyCode_Check(obj)) {
-        return 0;
-    }
-    /* Remove builtin types using the specific Python C API. */
-    if (data_alias->include_builtins == 0 && reference_trace_is_builtin(obj)) {
-        return 0;
-    }
-    /* Remove types by type name if they are in the exclusion sequence. */
-    if (data_alias->exclude_tp_names && reference_trace_type_exclude_matches(data_alias, obj)) {
-        return 0;
-    }
-    /* Remove types by type name if they are not in the inclusion sequence. */
-    if (data_alias->include_tp_names && !reference_trace_type_include_matches(data_alias, obj)) {
-        return 0;
-    }
-    return 1;
-}
-
-/**
  * The callback function that is passed to \c PyRefTracer_SetTracer.
  * This writes to the log file.
  *
@@ -2348,58 +2321,29 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     assert(data_alias->log_file);
     assert(event >= 0 && event <= 3);
 
-//    /* Experience shows that frame and code objects are tricky to handle
-//     * in that getting the file/line/function
-//     * often causing a SIGSEGV so we always ignore them. */
-//    if (PyFrame_Check(obj) || PyCode_Check(obj)) {
-//        return 0;
-//    }
-//    /* Remove builtin types using the specific Python C API. */
-//    if (data_alias->include_builtins == 0 && reference_trace_is_builtin(obj)) {
-//        return 0;
-//    }
-//    /* Remove types by type name if they are in the exclusion sequence. */
-//    if (data_alias->exclude_tp_names && reference_trace_type_exclude_matches(data_alias, obj)) {
-//        return 0;
-//    }
-//    /* Remove types by type name if they are not in the inclusion sequence. */
-//    if (data_alias->include_tp_names && !reference_trace_type_include_matches(data_alias, obj)) {
-//        return 0;
-//    }
-
-    if (!reference_trace_include_this_object(data_alias, obj)) {
-        return 0;
-    }
-
-    /* This does not seem to help in reporting craches. */
+    /* This does not seem to help in reporting crashes. */
 //    fprintf(
 //            data_alias->log_file,
-//            "%s()%d DEBUG TYPE is %s\n",
-//            __FUNCTION__, __LINE__, Py_TYPE(obj)->tp_name
+//            "%s()%d DEBUG TYPE @ %p is \"%s\"\n",
+//            __FUNCTION__, __LINE__, &(Py_TYPE(obj)), Py_TYPE(obj)->tp_name
 //            );
 
-#if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
-    if (event == PyRefTracer_TRACKER_REMOVED) {
-        /* Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
-         * call (below) will trigger a call to this callback function.
-         * We clould guard against this by checking the result of
-         * PyRefTracer_GetTracer with some more logic but we are not that interested
-         * in removing tracers at this level.
-         * That is handled by the context managers (and decorators).
-         */
+    /* Experience shows that frame and code objects are tricky to handle
+     * in that getting the file/line/function
+     * often causing a SIGSEGV, so we always ignore them. */
+    if (PyFrame_Check(obj) || PyCode_Check(obj)) {
         return 0;
     }
-#endif // #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
-
-    const int ERROR_CODE = -1;
-    double clock_time = (double) clock() / CLOCKS_PER_SEC;
-    /* RSS stuff. */
-    size_t rss = getCurrentRSS_alternate();
-    long d_rss = (long) rss - (long) data_alias->rss;
-    data_alias->rss = rss;
-    /* NOTE: We need to disable tracing at this point as PyEval_GetFrame() and
-     * sys_getsizeof() create arbitrary Python objects and that will
+    /* Remove builtin types using the specific Python C API.
+     * This does not allocate or deallocate any Python objects,
+     * so we do not need to suspend tracing. */
+    if (data_alias->include_builtins == 0 && reference_trace_is_builtin(obj)) {
+        return 0;
+    }
+    /* From now on we might call the Python API that might allocate or deallocate
+     * Python objects, so we do need to suspend tracing as not doing so will
      * recursively call this callback function causing a SIGABRT. */
+    const int ERROR_CODE = -1;
     void *data_old = NULL;
     /* Call PyRefTracer PyRefTracer_GetTracer(void **data) */
     PyRefTracer tracer_old = PyRefTracer_GetTracer(&data_old);
@@ -2418,6 +2362,46 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
         );
         return ERROR_CODE;
     }
+
+    /* Handle user requested exclusion or inclusion. */
+    /* Remove types by type name if they are in the exclusion sequence. */
+    int must_exclude = data_alias->exclude_tp_names && reference_trace_type_exclude_matches(data_alias, obj);
+    /* Remove types by type name if they are not in the inclusion sequence. */
+    int must_not_include = data_alias->include_tp_names && !reference_trace_type_include_matches(data_alias, obj);
+    if (must_exclude || must_not_include) {
+        /* Restore the Reference Tracer. */
+        if (PyRefTracer_SetTracer(tracer_old, data_old)) {
+            /* Do not set an exception.
+             * See: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer */
+            cpyReferenceTracing_write_c_error_message_to_log(
+                    data_alias,
+                    "PyRefTracer_SetTracer(tracer_old, data_old) failed."
+            );
+//        fprintf(stderr, "PyRefTracer_SetTracer(tracer_old, data_old) failed.\n");
+            return ERROR_CODE;
+        }
+        return 0;
+    }
+
+#if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
+    if (event == PyRefTracer_TRACKER_REMOVED) {
+        /* Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
+         * call (below) will trigger a call to this callback function.
+         * We clould guard against this by checking the result of
+         * PyRefTracer_GetTracer with some more logic but we are not that interested
+         * in removing tracers at this level.
+         * That is handled by the context managers (and decorators).
+         */
+        return 0;
+    }
+#endif // #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
+
+    double clock_time = (double) clock() / CLOCKS_PER_SEC;
+    /* RSS stuff. */
+    size_t rss = getCurrentRSS_alternate();
+    long d_rss = (long) rss - (long) data_alias->rss;
+    data_alias->rss = rss;
+
     /* Write the event type. */
     if (event == PyRefTracer_CREATE) {
         // Write the creation of an object.
@@ -3479,6 +3463,8 @@ debug_cPyMemtrace(int argc, char **argv) {
     Py_DECREF(bytes_obj);
 #endif
 
+    // PyFrame_GetCode is Python 3.9+
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 9
     PyFrameObject *frame = PyEval_GetFrame();
     if (frame) {
         PyCodeObject *a = PyFrame_GetCode(frame);
@@ -3486,6 +3472,7 @@ debug_cPyMemtrace(int argc, char **argv) {
         PyCodeObject *b = PyFrame_GetCode(frame);
         PyObject_Print((PyObject *) b, stdout, Py_PRINT_RAW);
     }
+#endif
 
     /* Cleanup. */
     PyConfig_Clear(&config);

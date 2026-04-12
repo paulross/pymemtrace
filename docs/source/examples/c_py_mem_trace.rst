@@ -481,7 +481,7 @@ This example will *only* log the events of ``MySpecialType``:
     def some_function():
         pass
 
-See the code in ``reference_trace_include_this_object()`` in ``pymemtrace/src/cpy/cPyMemTrace.c``
+See the code in ``reference_trace_allocations_callback()`` in ``pymemtrace/src/cpy/cPyMemTrace.c``
 for the implementation of all this logic.
 
 
