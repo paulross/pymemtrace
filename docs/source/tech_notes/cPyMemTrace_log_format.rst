@@ -92,7 +92,7 @@ The log file from the Profile or Trace object has the following format.
      - A previous event.
      - If you are skipping events then this precedes the ``NEXT:`` event as a reminder of what that event was.
        See table below for a description of the columns.
-   * - ``MESG:``
+   * - ``MSG:``
      - A arbitrary message.
      - This contains the ``Event``, ``dEvent`` and ``Clock`` columns (see table below) followed by the text message.
        The text message will be preceded with a "# " and any newlines in the message **will** be preserved.
@@ -114,7 +114,7 @@ The lines that contain space seperated columns are described here:
      - Notes
    * - Row Type
      - None
-     - Example ``FRST``, ``MESG`` etc.
+     - Example ``FRST``, ``MSG`` etc.
    * - Event
      - Event number.
      - Integer. Always increasing. May not be monotonic.
@@ -192,20 +192,20 @@ Here is an example log file (with event skipping), lightly edited:
     HEDR: Event  dEvent  Clock        What     File                Line Function        RSS       dRSS
     FRST: 0      +0      3.090020     LINE     test_cpymemtrace.py  265 test_trace      41463808  41463808
     NEXT: 1      +1      3.090202     LINE     test_cpymemtrace.py  266 test_trace      41472000  4096
-    MESG: 2      +1      3.090208     # Level 0 __enter__
+    MSG:  2      +1      3.090208     # Level 0 __enter__
     PREV: 2      +1      3.090208
     NEXT: 9      +8      3.090725     LINE     test_cpymemtrace.py  185 populate_list   42524672  1052672
     PREV: 9      +8      3.090725     LINE     test_cpymemtrace.py  185 populate_list   42524672  1052672
     NEXT: 11     +2      3.091224     LINE     test_cpymemtrace.py  185 populate_list   43577344  1052672
     8<---- Snip ---->8
-    MESG: 97     +82     3.092802     # Level 0 after populate_list()
-    MESG: 255    +240    3.093373     # Level 0 just prior to level 1 __enter__
-    MESG: 256    +241    3.093467     # Level 0 events should be suspended
+    MSG:  97     +82     3.092802     # Level 0 after populate_list()
+    MSG:  255    +240    3.093373     # Level 0 just prior to level 1 __enter__
+    MSG:  256    +241    3.093467     # Level 0 events should be suspended
     8<---- Snip ---->8
     PREV: 256    +241    3.094199
     NEXT: 401    +386    3.094896     LINE     test_cpymemtrace.py  300 test_trace      45686784  4096
-    MESG: 579    +178    3.095950     # Level 0 after level 1 exit
-    MESG: 674    +273    3.097299     # Level 0 after level 1 exit and populate_list()
+    MSG:  579    +178    3.095950     # Level 0 after level 1 exit
+    MSG:  674    +273    3.097299     # Level 0 after level 1 exit and populate_list()
     LAST: 675    +274    3.097455     LINE     test_cpymemtrace.py  265 test_trace      45686784  0
     EOF
 
