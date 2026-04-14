@@ -317,43 +317,43 @@ This is investigated in a bit more detail in :ref:`tech_notes-rss_cost`.
      - 0
      - Baseline execution.
    * - Profile
-     - 6.808
+     - 6.81
      - 8.9x
      - 399K
      - 2,095
      - ``d_rss_trigger=-1`` 4.4m events handled.
    * - Profile, all events
-     - 32.401
+     - 32.4
      - 42x
      - 831M
      - 4,428,053
      - ``d_rss_trigger=0`` 4.4m events handled.
    * - Trace
-     - 13.046
+     - 13.0
      - 17x
      - 443K
      - 2,326
      - ``d_rss_trigger=-1`` 7m events handled.
    * - Trace, all
-     - 47.626
+     - 47.6
      - 62x
      - 1.3G
      - 7,044,826
      - ``d_rss_trigger=0`` 7m events handled.
    * - Ref Trace, no builtins
-     - 27.268
+     - 27.3
      - 36x
      - 170M
      - 716,222
      - ``include_builtins=False``
    * - Ref Trace, with builtins
-     - 59.864
+     - 59.9
      - 78x
      - 1.0G
      - 4,375,211
      - ``include_builtins=True``
    * - Ref Trace, single class
-     - 2.015
+     - 2.02
      - 2.6x
      - 2K
      - 16
