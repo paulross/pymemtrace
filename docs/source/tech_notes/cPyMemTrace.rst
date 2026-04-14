@@ -274,6 +274,92 @@ For the 138,243,335 events (or 74,517 that are >= 4096) the run time can be used
 It is fairly understandable that the formatting and logging takes a while but it is interesting that computing the RSS is so expensive.
 This is investigated in a bit more detail in :ref:`tech_notes-rss_cost`.
 
+
+.. code-block::  shell
+
+    time tdlastohtml --log-process=0.25  example_data/LAS/data tmp/LASTOHTML_A
+
+.. code-block::  python
+
+    # @cpymemtrace_decs.profile(
+    #     message="LASToHTML Profile d_rss_trigger=0",
+    #     d_rss_trigger=0,
+    # )
+    # @cpymemtrace_decs.trace(
+    #     message="LASToHTML Trace d_rss_trigger=0",
+    #     d_rss_trigger=0,
+    # )
+    @cpymemtrace_decs.reference_tracing(
+        message="LASToHTML Reference Tracing include_builtins=True",
+        include_builtins=True,
+        # exclude_tp_names=['tuple_iterator', 'list_iterator',],
+        # include_tp_names=['LASSection',],
+    )
+    def process_arguments(args, log_level):
+        # Execution code here.
+        pass
+
+
+.. list-table:: **cPyMemTrace Performance**
+   :widths: 30 15 15 15 15 50
+   :header-rows: 1
+
+   * - Setup
+     - Time (s)
+     - Time Rel.
+     - Log Size
+     - Log Lines
+     - Notes
+   * - Normal
+     - 0.765
+     - 1x
+     - 0
+     - 0
+     - Baseline execution.
+   * - Profile
+     - 6.808
+     - 8.9x
+     - 399K
+     - 2,095
+     - ``d_rss_trigger=-1`` 4.4m events handled.
+   * - Profile, all events
+     - 32.401
+     - 42x
+     - 831M
+     - 4,428,053
+     - ``d_rss_trigger=0`` 4.4m events handled.
+   * - Trace
+     - 13.046
+     - 17x
+     - 443K
+     - 2,326
+     - ``d_rss_trigger=-1`` 7m events handled.
+   * - Trace, all
+     - 47.626
+     - 62x
+     - 1.3G
+     - 7,044,826
+     - ``d_rss_trigger=0`` 7m events handled.
+   * - Ref Trace, no builtins
+     - 27.268
+     - 36x
+     - 170M
+     - 716,222
+     - ``include_builtins=False``
+   * - Ref Trace, with builtins
+     - 59.864
+     - 78x
+     - 1.0G
+     - 4,375,211
+     - ``include_builtins=True``
+   * - Ref Trace, single class
+     - 2.015
+     - 2.6x
+     - 2K
+     - 16
+     - ``include_builtins=False,`` ``include_tp_names=['LASSection',]``
+
+
 Conclusion
 -----------------
 
