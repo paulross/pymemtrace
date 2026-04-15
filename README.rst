@@ -42,7 +42,7 @@ This module, written in C, provides real time logging of Python and C actions:
 - ``pymemtrace.cPyMemTrace.ReferenceTracing`` can report every object allocation
   and de-allocation with
   `Reference Tracing <https://docs.python.org/3/c-api/profiling.html#reference-tracing>`_.
-  This is quite invasive but our API allows this to filter out most of the noise or target specific types
+  This is quite invasive but the API allows this to filter out most of the noise or target specific types
   of interest.
   (Python 3.13+ only).
 
@@ -79,7 +79,8 @@ Each tool can be characterised by:
 
 - *Memory Granularity*: In how much detail is a memory change is observed.
   An example of *coarse* memory granularity is measuring the
-  `Resident Set Size <https://en.wikipedia.org/wiki/Resident_set_size>`_ which is normally in chunks of 4096 bytes.
+  `Resident Set Size <https://en.wikipedia.org/wiki/Resident_set_size>`_ (RSS) which is normally in
+  chunks of 4096 bytes.
   An example of *fine* memory granularity is recording every ``malloc()`` and ``free()``.
 - *Execution Granularity*: In how much code detail is the memory change observed.
   An example of *coarse* execution granularity is measuring the memory usage every second.
@@ -92,21 +93,27 @@ Clearly there are trade-offs between these depending on the problem you are tryi
 Firstly granularity:
 
 .. list-table:: **Tool Granularity**
-   :widths: 20 30 30
+   :widths: 40 30 30
    :header-rows: 1
 
    * - Tool
      - Memory Granularity
      - Execution Granularity
    * - ``process_tree``
-     - RSS (total Python and C memory).
+     - RSS.
      - Regular time intervals.
    * - ``process``
-     - RSS (total Python and C memory).
+     - RSS.
      - Regular time intervals.
-   * - ``cPyMemTrace``
-     - RSS (total Python and C memory).
-     - Per Python line, Python function and C function call. Per object allocation/de-allocation.
+   * - ``cPyMemTrace.Profile``
+     - RSS.
+     - Per Python line, Python function and return. C function call and return.
+   * - ``cPyMemTrace.Trace``
+     - RSS.
+     - Per Python line, Python function and return. Python Opcode and exception.
+   * - ``cPyMemTrace.ReferenceTracing``
+     - RSS.
+     - Every object allocation/de-allocation.
    * - DTrace
      - Every ``malloc()`` and ``free()``.
      - Per function call and return.
@@ -120,7 +127,7 @@ Firstly granularity:
 Secondly cost:
 
 .. list-table:: **Tool Cost**
-   :widths: 20 30 30
+   :widths: 40 30 30
    :header-rows: 1
 
    * - Tool
@@ -132,18 +139,24 @@ Secondly cost:
    * - ``process``
      - Near zero.
      - Near zero.
-   * - ``cPyMemTrace``
+   * - ``cPyMemTrace.Profile``
      - Near zero.
-     - x10 to x20.
+     - 10x to 40x.
+   * - ``cPyMemTrace.Trace``
+     - Near zero.
+     - 20x to 60x.
+   * - ``cPyMemTrace.ReferenceTracing``
+     - Near zero.
+     - 2x to 80x.
    * - DTrace
      - Minimal.
-     - x90 to x100.
+     - 90x to 100x.
    * - ``trace_malloc``
      - Significant but compensated.
-     - x900 for small objects, x6 for large objects.
+     - 900x for small objects, 6x for large objects.
    * - ``debug_malloc_stats``
      - Minimal.
-     - x2000+ for small objects, x12 for large objects.
+     - +2000x for small objects, 12x for large objects.
 
 Installation
 ============
