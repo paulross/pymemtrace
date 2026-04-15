@@ -280,6 +280,11 @@ typedef struct {
      */
     size_t rss;
     /**
+     * The RSS value in bytes that was last written to the log file.
+     * Used by comparing the change in RSS and deciding whether to report it.
+     */
+    size_t last_reported_rss;
+    /**
      * This determines the granularity of the log file.
      * <0 - A call to \c trace_or_profile_function() is logged only if the dRSS is >= the page size given by
      *  \c getpagesize() in \c unistd.h.
@@ -314,7 +319,7 @@ trace_wrapper_write_frame_data_to_event_text(cpyTraceFileWrapper *trace_wrapper,
                                              int what, PyObject *arg) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(trace_wrapper);
     size_t rss = getCurrentRSS_alternate();
-    long d_rss = rss - trace_wrapper->rss;
+    long d_rss = rss - trace_wrapper->last_reported_rss;
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
     double clock_time = (double) clock() / CLOCKS_PER_SEC;
     snprintf(trace_wrapper->event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
@@ -767,8 +772,8 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
     cpyTraceFileWrapper *trace_wrapper = (cpyTraceFileWrapper *) pobj;
     size_t rss = getCurrentRSS_alternate();
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
-    long d_rss = rss - trace_wrapper->rss;
-    if (trace_or_profile_must_write_previous(trace_wrapper, d_rss)) {
+    long d_rss_to_report = rss - trace_wrapper->last_reported_rss;
+    if (trace_or_profile_must_write_previous(trace_wrapper, d_rss_to_report)) {
         // Previous event.
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
         fputs("PREV: ", trace_wrapper->file);
@@ -776,7 +781,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
         fputs(trace_wrapper->event_text, trace_wrapper->file);
         fputc('\n', trace_wrapper->file);
     }
-    if (trace_or_profile_must_write_next(trace_wrapper, d_rss)) {
+    if (trace_or_profile_must_write_next(trace_wrapper, d_rss_to_report)) {
         // NOTE: Ignore event number 0 as that is covered by "FRST:" below.
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
         assert(trace_wrapper->file);
@@ -786,6 +791,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
         fputs(trace_wrapper->event_text, trace_wrapper->file);
         fputc('\n', trace_wrapper->file);
         trace_wrapper->previous_event_number = trace_wrapper->event_number;
+        trace_wrapper->last_reported_rss = rss;
     }
 #endif // PY_MEM_TRACE_WRITE_OUTPUT
     trace_wrapper->event_number++;
@@ -894,6 +900,7 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
             fputc('\n', trace_wrapper->file);
             trace_wrapper->event_number = 0;
             trace_wrapper->rss = 0;
+            trace_wrapper->last_reported_rss = 0;
             if (d_rss_trigger < 0) {
                 trace_wrapper->d_rss_trigger = getpagesize();
             } else {
