@@ -1,7 +1,7 @@
 History
 =======
 
-0.3.2rc0 (TODO)
+0.4.0 (TODO)
 ---------------------
 
 * cPyMemTrace:
