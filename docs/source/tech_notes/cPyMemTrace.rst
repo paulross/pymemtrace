@@ -18,7 +18,7 @@ The program reads remote sensing structured text files containing static data an
 and summarised them as HTML pages.
 The input was 3 files totalling 1.3Mb.
 
-Platform was a Mac Book Pro (late 2018) 2.7 GHz Intel Core i7 running Mac OS Ventura 13.5.
+Platform was a Mac Book Pro (late 2018) 2.7 GHz Intel Core i7 running macOS Ventura 13.5.
 
 The command used was:
 

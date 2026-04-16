@@ -98,7 +98,7 @@ The next big thing after DTrace is `eBPF <http://www.brendangregg.com/blog/2019-
 Truly awesome.
 
 
-Mac OS X
+macOS
 ^^^^^^^^^^^^^^^^^^^
 
 Tools such as ``vmmap``, ``heap``, ``leaks``, ``malloc_history``, ``vm_stat`` can all help.
@@ -111,9 +111,9 @@ Some useful information for memory tools from
 DTrace
 """""""""""""""""""
 
-Mac OS X is DTrace aware, this needs a special build of Python, here is an
+macOS is DTrace aware, this needs a special build of Python, here is an
 `introduction <https://github.com/paulross/dtrace-py>`_ that takes you through building and using a DTrace aware version
-of Python on Mac OS X.
+of Python on macOS.
 
 Some examples of using DTrace with ``pymemtrace``: :ref:`examples-dtrace`.
 

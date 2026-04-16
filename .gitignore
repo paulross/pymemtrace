@@ -109,7 +109,7 @@ ENV/
 # Temporary files
 tmp/
 
-# Mac OS X
+# macOS X
 .DS_Store
 
 # pytest

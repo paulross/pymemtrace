@@ -20,7 +20,7 @@
     #include <unistd.h>
     #include <sys/resource.h>
     #if defined(__APPLE__) && defined(__MACH__)
-        /* Added for faster (?) Mac OS X RSS value in getCurrentRSS_alternate. */
+        /* Added for faster (?) macOS RSS value in getCurrentRSS_alternate. */
         #include <libproc.h>
         #include <mach/mach.h>
     #elif (defined(_AIX) || defined(__TOS__AIX__)) || (defined(__sun__) || defined(__sun) || defined(sun) && (defined(__SVR4) || defined(__svr4__)))
