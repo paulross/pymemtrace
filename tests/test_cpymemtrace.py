@@ -439,10 +439,16 @@ def test_profile_and_trace_too_many_args(cls):
 def test_reference_trace_too_many_args_post_313():
     with pytest.raises(TypeError) as err:
         with cPyMemTrace.ReferenceTracing(
-                'message', 'file_path', 'include_builtins', 'exclude_tp_names', 'include_tp_names', 'and_one_more'
+                'message',
+                'file_path',
+                False, #'include_builtins',
+                [], #'exclude_tp_names',
+                [], #'include_tp_names',
+                2, # 'gc_collect_on_exit'
+                'and_one_more'
         ):
             pass
-    assert err.value.args[0] == "function takes at most 5 arguments (6 given)"
+    assert err.value.args[0] == "function takes at most 6 arguments (7 given)"
 
 
 class BytesWrapper:
@@ -749,6 +755,41 @@ def test_reference_tracing_include_tp_names(include_tp_names):
         with cPyMemTrace.ReferenceTracing(
                 message=message, filepath=file.name,
                 include_builtins=False, include_tp_names=include_tp_names,
+        ) as profiler:
+            assert profiler.log_file_path() == file.name
+            exercise_bytes_wrapper()
+        time.sleep(1.0)
+        file.flush()
+        file_data = file.read()
+        print()
+        print(' file_0_data '.center(75, '-'))
+        for line in file_data.split(b'\n'):
+            print(line)
+        print(' file_0_data DONE '.center(75, '-'))
+        assert file_data.startswith(bytes(message, 'ascii'))
+        # Some tests on the output, weather it has builtin types
+        # Note the spaces around the type name, so we don't pick up spurious data.
+        # Note b' range_iterator ' is not detected as a builtin as it does not have
+        # a Py*_Check() C API so include_builtins=False will not eliminate it.
+        assert b'BytesWrapper' in file_data
+        assert b'range_iterator' not in file_data
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+@pytest.mark.parametrize(
+    'include_tp_names',
+    (
+            ['BytesWrapper',],
+    )
+)
+def test_reference_tracing_include_tp_names_with_gc_collect(include_tp_names):
+    """Tests Reference Tracing with the include_builtins switch."""
+    message = f'test_reference_tracing_exclude_tp_names():'
+    with tempfile.NamedTemporaryFile() as file:
+        with cPyMemTrace.ReferenceTracing(
+                message=message, filepath=file.name,
+                include_builtins=False, include_tp_names=include_tp_names,
+                gc_collect_on_exit=2,
         ) as profiler:
             assert profiler.log_file_path() == file.name
             exercise_bytes_wrapper()

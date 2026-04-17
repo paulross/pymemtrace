@@ -171,7 +171,7 @@ Then reference tracing *including* all the Python builtins:
         # Execution code here.
         pass
 
-Finally reference tracing but only reporting on a specific type and no builtin types:
+Now reference tracing but only reporting on a specific type and no builtin types:
 
 .. code-block::  python
 
@@ -182,6 +182,41 @@ Finally reference tracing but only reporting on a specific type and no builtin t
         ),
         include_builtins=False,
         include_tp_names=['LASSection',],
+    )
+    def process_arguments(args, log_level):
+        # Execution code here.
+        pass
+
+Now reference tracing but only reporting on a specific type and no builtin types:
+
+.. code-block::  python
+
+    @cpymemtrace_decs.reference_tracing(
+        message=(
+            "LASToHTML Reference Tracing include_builtins=False"
+            " include_tp_names=['LASSection',]"
+        ),
+        include_builtins=False,
+        include_tp_names=['LASSection',],
+    )
+    def process_arguments(args, log_level):
+        # Execution code here.
+        pass
+
+Finally reference tracing but only reporting on a specific type and no builtin types but with a
+full Garbage Collection run before closing the log file:
+
+.. code-block::  python
+
+    @cpymemtrace_decs.reference_tracing(
+        message=(
+            "LASToHTML Reference Tracing include_builtins=False"
+            " include_tp_names=['LASSection',]"
+            " gc_collect_on_exit=2"
+        ),
+        include_builtins=False,
+        include_tp_names=['LASSection',],
+        gc_collect_on_exit=2,
     )
     def process_arguments(args, log_level):
         # Execution code here.
@@ -218,13 +253,20 @@ Here are the results compared to the baseline of no tracing:
      - 4,375,211
      - ``include_builtins=True``
    * - Ref Trace, single class
-     - 2.02
-     - 2.6x
-     - 2K
+     - 1.573
+     - 2.0x
+     - 3.2K
      - 16
-     - ``include_builtins=False,`` ``include_tp_names=['LASSection',]``
+     - ``include_tp_names=['LASSection',]``
+   * - Ref Trace, single class, with GC
+     - 1.841
+     - 2.4x
+     - 6.1K
+     - 28
+     - ``include_tp_names=['LASSection',]`` ``gc_collect_on_exit=2``
 
 Reference tracing is extremely invasive as it records *every* Python object allocation and de-allocation.
 Including builtins can double the executions times compared to ignoring them.
 
 Reference tracing a single type is remarkably effective and efficient.
+The Garbage Collection run adds very little to the execution time.

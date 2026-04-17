@@ -404,6 +404,117 @@ Then a table of the count of creations and deletions by type:
 
     \end{landscape}
 
+Reference Tracing and Garbage Collection
+-----------------------------------------
+
+One of the problems of getting a *clean* reference tracing log, one where all allocations and de-allocations
+are matched is that Python has a quite complicated de-allocation strategy.
+It is different from, say C++, in that Python's is non-deterministic and may be lazy deferring de-allocations
+until long after the :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing` is able to observe.
+
+This makes log analysis tricky, apparently certain types have not been de-allocated
+however they might well have been after the :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing`
+has called ``__exit__()``.
+
+To make the log file more accurate :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing`
+has an option ``gc_collect_on_exit`` which takes an integer.
+If -1 (the default) this does nothing.
+If 0, 1 or 2 then the this value is passed to :py:func:`gc.collect()` at the beginning of the
+``__exit__`` method.
+This means that the :py:mod:`gc` is observed by the :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing`
+callback function and as the Garbage Collector works the relevant de-allocations will be
+in the log file.
+
+To show the effect of using the Garbage Collector a test :ref:`tech_notes-cpymemtrace_test_data` was run without
+Garbage Collection (``gc_collect_on_exit=-1``) and a full garbage collection (``gc_collect_on_exit=2``).
+The logs were analysed with :py:mod:`pymemtrace.util.ref_trace_analyse`.
+
+Firstly without garbage collection:
+
+.. raw:: latex
+
+    [Continued on the next page]
+
+    \pagebreak
+
+    \begin{landscape}
+
+.. code-block:: text
+
+    $ python pymemtrace/util/ref_trace_analyse.py 20260417_115810_0_61868_O_0_PY3.14.2.log
+    File path: 20260417_115810_0_61868_O_0_PY3.14.2.log
+    2026-04-17 13:04:06,003 - ref_trace_analyse.py#338 - INFO     - Lines: 16 NEW: 12 DEL: 0 NEW - DEL: 12 MSG: 0
+    Initial Message:
+    LASToHTML Reference Tracing include_builtins=False
+    Untracked Objects [0]:
+    Type                                        Count
+    Live Objects [12]:
+        0x0001099c4a50    1 LASSection                               _proc_section_generic            LASRead.py#821
+        0x000117ef6710    1 LASSection                               _proc_section_generic            LASRead.py#821
+        0x000117ef6850    1 LASSection                               _proc_section_generic            LASRead.py#821
+        0x000117f02660    1 LASSection                               _proc_section_generic            LASRead.py#821
+        0x000117f0e210    1 LASSection                               _proc_section_generic            LASRead.py#821
+        0x000117f6c9d0    1 LASSection                               _proc_section_generic            LASRead.py#821
+        0x000117f6f230    1 LASSection                               _proc_section_generic            LASRead.py#821
+        0x000117f73250    1 LASSection                               _proc_section_generic            LASRead.py#821
+        0x0001180c9590    1 LASSection                               _proc_section_generic            LASRead.py#821
+        0x0001180c96a0    1 LASSection                               _proc_section_generic            LASRead.py#821
+        0x000118185310    1 LASSection                               _proc_section_generic            LASRead.py#821
+        0x000118185400    1 LASSection                               _proc_section_generic            LASRead.py#821
+    Previous Objects [0]:
+    Type count [1]:
+    Type                                          New      Del  New - Del
+    LASSection                                     12        0         12
+    Process time: 0.001 (s)
+
+.. raw:: latex
+
+    \end{landscape}
+
+It appears that several ``LASSection`` objects are still alive indicating a memory leak.
+However running the same test with a full garbage collection (``gc_collect_on_exit=2``) shows a more
+accurate picture demonstrating that all the objects of interest have been correctly de-allocated.
+
+.. raw:: latex
+
+    [Continued on the next page]
+
+    \pagebreak
+
+    \begin{landscape}
+
+.. code-block:: text
+
+    $ python pymemtrace/util/ref_trace_analyse.py 20260417_120226_0_62036_O_0_PY3.14.2.log
+    File path: 20260417_120226_0_62036_O_0_PY3.14.2.log
+    2026-04-17 13:04:17,387 - ref_trace_analyse.py#338 - INFO     - Lines: 28 NEW: 12 DEL: 12 NEW - DEL: 0 MSG: 0
+    Initial Message:
+    LASToHTML Reference Tracing include_builtins=False, gc_collect_on_exit=2
+    Untracked Objects [0]:
+    Type                                        Count
+    Live Objects [0]:
+    Previous Objects [12]:
+        0x00010c6d0a50 LASSection                               NEW: LASRead.py#821 DEL: cpymemtrace_decs.py#44
+        0x00011ac12710 LASSection                               NEW: LASRead.py#821 DEL: cpymemtrace_decs.py#44
+        0x00011ac12850 LASSection                               NEW: LASRead.py#821 DEL: cpymemtrace_decs.py#44
+        0x00011ac1e660 LASSection                               NEW: LASRead.py#821 DEL: cpymemtrace_decs.py#44
+        0x00011ac29eb0 LASSection                               NEW: LASRead.py#821 DEL: cpymemtrace_decs.py#44
+        0x00011ac8c9d0 LASSection                               NEW: LASRead.py#821 DEL: cpymemtrace_decs.py#44
+        0x00011ac8f230 LASSection                               NEW: LASRead.py#821 DEL: cpymemtrace_decs.py#44
+        0x00011ac93150 LASSection                               NEW: LASRead.py#821 DEL: cpymemtrace_decs.py#44
+        0x00011acad310 LASSection                               NEW: LASRead.py#821 DEL: cpymemtrace_decs.py#44
+        0x00011acad400 LASSection                               NEW: LASRead.py#821 DEL: cpymemtrace_decs.py#44
+        0x00011ad29590 LASSection                               NEW: LASRead.py#821 DEL: cpymemtrace_decs.py#44
+        0x00011ad296a0 LASSection                               NEW: LASRead.py#821 DEL: cpymemtrace_decs.py#44
+    Type count [1]:
+    Type                                          New      Del  New - Del
+    LASSection                                     12       12          0
+    Process time: 0.002 (s)
+
+.. raw:: latex
+
+    \end{landscape}
+
 Managing the Log File Output
 ------------------------------
 

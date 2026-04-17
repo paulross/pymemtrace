@@ -2595,6 +2595,9 @@ typedef struct {
     PyObject *py_specific_filename;
     // User can provide a specific message to be written at the beginning of the file.
     char *message;
+    // If >= 0 this will be passed to gc.collect() on __exit__
+    // This helps clear up the log by deleting transient objects.
+    int gc_collect_on_exit;
 } cpyReferenceTracing;
 
 
@@ -2653,6 +2656,8 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
         self->data->include_tp_names = NULL;
         self->py_specific_filename = NULL;
         self->message = NULL;
+        /* Default to no gc.collect() */
+        self->gc_collect_on_exit = -1;
     }
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     return (PyObject *) self;
@@ -2673,15 +2678,18 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
     static char *kwlist[] = {
             "message", "filepath",
             "include_builtins", "exclude_tp_names", "include_tp_names",
+            "gc_collect_on_exit",
             NULL
     };
     char *message = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sO&pOO", kwlist, &message, PyUnicode_FSConverter,
+    /* Note the defaults are set in cpyReferenceTracing_new() */
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sO&pOOi", kwlist, &message, PyUnicode_FSConverter,
                                      &self->py_specific_filename,
                                      &(self->data->include_builtins),
                                      &(self->data->exclude_tp_names),
-                                     &(self->data->include_tp_names)
+                                     &(self->data->include_tp_names),
+                                     &(self->gc_collect_on_exit)
                                      )
                                      ) {
         assert(PyErr_Occurred());
@@ -2701,7 +2709,7 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
         /* Check that the exclude_tp_names supports the sequence protocol. */
         if (!PySequence_Check(self->data->exclude_tp_names)) {
             PyErr_Format(
-                    PyExc_MemoryError,
+                    PyExc_TypeError,
                     "cpyReferenceTracing_init() exclude_tp_names must be a sequence, not type %s.",
                     Py_TYPE(self->data->exclude_tp_names)->tp_name
                     );
@@ -2714,7 +2722,7 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
         /* Check that the include_tp_names supports the sequence protocol. */
         if (!PySequence_Check(self->data->include_tp_names)) {
             PyErr_Format(
-                    PyExc_MemoryError,
+                    PyExc_TypeError,
                     "cpyReferenceTracing_init() include_tp_names must be a sequence, not type %s.",
                     Py_TYPE(self->data->include_tp_names)->tp_name
                     );
@@ -2722,6 +2730,18 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
         }
         /* PyArg_ParseTupleAndKeywords returns a borrowed reference with "O" format. */
         Py_INCREF(self->data->include_tp_names);
+    }
+    if (self->gc_collect_on_exit < -1 || self->gc_collect_on_exit > 2) {
+        /* -1 is no collection. otherwise this is passed to gc.collect()
+         * and that takes a value 0, 1, or 2.
+         * See: https://docs.python.org/3/library/gc.html#gc.collect
+         * */
+        PyErr_Format(
+                PyExc_ValueError,
+                "cpyReferenceTracing_init() gc_collect_on_exit must be -1, 0, 1, 2 not %i.",
+                self->gc_collect_on_exit
+        );
+        return -4;
     }
     assert(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
@@ -2771,6 +2791,50 @@ cpyReferenceTracing_write_python_message_to_log(cpyReferenceTracing *self, PyObj
     cpyReferenceTracing_write_c_message_to_log(self->data, (char *) c_str);
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     Py_RETURN_NONE;
+}
+
+/**
+ * Run a gc.collect().
+ * See: https://docs.python.org/3/library/gc.html#gc.collect
+ *
+ * @param self
+ * @return The result of gc.collect(), a count of the objects collected.
+ */
+static long
+cpyReferenceTracing_invoke_gc_collect(cpyReferenceTracing *self) {
+    assert(!PyErr_Occurred());
+    assert(self->gc_collect_on_exit >= 0 && self->gc_collect_on_exit <= 2);
+    PyObject *gc_module = PyImport_ImportModule("gc");
+    long ret = 0;
+    if (!gc_module) {
+        PyErr_SetString(
+            PyExc_ImportError,
+            "cpyReferenceTracing_invoke_gc_collect() can not import the \"gc\" module."
+        );
+        ret= -1;
+    } else {
+        PyObject *result = PyObject_CallMethod(gc_module, "collect", "i", self->gc_collect_on_exit);
+        if (result) {
+            ret = PyLong_AsLong(result);
+#if DEBUG
+            fprintf(
+                stdout,
+                "DEBUG: %s#%d gc.collect(%d) collected %ld objects.\n",
+                __FUNCTION__, __LINE__, self->gc_collect_on_exit, ret
+            );
+#endif
+            Py_DECREF(result);
+        } else {
+            PyErr_Format(
+                PyExc_RuntimeError,
+                "cpyReferenceTracing_invoke_gc_collect() invoking \"gc.collect(%d)\" failed.",
+                self->gc_collect_on_exit
+            );
+            ret = -2;
+        }
+        Py_DECREF(gc_module);
+    }
+    return ret;
 }
 
 /**
@@ -2869,10 +2933,17 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
 static PyObject *
 cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
-    // No assert(!PyErr_Occurred()); as an exception might have been set by the users code.
-    /* De-registers the existing tracer. */
-    // PyRefTracer_SetTracer() will decrement the reference count that incremented by
-    // PyRefTracer_SetTracer() on __enter__
+    /* NOTE: No assert(!PyErr_Occurred()); as an exception might have been set by the users code. */
+
+    /* Invoke gc.collect() if required, we DO want to trace de-allocations. */
+    if (self->gc_collect_on_exit >= 0) {
+        cpyReferenceTracing_invoke_gc_collect(self);
+    }
+
+    /* De-registers the existing tracer.
+     * PyRefTracer_SetTracer() will decrement the reference count that incremented by
+     * PyRefTracer_SetTracer() on __enter__
+     * */
     if (PyRefTracer_SetTracer(NULL, NULL)) {
         PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(NULL, NULL) failed.");
         return NULL;
@@ -2907,7 +2978,6 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     return NULL;
 }
-
 
 static PyObject *
 cpyReferenceTracing_get_log_file_path(cpyReferenceTracing *self, PyObject *Py_UNUSED(arg)) {
@@ -3116,6 +3186,9 @@ static PyTypeObject cpyReferenceTracingType = {
                   "\n\n- ``exclude_tp_names``: A sequence of strings of type names to exclude in the output."
                   "\n\n- ``include_tp_names``: A sequence of strings of type names to include in the output."
                   " ``exclude_tp_names`` takes precedence over this."
+                  "\n\n- ``gc_collect_on_exit``: An integer to be passed to gc.collect() on __exit__."
+                  " This can make the log files more accurate in tracking de-allocations."
+                  " -1 (the default) means no garbage collection."
                   "\n",
         .tp_basicsize = sizeof(cpyReferenceTracing),
         .tp_itemsize = 0,
