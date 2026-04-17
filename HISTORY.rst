@@ -6,6 +6,7 @@ History
 
 * cPyMemTrace:
     * Much more reliable processing of Reference Tracing events.
+    * Reference Tracing runs the Garbage Collector on exit to make the log more accurate.
     * User filtering of Reference Tracing events to include/exclude specific events.
     * Fix the issue with Reference Tracing where handling type "frame" was causing pytest and
       CPython runtime assert failures.
@@ -16,7 +17,6 @@ History
 * General documentation improvements, now 142 PDF A4 pages.
 * Supported Python versions are: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
 * Development Status :: 5 - Production/Stable
-* TODO
 
 0.3.1 (2026-03-23)
 ---------------------

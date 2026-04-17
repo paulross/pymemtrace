@@ -2656,8 +2656,8 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
         self->data->include_tp_names = NULL;
         self->py_specific_filename = NULL;
         self->message = NULL;
-        /* Default to no gc.collect() */
-        self->gc_collect_on_exit = -1;
+        /* Default to a full gc.collect() */
+        self->gc_collect_on_exit = 2;
     }
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     return (PyObject *) self;
@@ -3188,7 +3188,8 @@ static PyTypeObject cpyReferenceTracingType = {
                   " ``exclude_tp_names`` takes precedence over this."
                   "\n\n- ``gc_collect_on_exit``: An integer to be passed to gc.collect() on __exit__."
                   " This can make the log files more accurate in tracking de-allocations."
-                  " -1 (the default) means no garbage collection."
+                  " 2 (the default) means full garbage collection."
+                  " -1 means no garbage collection."
                   "\n",
         .tp_basicsize = sizeof(cpyReferenceTracing),
         .tp_itemsize = 0,
