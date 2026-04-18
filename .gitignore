@@ -123,3 +123,5 @@ cmake-build-debug-event-trace/
 attic/
 
 !pymemtrace/examples/process.log
+
+docs/doxygen
