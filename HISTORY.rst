@@ -1,13 +1,13 @@
 History
 =======
 
-0.4.0 (TODO)
+0.4.0 (2026-04-18)
 ---------------------
 
 * cPyMemTrace:
-    * Much more reliable processing of Reference Tracing events.
-    * Reference Tracing runs the Garbage Collector on exit to make the log more accurate.
     * User filtering of Reference Tracing events to include/exclude specific events.
+    * Reference Tracing runs the Garbage Collector on exit to make the log more accurate.
+    * Much more reliable processing of Reference Tracing events.
     * Fix the issue with Reference Tracing where handling type "frame" and "code"
       was causing pytest and CPython runtime assert failures.
     * Write profile/trace/reference tracing context switches to the appropriate log file.
@@ -15,6 +15,7 @@ History
     * Add suspend() and resume() methods for Reference Tracing.
     * Document pytest issues with Reference Tracing (now historical information).
 * General documentation improvements, now around 140 PDF A4 pages.
+* Add Doxygen documentation of the C source.
 * Supported Python versions are: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
 * Development Status :: 5 - Production/Stable
 
