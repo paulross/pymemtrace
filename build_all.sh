@@ -118,7 +118,7 @@ report_all_versions_and_setups() {
 }
 
 create_documentation() {
-  echo "---> Python version:"
+  echo "---> create_documentation() Python version:"
   which python
   python -VV
   echo "---> pip list:"
@@ -127,7 +127,12 @@ create_documentation() {
   cd docs
   make clean
   make html latexpdf
+  # Doxygen
+  echo "---> Building Doxygen documentation:"
+  rm -rf doxygen
+  doxygen pymemtrace.dox
   cd ..
+  echo "---> Building documentation DONE"
 }
 
 show_results_of_dist() {
