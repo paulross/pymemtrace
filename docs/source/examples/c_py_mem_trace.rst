@@ -418,12 +418,12 @@ has called ``__exit__()``.
 
 To make the log file more accurate :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing`
 has an option ``gc_collect_on_exit`` which takes an integer.
-If -1 (the default) this does nothing.
-If 0, 1 or 2 then the this value is passed to :py:func:`gc.collect()` at the beginning of the
+If 0, 1 or 2 (the default) then the this value is passed to :py:func:`gc.collect()` at the beginning of the
 ``__exit__`` method.
 This means that the :py:mod:`gc` is observed by the :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing`
 callback function and as the Garbage Collector works the relevant de-allocations will be
 in the log file.
+If the value is -1 this does not call :py:func:`gc.collect()` during the ``__exit__`` method.
 
 To show the effect of using the Garbage Collector a test :ref:`tech_notes-cpymemtrace_test_data` was run without
 Garbage Collection (``gc_collect_on_exit=-1``) and a full garbage collection (``gc_collect_on_exit=2``).
