@@ -5,34 +5,34 @@
  * See https://docs.python.org/3/c-api/init.html#profiling-and-tracing
  *
  * Monitored events are:
- * PyTrace_CALL, PyTrace_C_CALL, PyTrace_C_EXCEPTION, PyTrace_C_RETURN, PyTrace_EXCEPTION,
- * PyTrace_LINE, PyTrace_OPCODE, PyTrace_RETURN
+ * \c PyTrace_CALL \c PyTrace_C_CALL \c PyTrace_C_EXCEPTION \c PyTrace_C_RETURN \c PyTrace_EXCEPTION
+ * \c PyTrace_LINE \c PyTrace_OPCODE \c PyTrace_RETURN
  *
  * The Python events:
  *
- * - PyTrace_CALL When a new call to a Python function or method is being reported, or a new entry into a generator.
- * - PyTrace_EXCEPTION When when a Python exception has been raised.
- * - PyTrace_LINE When a Python line-number event is being reported.
- * - PyTrace_OPCODE When a new Python opcode is about to be executed.
- * - PyTrace_RETURN When a Python call is about to return.
+ * - \c PyTrace_CALL When a new call to a Python function or method is being reported, or a new entry into a generator.
+ * - \c PyTrace_EXCEPTION When when a Python exception has been raised.
+ * - \c PyTrace_LINE When a Python line-number event is being reported.
+ * - \c PyTrace_OPCODE When a new Python opcode is about to be executed.
+ * - \c PyTrace_RETURN When a Python call is about to return.
  *
  * The C Events:
- * - PyTrace_C_CALL When a C function is about to be called.
- * - PyTrace_C_EXCEPTION When a C function has raised an exception.
- * - PyTrace_C_RETURN When a C function has returned.
+ * - \c PyTrace_C_CALL When a C function is about to be called.
+ * - \c PyTrace_C_EXCEPTION When a C function has raised an exception.
+ * - \c PyTrace_C_RETURN When a C function has returned.
  *
- * PyEval_SetProfile
- * -----------------
+ * \c PyEval_SetProfile
+ * --------------------
  * The profile function is called for all monitored events except PyTrace_LINE PyTrace_OPCODE and PyTrace_EXCEPTION.
  *
  * So this is useful when tracing C extensions.
  *
- * PyEval_SetTrace
- * ---------------
- * This is similar to PyEval_SetProfile(), except the tracing function does receive Python line-number events
+ * \c PyEval_SetTrace
+ * ------------------
+ * This is similar to \c PyEval_SetProfile(), except the tracing function does receive Python line-number events
  * and per-opcode events, but does not receive any event related to C function objects being called.
- * Any trace function registered using PyEval_SetTrace() will not receive PyTrace_C_CALL, PyTrace_C_EXCEPTION or PyTrace_C_RETURN as a
- * value for the what parameter.
+ * Any trace function registered using \c PyEval_SetTrace() will not receive \c PyTrace_C_CALL,
+ * \c PyTrace_C_EXCEPTION or \c PyTrace_C_RETURN as a value for the \c what parameter.
  *
  * So this is useful when tracing Python code ignoring C extensions.
  *
@@ -44,9 +44,9 @@
  * See https://docs.python.org/3/c-api/profiling.html#reference-tracing
  *
  * Monitored events are:
- * PyRefTracer_CREATE https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_CREATE
- * PyRefTracer_DESTROY https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_DESTROY
- * Possibly: PyRefTracer_TRACKER_REMOVED https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED
+ * - \c PyRefTracer_CREATE https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_CREATE
+ * - \c PyRefTracer_DESTROY https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_DESTROY
+ * - Possibly: \c PyRefTracer_TRACKER_REMOVED https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED
  */
 #define PY_SSIZE_T_CLEAN
 
@@ -63,15 +63,20 @@
 #include "get_rss.h"
 #include "pymemtrace_util.h"
 
-// PYMEMTRACE_PATH_NAME_MAX_LENGTH is usually 4kB and that should be sufficient.
+/// PYMEMTRACE_PATH_NAME_MAX_LENGTH is usually 4kB and that should be sufficient.
 #define PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH PYMEMTRACE_PATH_NAME_MAX_LENGTH
 
+/// Whether to write output.
+/// TODO: Remove this?
 #define PY_MEM_TRACE_WRITE_OUTPUT
 //#undef PY_MEM_TRACE_WRITE_OUTPUT
 
+/// Whether to write clock time.
+/// TODO: Remove this?
 #define PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
 //#undef PY_MEM_TRACE_WRITE_OUTPUT_CLOCK
 
+/// Whether to write previous and next.
 // TODO: Remove this?
 #define PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
 //#undef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
@@ -252,7 +257,8 @@ py_frame_get_python_function_name_with_profile_trace_args(PyFrameObject *frame, 
  * @param frame The Python frame.
  * @return The Python line number or zero on failure.
  */
-int py_frame_get_line_number(PyFrameObject *frame) {
+static int
+py_frame_get_line_number(PyFrameObject *frame) {
     if (frame) {
         assert(PyFrame_Check(frame));
         return PyFrame_GetLineNumber(frame);
@@ -433,7 +439,7 @@ cpyTraceFileWrapper_dealloc(cpyTraceFileWrapper *self) {
  * @param type The cpyTraceFileWrapper type.
  * @param _unused_args
  * @param _unused_kwds
- * @return The cpyTraceFileWrapper instance.
+ * @return The \c cpyTraceFileWrapper instance.
  */
 static PyObject *
 cpyTraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
@@ -641,7 +647,7 @@ cpyTraceFileWrapper *wrapper_ll_get(tcpyTraceFileWrapperLinkedList *linked_list)
 /**
  * Push a created trace wrapper on the front of the list.
  *
- * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @param h_linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  * @param node The node to add. The linked list takes ownership of this pointer.
  */
 void wrapper_ll_push(tcpyTraceFileWrapperLinkedList **h_linked_list, cpyTraceFileWrapper *node) {
@@ -658,7 +664,7 @@ void wrapper_ll_push(tcpyTraceFileWrapperLinkedList **h_linked_list, cpyTraceFil
 /**
  * Free the first value on the list and adjust the list pointer.
  *
- * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @param h_linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  * @return The node at the head of the linked list.
  */
 cpyTraceFileWrapper *
@@ -676,7 +682,7 @@ wrapper_ll_pop(tcpyTraceFileWrapperLinkedList **h_linked_list) {
 /**
  * Return the length of the linked list.
  *
- * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @param p_linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  * @return The length of the linked list
  */
 size_t wrapper_ll_length(tcpyTraceFileWrapperLinkedList *p_linked_list) {
@@ -691,7 +697,7 @@ size_t wrapper_ll_length(tcpyTraceFileWrapperLinkedList *p_linked_list) {
 /**
  * Remove all the items in the linked list.
  *
- * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @param h_linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
  */
 void wrapper_ll_clear(tcpyTraceFileWrapperLinkedList **h_linked_list) {
     tcpyTraceFileWrapperLinkedList *tmp;
@@ -807,11 +813,11 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
  *
  * @param d_rss_trigger The RSS trigger to use.
  *  This determines the granularity of the log file.
- *  <0 - A call to \c trace_or_profile_function() is logged only if the dRSS is >= the page size given by
+ *      - <0 A call to \c trace_or_profile_function() is logged only if the dRSS is >= the page size given by
  *      \c getpagesize() in \c unistd.h.
- *  0 - Every call to trace_or_profile_function() is logged.
- *  >0 - A call to trace_or_profile_function() is logged only if the dRSS is >= this value.
- * Default is -1. See cpyProfileOrTraceObject_init() and TraceObject_init().
+ *      - 0 Every call to trace_or_profile_function() is logged.
+ *      - >0 A call to trace_or_profile_function() is logged only if the dRSS is >= this value.
+ *  Default is -1. See \c cpyProfileOrTraceObject_init() and \c TraceObject_init()
  * @param message A message to insert at the beginning of the file which is useful when grep'ping a
  *  large number of files.
  * @param specific_filename If a specific file name is need then use this. If NULL a generic filename will be created.
@@ -924,6 +930,9 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
 
 // MARK: Get the current log paths.
 
+/**
+ * @return The current Profiling log path as a Python string.
+ */
 static PyObject *
 get_log_file_path_profile(void) {
     assert(!PyErr_Occurred());
@@ -935,6 +944,9 @@ get_log_file_path_profile(void) {
     }
 }
 
+/**
+ * @return The current Tracing log path as a Python string.
+ */
 static PyObject *
 get_log_file_path_trace(void) {
     assert(!PyErr_Occurred());
@@ -947,7 +959,9 @@ get_log_file_path_trace(void) {
 }
 
 // MARK: Common object for Profile or Trace
-/**** Context manager for attach_profile/trace_function() and detach_profile/trace_function() ****/
+/**
+ * Context manager for \c attach_profile/trace_function() and \c detach_profile/trace_function()
+ * */
 typedef struct {
     PyObject_HEAD
     int d_rss_trigger;
@@ -958,6 +972,10 @@ typedef struct {
     cpyTraceFileWrapper *trace_file_wrapper;
 } cpyProfileOrTraceObject;
 
+/**
+ * Deallocate the \c cpyProfileOrTraceObject freeing all resources.
+ * @param self The \c cpyProfileOrTraceObject object.
+ */
 static void
 cpyProfileOrTraceObject_dealloc(cpyProfileOrTraceObject *self) {
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
@@ -968,6 +986,14 @@ cpyProfileOrTraceObject_dealloc(cpyProfileOrTraceObject *self) {
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
 }
 
+/**
+ * Create a new, un-initialised, \c cpyProfileOrTraceObject object.
+ *
+ * @param type The \c cpyProfileOrTraceObject type.
+ * @param _unused_args
+ * @param _unused_kwds
+ * @return The \c cpyProfileOrTraceObject object or NULL on failure.
+ */
 static PyObject *
 cpyProfileOrTraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
     assert(!PyErr_Occurred());
@@ -982,6 +1008,14 @@ cpyProfileOrTraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObj
     return (PyObject *) self;
 }
 
+/**
+ * Initialise the \c cpyProfileOrTraceObject object.
+ *
+ * @param self The \c cpyProfileOrTraceObject object.
+ * @param args Python arguments.
+ * @param kwds Python keywords.
+ * @return 0 on success, non-zero on failure.
+ */
 static int
 cpyProfileOrTraceObject_init(cpyProfileOrTraceObject *self, PyObject *args, PyObject *kwds) {
     assert(!PyErr_Occurred());
@@ -1010,6 +1044,9 @@ cpyProfileOrTraceObject_init(cpyProfileOrTraceObject *self, PyObject *args, PyOb
     return 0;
 }
 
+/**
+ * \c cpyProfileOrTraceObject members. Empty.
+ */
 static PyMemberDef cpyProfileOrTraceObject_members[] = {
 //        {
 //                "_trace_file_wrapper", Py_T_OBJECT_EX, offsetof(cpyProfileOrTraceObject,
@@ -1023,8 +1060,10 @@ static PyMemberDef cpyProfileOrTraceObject_members[] = {
 
 /**
  * Attach a new profile wrapper to the \c static_profile_wrapper.
- * @param d_rss_trigger
- * @param message
+ *
+ * @param d_rss_trigger The delta-RSS level at which to write an event.
+ * @param message The opening message.
+ * @param specific_filename A specific filename, if NULL one will be generated.
  * @return The \c static_profile_wrapper or \c NULL on failure in which case an exception will have been set.
  */
 static cpyTraceFileWrapper *
@@ -1044,6 +1083,11 @@ py_attach_profile_function(int d_rss_trigger, const char *message, const char *s
     return NULL;
 }
 
+/**
+ * Implement the \c \_\_enter\_\_() method for a context manager.
+ * @param self The Profile or Trace object.
+ * @return \c self
+ */
 static PyObject *
 ProfileObject_enter(cpyProfileOrTraceObject *self) {
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
@@ -1065,6 +1109,12 @@ ProfileObject_enter(cpyProfileOrTraceObject *self) {
     return (PyObject *) self;
 }
 
+/**
+ * Implement the \c \_\_exit\_\_() method for a context manager.
+ * @param self The Profile or Trace object.
+ * @param _unused_args
+ * @return \c True or \c False
+ */
 static PyObject *
 ProfileObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
@@ -1105,9 +1155,11 @@ ProfileObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
 /**
  * Simple wrapper that dispatches to the internal \c self->trace_file_wrapper.
  *
- * @param self
- * @param op
- * @return None
+ * TODO: Deprecate this in favour of \c cpyProfileOrTraceObject_write_message_to_log() ?
+ *
+ * @param self The Profile or Trace object.
+ * @param op A Python Unicode string.
+ * @return None on success, NULL on failure (not a unicode argument).
  */
 static PyObject *
 cpyProfileOrTraceObject_write_to_log(cpyProfileOrTraceObject *self, PyObject *op) {
@@ -1117,15 +1169,18 @@ cpyProfileOrTraceObject_write_to_log(cpyProfileOrTraceObject *self, PyObject *op
 /**
  * Simple wrapper that dispatches to the internal \c self->trace_file_wrapper.
  *
- * @param self
- * @param op
- * @return None
+ * @param self The Profile or Trace object.
+ * @param op A Python Unicode string.
+ * @return None on success, NULL on failure (not a unicode argument).
  */
 static PyObject *
 cpyProfileOrTraceObject_write_message_to_log(cpyProfileOrTraceObject *self, PyObject *op) {
     return cpyTraceFileWrapper_write_message_to_log(self->trace_file_wrapper, op);
 }
 
+/**
+ * Profile class methods.
+ */
 static PyMethodDef cpyProfileObject_methods[] = {
         {"__enter__",            (PyCFunction) ProfileObject_enter, METH_NOARGS,
                 "Attach a Profile object to the C runtime."},
@@ -1153,6 +1208,9 @@ static PyMethodDef cpyProfileObject_methods[] = {
         {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
+/**
+ * Profiler Python type definition.
+ */
 static PyTypeObject cpyProfileObjectType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.Profile",
@@ -1187,9 +1245,11 @@ static PyTypeObject cpyProfileObjectType = {
 /**** Context manager for attach_trace_function() and detach_trace_function() ****/
 
 /**
- * Attach a new profile wrapper to the \c static_trace_wrapper.
- * @param d_rss_trigger
- * @param message
+ * Attach a new Trace wrapper to the \c static_trace_wrapper.
+ *
+ * @param d_rss_trigger The delta-RSS level at which to write an event.
+ * @param message The opening message.
+ * @param specific_filename A specific filename, if NULL one will be generated.
  * @return The \c static_trace_wrapper or \c NULL on failure in which case an exception will have been set.
  */
 static cpyTraceFileWrapper *
@@ -1209,6 +1269,11 @@ py_attach_trace_function(int d_rss_trigger, const char *message, const char *spe
     return NULL;
 }
 
+/**
+ * Implement the \c \_\_enter\_\_() method for a context manager.
+ * @param self
+ * @return
+ */
 static PyObject *
 TraceObject_enter(cpyProfileOrTraceObject *self) {
     assert(!PyErr_Occurred());
@@ -1228,6 +1293,12 @@ TraceObject_enter(cpyProfileOrTraceObject *self) {
     return (PyObject *) self;
 }
 
+/**
+ * Implement the \c \_\_exit\_\_() method for a context manager.
+ * @param self
+ * @param _unused_args
+ * @return
+ */
 static PyObject *
 TraceObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
     // No assert(!PyErr_Occurred()); as an exception might have been set by the users code.
@@ -1262,6 +1333,9 @@ TraceObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
     return NULL;
 }
 
+/**
+ * Python Trace class methods.
+ */
 static PyMethodDef cpyTraceObject_methods[] = {
         {"__enter__",            (PyCFunction) TraceObject_enter, METH_NOARGS,
                 "Attach a Trace object to the C runtime."},
@@ -1289,6 +1363,9 @@ static PyMethodDef cpyTraceObject_methods[] = {
         {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
+/**
+ * Trace Python type definition.
+ */
 static PyTypeObject cpyTraceObjectType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.Trace",
@@ -1368,8 +1445,8 @@ static PyTypeObject cpyTraceObjectType = {
 /**
  * Returns the function name in a static C buffer.
  *
- * @param frame
- * @return
+ * @param frame The Python frame. Can be NULL.
+ * @return A pointer to the static string.
  */
 static const char *
 py_frame_get_python_function_name(PyFrameObject *frame) {
@@ -1398,16 +1475,16 @@ py_frame_get_python_function_name(PyFrameObject *frame) {
 #endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
 
 /**
- * The will be the opaque <tt>void *data</tt> structure registered with
+ * This will be the opaque <tt>void *data</tt> structure registered with
  * PyRefTracer_SetTracer function:
  * https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer
  *
  * There will be a stack of these as a linked list:
  *
- * - \c __enter__ push a new one to the top of the stack.
- * - \c __exit__ pop one of the top of the stack.
+ * - \c \_\_enter\_\_() push a new one to the top of the stack.
+ * - \c \_\_exit\_\_() pop one of the top of the stack.
  *
- * The callback function writes to the top of the stack.
+ * The callback function writes to the head of the linked list.
  */
 struct reference_tracing_simple_data {
     /* These counters give an overall state of the allocations and de-allocations. */
@@ -1433,9 +1510,8 @@ struct cReferenceTracingSimpleLinkedListNode {
 static struct cReferenceTracingSimpleLinkedListNode *reference_tracing_simple_ll = NULL;
 
 /**
- * Get the head of the Reference Trancing linked list.
+ * Get the data object at the head of the Reference Tracing linked list.
  *
- * @param linked_list The linked list.
  * @return The head node or NULL if the list is empty.
  */
 static struct reference_tracing_simple_data *
@@ -1449,8 +1525,7 @@ reference_tracing_simple_ll_get_data(void) {
 /**
  * Push a created <tt>struct reference_tracing_data</tt> on the front of the list.
  *
- * @param linked_list The linked list reference_trace_wrappers.
- * @param node The node to add. The linked list takes ownership of this pointer.
+ * @param data The node to add. The linked list takes ownership of this pointer.
  */
 static void
 reference_tracing_simple_ll_push(struct reference_tracing_simple_data *data) {
@@ -1469,8 +1544,17 @@ reference_tracing_simple_ll_push(struct reference_tracing_simple_data *data) {
 /**
  * Free the first value on the list and adjust the list pointer.
  * Undefined behaviour if the list is empty.
+ * The linked list relinquishes ownership of this pointer.
  *
- * @param linked_list The linked list of <tt>struct cReferenceTracingLinkedListNode</tt>.
+ * \note
+ *  Caller has to \c fclose the \c ->log_file
+ *
+ * \note
+ *  Caller has to decide whether to decref the tmp->file_wrapper.
+ *  If the call as the result of an \c \_\_exit\_\_() function then do **not** decref as CPython
+ *  will automatically do this on completion of the with statement.
+ *
+ * @return The struct reference_tracing_simple_data from the head node or NULL.
  */
 static struct reference_tracing_simple_data *
 reference_tracing_simple_ll_pop(void) {
@@ -1479,17 +1563,12 @@ reference_tracing_simple_ll_pop(void) {
     reference_tracing_simple_ll = reference_tracing_simple_ll->next;
     struct reference_tracing_simple_data *ret = tmp->data;
     free(tmp);
-    /* NOTE: Caller has to fclose the ->log_file. */
-    /* NOTE: Caller has to decide whether to decref the tmp->file_wrapper.
-     * If call as the result of and __exit__ function then do **not** decref as CPython
-     * will automatically do this on completion of the with statement. */
     return ret;
 }
 
 /**
  * Return the length of the Reference Tracing Simple linked list.
  *
- * @param linked_list The linked list.
  * @return The length of the linked list
  */
 static size_t
@@ -1507,10 +1586,11 @@ reference_tracing_simple_ll_length(void) {
  * The callback function that is passed to \c PyRefTracer_SetTracer.
  * This writes to the log file.
  *
- * Note that this suspends the Reference Tracer whilst calling gCPython functions that might allocate/deallocate
+ * Note that this does not need suspend the Reference Tracer as it does not call CPython functions
+ * that might allocate/deallocate
  * Python objects otherwise there will be infinite recursion as that will call this callback.
  *
- * @param obj The Python object being created or destroyed.
+ * @param _unused_obj The Python object being created or destroyed.
  * @param event The event type
  * @param data The opaque data structure that is a <tt>struct reference_tracing_data</tt>.
  * @return 0 on success, non-zero on failure.
@@ -1562,7 +1642,7 @@ cpyReferenceTracingSimple_dealloc(cpyReferenceTracingSimple *self) {
 /**
  * Allocate the cpyReferenceTracingSimple.
  *
- * @param type The cpyReferenceTracingSimple type.
+ * @param type The \c cpyReferenceTracingSimple type.
  * @param _unused_args
  * @param _unused_kwds
  * @return The cpyReferenceTracingSimple instance.
@@ -1574,8 +1654,12 @@ cpyReferenceTracingSimple_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyO
     self = (cpyReferenceTracingSimple *) type->tp_alloc(type, 0);
     if (self != NULL) {
         self->data = malloc(sizeof(struct reference_tracing_simple_data));
-//        self->data->count_new = 0;
-//        self->data->count_del = 0;
+        if (!self->data) {
+            PyErr_SetString(PyExc_MemoryError, "Can not malloc struct reference_tracing_simple_data");
+            return NULL;
+        }
+        self->data->count_new = 0;
+        self->data->count_del = 0;
     }
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     return (PyObject *) self;
@@ -1584,13 +1668,13 @@ cpyReferenceTracingSimple_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyO
 /**
  * Initialise the Reference Tracer, open the log file and write the preamble.
  *
- * @param self
- * @param args
- * @param kwds
- * @return
+ * @param _unused_self The \c cpyReferenceTracingSimple object.
+ * @param args Ignored.
+ * @param kwds Ignored.
+ * @return 0 on success, -1 on failure.
  */
 static int
-cpyReferenceTracingSimple_init(cpyReferenceTracingSimple *self, PyObject *args, PyObject *kwds) {
+cpyReferenceTracingSimple_init(cpyReferenceTracingSimple *Py_UNUSED(self), PyObject *args, PyObject *kwds) {
     assert(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     static char *kwlist[] = {NULL};
@@ -1599,14 +1683,15 @@ cpyReferenceTracingSimple_init(cpyReferenceTracingSimple *self, PyObject *args, 
         assert(PyErr_Occurred());
         return -1;
     }
-    self->data->count_new = 0;
-    self->data->count_del = 0;
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
     return 0;
 }
 
 // MARK: - cpyReferenceTracingSimple members
 
+/**
+ * \c cpyReferenceTracingSimple members. Empty.
+ */
 static PyMemberDef cpyReferenceTracingSimple_members[] = {
 //        {
 //                "count_new",
@@ -1623,8 +1708,8 @@ static PyMemberDef cpyReferenceTracingSimple_members[] = {
 /**
  * De-register the existing tracer, push new data onto the linked list and register it.
  *
- * @param self
- * @return
+ * @param self The \c cpyReferenceTracingSimple object.
+ * @return self on success. NULL on failure.
  */
 static PyObject *
 cpyReferenceTracingSimple_enter(cpyReferenceTracingSimple *self) {
@@ -1654,9 +1739,9 @@ cpyReferenceTracingSimple_enter(cpyReferenceTracingSimple *self) {
  * - Pops the node off the linked list.
  * - Register the previous tracer from the linked list.
  *
- * @param self
+ * @param self The \c pyReferenceTracingSimple object.
  * @param _unused_args
- * @return
+ * @return \c True or \c False or NULL on failure.
  */
 static PyObject *
 cpyReferenceTracingSimple_exit(cpyReferenceTracingSimple *self, PyObject *Py_UNUSED(args)) {
@@ -1759,6 +1844,9 @@ cpyReferenceTracingSimple_resume(void) {
     Py_RETURN_NONE;
 }
 
+/**
+ * @return Number of allocations as a Python integer.
+ */
 static PyObject *
 cpyReferenceTracingSimple_count_new(void) {
     assert(!PyErr_Occurred());
@@ -1775,6 +1863,9 @@ cpyReferenceTracingSimple_count_new(void) {
     return NULL;
 }
 
+/**
+ * @return Number of de-allocations as a Python integer.
+ */
 static PyObject *
 cpyReferenceTracingSimple_count_del(void) {
     assert(!PyErr_Occurred());
@@ -1791,6 +1882,9 @@ cpyReferenceTracingSimple_count_del(void) {
     return NULL;
 }
 
+/**
+ * \c cpyReferenceTracingSimple Python methods.
+ */
 static PyMethodDef cpyReferenceTracingSimple_methods[] = {
         {
                 "__enter__",
@@ -1829,6 +1923,9 @@ static PyMethodDef cpyReferenceTracingSimple_methods[] = {
 
 // MARK: - cpyReferenceTracingSimple declaration
 
+/**
+ * The CPython type structure for the \c ReferenceTracingSimple class.
+ */
 static PyTypeObject cpyReferenceTracingSimpleType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.ReferenceTracingSimple",
@@ -1856,46 +1953,44 @@ static PyTypeObject cpyReferenceTracingSimpleType = {
  * See https://docs.python.org/3/c-api/profiling.html#reference-tracing
  *
  * Monitored events are:
- * PyRefTracer_CREATE https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_CREATE
- * PyRefTracer_DESTROY https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_DESTROY
- * Possibly: PyRefTracer_TRACKER_REMOVED https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED
+ * - \c PyRefTracer_CREATE https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_CREATE
+ * - \c PyRefTracer_DESTROY https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_DESTROY
+ * - Possibly: \c PyRefTracer_TRACKER_REMOVED https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED
  *
- */
-
-/**
  * Documentation https://docs.python.org/3/c-api/profiling.html#reference-tracing
  * This is for Python 3.13+
  * Example: https://github.com/python/cpython/pull/115945/changes
  *
- * This writes every new/delete to a log file.
+ * This writes every allocation/de-allocation to a log file.
  *
- * Following the pattern above this is implemented as context managers with a linked list of logger.
- */
-
-/**
- * The will be the opaque <tt>void *data</tt> structure registered with
- * PyRefTracer_SetTracer function:
+ * Following the pattern above, this is implemented as context managers with a linked list of logger.
+ *
+ * This will be the opaque <tt>void *data</tt> structure registered with
+ * \c PyRefTracer_SetTracer function:
  * https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer
  *
  * There will be a stack of these as a linked list:
  *
- * - \c __enter__ will open the file and push a new one to the top of the stack.
- * - \c __exit__ will close the file and pop one of the top of the stack.
+ * - \c \_\_enter\_\_() will open the file and push a new one to the top of the stack.
+ * - \c \_\_exit\_\_() will close the file and pop one of the top of the stack.
  *
- * The callback function writes to the top of the stack.
+ * The callback function writes to the head of the linked list.
  */
 struct reference_tracing_data {
-    /* File name will be const char *create_filename('O', int reference_tracing_data_depth) */
+    /** The log file.
+     * The file name will be <tt>const char *create_filename('O', int reference_tracing_data_depth)</tt> */
     FILE *log_file;
-    /* These counters give an overall state of the allocations and de-allocations. */
+    /** These counters give an overall state of the allocations and de-allocations. */
     size_t count_new;
     size_t count_del;
-    /* Allow computation of dRSS. */
+    /** Allow computation of dRSS. */
     size_t rss;
+    /** Flag to include allocation/de-allocation events of builtins.
+     * If non-zero the log file and runtime are increased 2x or 4x. */
     int include_builtins;
-    /* A Python sequence of strings of typenames to exclude. */
+    /** A Python sequence of strings of typenames to exclude. */
     PyObject *exclude_tp_names;
-    /* A Python sequence of strings of typenames to include. */
+    /** A Python sequence of strings of typenames to include. */
     PyObject *include_tp_names;
 };
 
@@ -1917,9 +2012,8 @@ struct cReferenceTracingLinkedListNode {
 static struct cReferenceTracingLinkedListNode *reference_tracing_ll = NULL;
 
 /**
- * Get the head of the Reference Trancing linked list.
+ * Get the head of the Reference Tracing linked list as a struct reference_tracing_data.
  *
- * @param linked_list The linked list.
  * @return The head node or NULL if the list is empty.
  */
 static struct reference_tracing_data *
@@ -1933,8 +2027,7 @@ reference_tracing_ll_get_data(void) {
 /**
  * Push a created <tt>struct reference_tracing_data</tt> on the front of the list.
  *
- * @param linked_list The linked list reference_trace_wrappers.
- * @param node The node to add. The linked list takes ownership of this pointer.
+ * @param data The node to add. The linked list takes ownership of this pointer.
  */
 void
 reference_tracing_ll_push(struct reference_tracing_data *data) {
@@ -1952,9 +2045,18 @@ reference_tracing_ll_push(struct reference_tracing_data *data) {
 
 /**
  * Free the first value on the list and adjust the list pointer.
- * Undefined behaviour if the list is empty.
+ * This gives undefined behaviour if the list is empty.
+ * The linked list relinquishes ownership of this pointer.
  *
- * @param linked_list The linked list of <tt>struct cReferenceTracingLinkedListNode</tt>.
+ * \note
+ *  Caller has to \c fclose the \c ->log_file
+ *
+ * \note
+ *  Caller has to decide whether to decref the tmp->file_wrapper.
+ *  If the call as the result of an \c \_\_exit\_\_() function then do **not** decref as CPython
+ *  will automatically do this on completion of the with statement.
+ *
+ * @return The struct reference_tracing_data from the head node or NULL.
  */
 static struct reference_tracing_data *
 reference_tracing_ll_pop(void) {
@@ -1963,17 +2065,12 @@ reference_tracing_ll_pop(void) {
     reference_tracing_ll = reference_tracing_ll->next;
     struct reference_tracing_data *ret = tmp->data;
     free(tmp);
-    /* NOTE: Caller has to fclose the ->log_file. */
-    /* NOTE: Caller has to decide whether to decref the tmp->file_wrapper.
-     * If call as the result of and __exit__ function then do **not** decref as CPython
-     * will automatically do this on completion of the with statement. */
     return ret;
 }
 
 /**
  * Return the length of the Reference Tracing linked list.
  *
- * @param linked_list The linked list.
  * @return The length of the linked list
  */
 static size_t
@@ -2105,7 +2202,8 @@ static char reference_tracing_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
  *
  * @param data The <tt>struct reference_tracing_data</tt>
  * @param message The message.
- * @return Number of bytes written.
+ * @param prefix The message prefix such as "MSG" or "ERR".
+ * @return Number of bytes written by \c snprintf.
  */
 static int
 cpyReferenceTracing_write_c_prefix_and_message_to_log(struct reference_tracing_data *data, char *prefix,
@@ -2169,6 +2267,7 @@ static int reference_tracing_call_back_is_active = 0;
  * See also \c reference_trace_is_builtin_post_suspend()
  *
  * To search the source code for public APIs:
+ *
  * @code
  *  grep -nrI "#define Py.*_Check(" . | grep "\.h"
  * @endcode
@@ -2281,12 +2380,13 @@ reference_trace_is_builtin_pre_suspend(PyObject *op) {
  * has been suspended.
  * That means that any calls here may allocate/de-allocate Python objects.
  *
- * Note that this is Python version specific as some code, such as
- * the \c datetime API change in Python 3.15.
- * With Python 3.15+ the PyDateTimeAPI import now triggers arbitrary object
- * creation so the Reference Tracing must be suspended otherwise teh callback\
- * will be re-entrant.
- * See also \c reference_trace_is_builtin_pre_suspend()
+ * \note
+ *  This is Python version specific as some code, such as
+ *  the \c datetime API change in Python 3.15.
+ *  With Python 3.15+ the PyDateTimeAPI import now triggers arbitrary object
+ *  creation so the Reference Tracing must be suspended otherwise teh callback\
+ *  will be re-entrant.
+ *  See also \c reference_trace_is_builtin_pre_suspend()
  *
  * @param op The Python object to check.
  * @return 1 if a builtin, 0 otherwise.
@@ -2326,11 +2426,11 @@ reference_trace_is_builtin_post_suspend(PyObject *Py_UNUSED(op)) {
 #endif
 
 /**
- * Returns 1 if the exclude_tp_names sequence contains the object type name, 0 otherwise.
+ * Returns 1 if the \c exclude_tp_names sequence contains the object type name, 0 otherwise.
  *
- * @param data_alias
- * @param obj
- * @return
+ * @param data_alias The <tt>struct reference_tracing_data</tt>
+ * @param obj The object being traced.
+ * @return 1 if the object type is in the \c exclude_tp_names zero otherwise.
  */
 static int
 reference_trace_type_exclude_matches(struct reference_tracing_data *data_alias, PyObject *obj) {
@@ -2352,9 +2452,9 @@ reference_trace_type_exclude_matches(struct reference_tracing_data *data_alias, 
 /**
  * Returns 1 if the include_tp_names sequence contains the object type name, 0 otherwise.
  *
- * @param data_alias
- * @param obj
- * @return
+ * @param data_alias The <tt>struct reference_tracing_data</tt>
+ * @param obj The object being traced.
+ * @return 1 if the object type is in the \c exclude_tp_names zero otherwise.
  */
 static int
 reference_trace_type_include_matches(struct reference_tracing_data *data_alias, PyObject *obj) {
@@ -2377,7 +2477,7 @@ reference_trace_type_include_matches(struct reference_tracing_data *data_alias, 
  * The callback function that is passed to \c PyRefTracer_SetTracer.
  * This writes to the log file.
  *
- * Note that this suspends the Reference Tracer whilst calling gCPython functions that might allocate/deallocate
+ * Note that this suspends the Reference Tracer whilst calling CPython functions that might allocate/deallocate
  * Python objects otherwise there will be infinite recursion as that will call this callback.
  *
  * Objects of type "frame" are ignored as this causes great confusion with other trace functions, pytest
@@ -2760,6 +2860,9 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
 
 // MARK: - cpyReferenceTracing members
 
+/**
+ * \c cpyReferenceTracing members. Empty.
+ */
 static PyMemberDef cpyReferenceTracing_members[] = {
 //        {
 //                "log_file_path",
@@ -2804,10 +2907,10 @@ cpyReferenceTracing_write_python_message_to_log(cpyReferenceTracing *self, PyObj
 }
 
 /**
- * Run a gc.collect().
+ * Run a \c gc.collect()
  * See: https://docs.python.org/3/library/gc.html#gc.collect
  *
- * @param self
+ * @param self The Reference Tracing object.
  * @return The result of gc.collect(), a count of the objects collected.
  */
 static long
@@ -2938,9 +3041,9 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
  * - Close the file.
  * - Register the previous tracer from the linked list.
  *
- * @param self
+ * @param self The \c cpyReferenceTracing object.
  * @param _unused_args
- * @return
+ * @return \c True or \c False NULL on failure.
  */
 static PyObject *
 cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
@@ -2996,6 +3099,12 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
     return NULL;
 }
 
+/**
+ * Returns the path to the Reference Tracing log file as a Python string.
+ * @param self The \c cpyReferenceTracing object.
+ * @param _unused_arg
+ * @return The path or None on failure.
+ */
 static PyObject *
 cpyReferenceTracing_get_log_file_path(cpyReferenceTracing *self, PyObject *Py_UNUSED(arg)) {
     assert(!PyErr_Occurred());
@@ -3106,6 +3215,9 @@ cpyReferenceTracing_resume(void) {
     Py_RETURN_NONE;
 }
 
+/**
+ * @return Number of allocations of interest from the Reference Tracer.
+ */
 static PyObject *
 cpyReferenceTracing_count_new(void) {
     assert(!PyErr_Occurred());
@@ -3122,6 +3234,9 @@ cpyReferenceTracing_count_new(void) {
     return NULL;
 }
 
+/**
+ * @return Number of de-allocations of interest from the Reference Tracer.
+ */
 static PyObject *
 cpyReferenceTracing_count_del(void) {
     assert(!PyErr_Occurred());
@@ -3138,6 +3253,9 @@ cpyReferenceTracing_count_del(void) {
     return NULL;
 }
 
+/**
+ * \c cpyReferenceTracing methods.
+ */
 static PyMethodDef cpyReferenceTracing_methods[] = {
         {
                 "__enter__",
@@ -3188,6 +3306,9 @@ static PyMethodDef cpyReferenceTracing_methods[] = {
 
 // MARK: - cpyReferenceTracing declaration
 
+/**
+ * Specification of the Python \c cpyReferenceTracingType type.
+ */
 static PyTypeObject cpyReferenceTracingType = {
         PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "cPyMemTrace.ReferenceTracing",
@@ -3223,24 +3344,36 @@ static PyTypeObject cpyReferenceTracingType = {
 
 // MARK: cPyMemTrace methods.
 
+/**
+ * @return The current RSS in bytes as a Python integer.
+ */
 static PyObject *
 py_rss(void) {
     assert(!PyErr_Occurred());
     return PyLong_FromSize_t(getCurrentRSS_alternate());
 }
 
+/**
+ * @return The peak RSS in bytes as a Python integer.
+ */
 static PyObject *
 py_rss_peak(void) {
     assert(!PyErr_Occurred());
     return PyLong_FromSize_t(getPeakRSS());
 }
 
+/**
+ * @return The number of Profilers o in the linked list as a Python integer.
+ */
 static PyObject *
 profile_wrapper_depth(void) {
     assert(!PyErr_Occurred());
     return Py_BuildValue("n", wrapper_ll_length(static_profile_wrappers));
 }
 
+/**
+ * @return The number of Tracers in the linked list as a Python integer.
+ */
 static PyObject *
 trace_wrapper_depth(void) {
     assert(!PyErr_Occurred());
@@ -3249,12 +3382,18 @@ trace_wrapper_depth(void) {
 
 #if REFERENCE_TRACING_AVAILABLE
 
+/**
+ * @return The number of Simple Reference Tracers in the linked list as a Python integer.
+ */
 static PyObject *
 reference_tracing_simple_wrapper_depth(void) {
     assert(!PyErr_Occurred());
     return Py_BuildValue("n", reference_tracing_simple_ll_length());
 }
 
+/**
+ * @return The number of Reference Tracers in the linked list as a Python integer.
+ */
 static PyObject *
 reference_tracing_wrapper_depth(void) {
     assert(!PyErr_Occurred());
@@ -3263,6 +3402,9 @@ reference_tracing_wrapper_depth(void) {
 
 #endif // #if REFERENCE_TRACING_AVAILABLE
 
+/**
+ * \c cPyMemTrace module functions.
+ */
 static PyMethodDef cPyMemTraceMethods[] = {
         {
                 "rss",
@@ -3313,6 +3455,9 @@ PyDoc_STRVAR(py_mem_trace_doc,
              " events."
 );
 
+/**
+ * \c cPyMemTrace module definition.
+ */
 static PyModuleDef cPyMemTracemodule = {
         PyModuleDef_HEAD_INIT,
         .m_name = "cPyMemTrace",
@@ -3321,6 +3466,9 @@ static PyModuleDef cPyMemTracemodule = {
         .m_methods = cPyMemTraceMethods,
 };
 
+/**
+ * \c cPyMemTrace module initialisation.
+ */
 PyMODINIT_FUNC
 PyInit_cPyMemTrace(void) {
     PyObject *m = PyModule_Create(&cPyMemTracemodule);
@@ -3393,11 +3541,19 @@ PyInit_cPyMemTrace(void) {
 
 #if REFERENCE_TRACING_AVAILABLE
 
+/** Debug example of a simple Reference Tracing object. */
 struct simpletracer_data {
     int create_count;
     int destroy_count;
 };
 
+/**
+ * Debug callback for a simple Reference Tracing object.
+ * @param _unused_obj
+ * @param event
+ * @param data
+ * @return
+ */
 static int simpletracer_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data) {
     struct simpletracer_data *the_data = (struct simpletracer_data *) data;
     if (event == PyRefTracer_CREATE) {
@@ -3408,6 +3564,10 @@ static int simpletracer_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent even
     return 0;
 }
 
+/**
+ * Debug example a simple Reference Tracing object.
+ * @return 0 on success, non-zero on failure.
+ */
 static int
 test_reftracer(void) {
     printf("Starting %s() at %s#%d\n", __FUNCTION__, __FILE_NAME__, __LINE__);
@@ -3474,6 +3634,13 @@ test_reftracer(void) {
 
 #endif // REFERENCE_TRACING_AVAILABLE
 
+/**
+ * Debug code.
+ *
+ * @param argc Printed. Ignored.
+ * @param argv Printed. Ignored.
+ * @return The result of \c Py_FinalizeEx()
+ */
 int
 debug_cPyMemtrace(int argc, char **argv) {
     printf("Testing cPyMemTrace. argc=%d\n", argc);
