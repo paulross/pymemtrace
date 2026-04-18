@@ -2166,6 +2166,7 @@ static int reference_tracing_call_back_is_active = 0;
  *
  * Note that this is Python version specific as some code, such as
  * the \c datetime API change in Python 3.15.
+ * See also \c reference_trace_is_builtin_post_suspend()
  *
  * To search the source code for public APIs:
  * @code
@@ -2282,10 +2283,15 @@ reference_trace_is_builtin_pre_suspend(PyObject *op) {
  *
  * Note that this is Python version specific as some code, such as
  * the \c datetime API change in Python 3.15.
+ * With Python 3.15+ the PyDateTimeAPI import now triggers arbitrary object
+ * creation so the Reference Tracing must be suspended otherwise teh callback\
+ * will be re-entrant.
+ * See also \c reference_trace_is_builtin_pre_suspend()
  *
  * @param op The Python object to check.
  * @return 1 if a builtin, 0 otherwise.
  */
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 15
 static int
 reference_trace_is_builtin_post_suspend(PyObject *op) {
     assert(op);
@@ -2297,7 +2303,6 @@ reference_trace_is_builtin_post_suspend(PyObject *op) {
      * See: https://docs.python.org/3.15/whatsnew/3.15.html#changed-c-apis
      * And: https://github.com/python/cpython/issues/141563
      * */
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 15
     /* Required aa datetime is a capsule. */
     PyDateTime_IMPORT;
     if (
@@ -2311,9 +2316,14 @@ reference_trace_is_builtin_post_suspend(PyObject *op) {
             ) {
         return 1;
     }
-#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 15
     return 0;
 }
+#else /* Python version prior to 3.15. */
+static int
+reference_trace_is_builtin_post_suspend(PyObject *Py_UNUSED(op)) {
+    return 0;
+}
+#endif
 
 /**
  * Returns 1 if the exclude_tp_names sequence contains the object type name, 0 otherwise.
@@ -2802,7 +2812,9 @@ cpyReferenceTracing_write_python_message_to_log(cpyReferenceTracing *self, PyObj
  */
 static long
 cpyReferenceTracing_invoke_gc_collect(cpyReferenceTracing *self) {
-    assert(!PyErr_Occurred());
+    /* NOTE: No assert(!PyErr_Occurred()); as on __exit__
+     * an exception might have been set by the users code. */
+//    assert(!PyErr_Occurred());
     assert(self->gc_collect_on_exit >= 0 && self->gc_collect_on_exit <= 2);
     PyObject *gc_module = PyImport_ImportModule("gc");
     long ret = 0;
@@ -2935,9 +2947,14 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     /* NOTE: No assert(!PyErr_Occurred()); as an exception might have been set by the users code. */
 
-    /* Invoke gc.collect() if required, we DO want to trace de-allocations. */
+    /* Invoke gc.collect() if required, and we DO want to trace de-allocations so,
+     * we do this before de-registering the tracer. */
     if (self->gc_collect_on_exit >= 0) {
-        cpyReferenceTracing_invoke_gc_collect(self);
+        if (cpyReferenceTracing_invoke_gc_collect(self) < 0) {
+            /* gc.collect() failure. */
+            assert(PyErr_Occurred());
+            Py_RETURN_TRUE;
+        }
     }
 
     /* De-registers the existing tracer.
