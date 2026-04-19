@@ -9,10 +9,12 @@ import random
 import sys
 import tempfile
 import time
+import typing
 
 import pytest
 
 from pymemtrace import cPyMemTrace
+from pymemtrace import cMemLeak
 
 faulthandler.enable()
 
@@ -808,6 +810,79 @@ def test_reference_tracing_include_tp_names_with_gc_collect(include_tp_names):
         # a Py*_Check() C API so include_builtins=False will not eliminate it.
         assert b'BytesWrapper' in file_data
         assert b'range_iterator' not in file_data
+
+
+def create_tmp_list_of_memory_objects(cls: typing.Type, siz: int, count: int, cause_leak: bool):
+    l = []
+    for i in range(count):
+        obj = cls(siz)
+        if cause_leak:
+            obj.inc_refcnt(1)
+        l.append(obj)
+    while len(l):
+        l.pop()
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+@pytest.mark.parametrize(
+    'cls, cause_leak',
+    (
+            (cMemLeak.CMalloc, False),
+            (cMemLeak.CMalloc, True),
+            (cMemLeak.PyRawMalloc, False),
+            (cMemLeak.PyRawMalloc, True),
+            (cMemLeak.PyMalloc, False),
+            (cMemLeak.PyMalloc, True),
+    )
+)
+def test_reference_tracing_deliberate_leak_to_temp_file(cls, cause_leak):
+    """Tests Reference Tracing by causing a deliberate memory leak to a temporary file."""
+    message = f'test_reference_tracing_deliberate_leak_to_temp_file():' \
+              f' Class: {cls.__name__} Leak: {cause_leak}'
+    with tempfile.NamedTemporaryFile() as file:
+        with cPyMemTrace.ReferenceTracing(
+                message=message, filepath=file.name,
+                include_builtins=False,
+                include_tp_names=[f'cMemLeak.{cls.__name__}',],
+                gc_collect_on_exit=2,
+        ) as profiler:
+            assert profiler.log_file_path() == file.name
+            create_tmp_list_of_memory_objects(cls, 128, 4, cause_leak)
+        time.sleep(1.0)
+        file.flush()
+        file_data = file.read()
+        print()
+        print(' file_0_data '.center(75, '-'))
+        for line in file_data.split(b'\n'):
+            print(line)
+        print(' file_0_data DONE '.center(75, '-'))
+        assert file_data.startswith(bytes(message, 'ascii'))
+        assert bytes(cls.__name__, encoding='ascii') in file_data
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+@pytest.mark.parametrize(
+    'cls, cause_leak',
+    (
+            (cMemLeak.CMalloc, False),
+            (cMemLeak.CMalloc, True),
+            (cMemLeak.PyRawMalloc, False),
+            (cMemLeak.PyRawMalloc, True),
+            (cMemLeak.PyMalloc, False),
+            (cMemLeak.PyMalloc, True),
+    )
+)
+def test_reference_tracing_deliberate_leak_to_cwd(cls, cause_leak):
+    """Tests Reference Tracing by causing a deliberate memory leak to a log file."""
+    message = f'test_reference_tracing_deliberate_leak_to_cwd():' \
+              f' Class: {cls.__name__} Leak: {cause_leak}'
+    with cPyMemTrace.ReferenceTracing(
+            message=message,
+            include_builtins=False,
+            include_tp_names=[f'cMemLeak.{cls.__name__}',],
+            gc_collect_on_exit=2,
+    ) as profiler:
+        create_tmp_list_of_memory_objects(cls, 128, 4, cause_leak)
 
 
 @pytest.mark.parametrize(
