@@ -72,6 +72,32 @@ CMallocObject_getbuffer(CMallocObject *self, void *Py_UNUSED(closure)) {
     return PyLong_FromSsize_t((size_t)(self->buffer));
 }
 
+static PyObject *
+CMallocObject_refcnt(CMallocObject *self, PyObject *Py_UNUSED(args)) {
+    return PyLong_FromSsize_t(Py_REFCNT(self));
+}
+
+static PyObject *
+CMallocObject_inc_refcnt(CMallocObject *self, PyObject *arg) {
+    assert(!PyErr_Occurred());
+    Py_ssize_t d_ref_count = PyLong_AsSsize_t(arg);
+    if (PyErr_Occurred()) {
+        return NULL;
+    }
+    if (d_ref_count > 0) {
+        for (Py_ssize_t i = 0; i < d_ref_count; ++i) {
+            Py_INCREF(self);
+        }
+    } else if (d_ref_count < 0) {
+        for (Py_ssize_t i = 0; i < -d_ref_count; ++i) {
+            Py_DECREF(self);
+        }
+    } else {
+        /* Zero change, do nothing. */
+    }
+    return PyLong_FromSsize_t(Py_REFCNT(self));
+}
+
 static PyMemberDef CMallocObject_members[] = {
 //    {"size", T_ULONG, offsetof(CMallocObject, size), 0, "Buffer size."},
     {NULL, 0, 0, 0, NULL}  /* Sentinel */
@@ -84,6 +110,19 @@ static PyGetSetDef CMallocObject_getsetters[] = {
 };
 
 static PyMethodDef CMallocObject_methods[] = {
+        {
+                "refcnt",
+                (PyCFunction) CMallocObject_refcnt,
+                METH_NOARGS,
+                "Return the reference count of self."
+        },
+        {
+                "inc_refcnt",
+                (PyCFunction) CMallocObject_inc_refcnt,
+                METH_O,
+                "Change the reference count by a value that can be positive or negative."
+                " Returns the final reference count of self."
+        },
     {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
@@ -166,6 +205,32 @@ PyRawMallocObject_getbuffer(PyRawMallocObject *self, void *Py_UNUSED(closure)) {
     return PyLong_FromSsize_t((size_t)(self->buffer));
 }
 
+static PyObject *
+PyRawMallocObject_refcnt(PyRawMallocObject *self, PyObject *Py_UNUSED(args)) {
+    return PyLong_FromSsize_t(Py_REFCNT(self));
+}
+
+static PyObject *
+PyRawMallocObject_inc_refcnt(PyRawMallocObject *self, PyObject *arg) {
+    assert(!PyErr_Occurred());
+    Py_ssize_t d_ref_count = PyLong_AsSsize_t(arg);
+    if (PyErr_Occurred()) {
+        return NULL;
+    }
+    if (d_ref_count > 0) {
+        for (Py_ssize_t i = 0; i < d_ref_count; ++i) {
+            Py_INCREF(self);
+        }
+    } else if (d_ref_count < 0) {
+        for (Py_ssize_t i = 0; i < -d_ref_count; ++i) {
+            Py_DECREF(self);
+        }
+    } else {
+        /* Zero change, do nothing. */
+    }
+    return PyLong_FromSsize_t(Py_REFCNT(self));
+}
+
 static PyMemberDef PyRawMallocObject_members[] = {
 //    {"size", T_ULONG, offsetof(PyRawMallocObject, size), 0, "Buffer size."},
     {NULL, 0, 0, 0, NULL}  /* Sentinel */
@@ -178,7 +243,20 @@ static PyGetSetDef PyRawMallocObject_getsetters[] = {
 };
 
 static PyMethodDef PyRawMallocObject_methods[] = {
-    {NULL, NULL, 0, NULL}  /* Sentinel */
+        {
+                "refcnt",
+                (PyCFunction) PyRawMallocObject_refcnt,
+                METH_NOARGS,
+                "Return the reference count of self."
+        },
+        {
+                "inc_refcnt",
+                (PyCFunction) PyRawMallocObject_inc_refcnt,
+                METH_O,
+                "Change the reference count by a value that can be positive or negative."
+                " Returns the final reference count of self."
+        },
+        {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
 PyDoc_STRVAR(
@@ -261,6 +339,33 @@ PyMallocObject_getbuffer(PyMallocObject *self, void *Py_UNUSED(closure)) {
     return PyLong_FromSsize_t((size_t)(self->buffer));
 }
 
+
+static PyObject *
+PyMallocObject_refcnt(PyMallocObject *self, PyObject *Py_UNUSED(args)) {
+    return PyLong_FromSsize_t(Py_REFCNT(self));
+}
+
+static PyObject *
+PyMallocObject_inc_refcnt(PyMallocObject *self, PyObject *arg) {
+    assert(!PyErr_Occurred());
+    Py_ssize_t d_ref_count = PyLong_AsSsize_t(arg);
+    if (PyErr_Occurred()) {
+        return NULL;
+    }
+    if (d_ref_count > 0) {
+        for (Py_ssize_t i = 0; i < d_ref_count; ++i) {
+            Py_INCREF(self);
+        }
+    } else if (d_ref_count < 0) {
+        for (Py_ssize_t i = 0; i < -d_ref_count; ++i) {
+            Py_DECREF(self);
+        }
+    } else {
+        /* Zero change, do nothing. */
+    }
+    return PyLong_FromSsize_t(Py_REFCNT(self));
+}
+
 static PyMemberDef PyMallocObject_members[] = {
 //    {"size", T_ULONG, offsetof(PyMallocObject, size), 0, "Buffer size."},
     {NULL, 0, 0, 0, NULL}  /* Sentinel */
@@ -273,6 +378,19 @@ static PyGetSetDef PyMallocObject_getsetters[] = {
 };
 
 static PyMethodDef PyMallocObject_methods[] = {
+        {
+                "refcnt",
+                (PyCFunction) PyMallocObject_refcnt,
+                METH_NOARGS,
+                "Return the reference count of self."
+        },
+        {
+                "inc_refcnt",
+                (PyCFunction) PyMallocObject_inc_refcnt,
+                METH_O,
+                "Change the reference count by a value that can be positive or negative."
+                " Returns the final reference count of self."
+        },
     {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
