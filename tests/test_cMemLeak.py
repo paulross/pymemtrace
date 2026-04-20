@@ -13,7 +13,7 @@ from pymemtrace import cMemLeak
             cMemLeak.PyMalloc,
     )
 )
-def test_cmeleak_object_ctor(cls):
+def test_cmemleak_object_ctor(cls):
     cobj = cls(1024)
     assert cobj.size == 1024
 
@@ -26,7 +26,7 @@ def test_cmeleak_object_ctor(cls):
             cMemLeak.PyMalloc,
     )
 )
-def test_cmeleak_refcnt(cls):
+def test_cmemleak_refcnt(cls):
     cobj = cls(1024)
     assert cobj.refcnt() == 2
 
@@ -39,7 +39,7 @@ def test_cmeleak_refcnt(cls):
             cMemLeak.PyMalloc,
     )
 )
-def test_cmeleak_inc_refcnt(cls):
+def test_cmemleak_inc_refcnt(cls):
     cobj = cls(1024)
     assert cobj.refcnt() == 2
     cobj.inc_refcnt(1)
