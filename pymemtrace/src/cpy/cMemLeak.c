@@ -134,7 +134,7 @@ PyDoc_STRVAR(
 
 static PyTypeObject CMallocObjectType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "cMemLeak.CMallocObject",
+    .tp_name = "cMemLeak.CMalloc",
     .tp_doc = CMallocObjectType_tp_doc,
     .tp_basicsize = sizeof(CMallocObject),
     .tp_itemsize = 0,
@@ -268,7 +268,7 @@ PyDoc_STRVAR(
 
 static PyTypeObject PyRawMallocObjectType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "cMemLeak.PyRawMallocObject",
+    .tp_name = "cMemLeak.PyRawMalloc",
     .tp_doc = PyRawMallocObjectType_tp_doc,
     .tp_basicsize = sizeof(PyRawMallocObject),
     .tp_itemsize = 0,
@@ -403,7 +403,7 @@ PyDoc_STRVAR(
 
 static PyTypeObject PyMallocObjectType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "cMemLeak.PyMallocObject",
+    .tp_name = "cMemLeak.PyMalloc",
     .tp_doc = PyMallocObjectType_tp_doc,
     .tp_basicsize = sizeof(PyMallocObject),
     .tp_itemsize = 0,
