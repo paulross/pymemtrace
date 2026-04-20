@@ -417,9 +417,13 @@ static PyTypeObject PyMallocObjectType = {
 };
 /******** END: Allocate a buffer with Python's pymalloc memory interface ********/
 
-/*
- * Increments the reference count of the supplied PyObject.
+/**
+ * Increments the reference count by 1 of the supplied PyObject.
  * This will cause a memory leak.
+ *
+ * @param _unused_module
+ * @param pobj The Python object.
+ * @return None
  */
 static PyObject *
 py_incref(PyObject *Py_UNUSED(module), PyObject *pobj) {
@@ -427,9 +431,13 @@ py_incref(PyObject *Py_UNUSED(module), PyObject *pobj) {
     Py_RETURN_NONE;
 }
 
-/*
- * Decrements the reference count of the supplied PyObject.
- * This may cause a segfault.
+/**
+ * Decrements the reference count by 1 of the supplied PyObject.
+ * This will cause a memory leak.
+ *
+ * @param _unused_module
+ * @param pobj The Python object.
+ * @return None
  */
 static PyObject *
 py_decref(PyObject *Py_UNUSED(module), PyObject *pobj) {
@@ -437,9 +445,14 @@ py_decref(PyObject *Py_UNUSED(module), PyObject *pobj) {
     Py_RETURN_NONE;
 }
 
-/*
+/**
  * Returns a Python bytes object of specified size.
  * The content is uninitialised.
+ *
+ * @param _unused_module
+ * @param args Arguments, one, the size.
+ * @param kwds Keyword arguments, one, "size", the size.
+ * @return The bytes object.
  */
 static PyObject *
 py_bytes_of_size(PyObject *Py_UNUSED(module), PyObject *args, PyObject *kwds) {
