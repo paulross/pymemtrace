@@ -1,8 +1,8 @@
 History
 =======
 
-0.4.1rc0 (TODO)
---------------------
+0.4.1 (2026-05-03)
+------------------
 
 * Add example of using Reference Tracing to detect memory leaks.
 
