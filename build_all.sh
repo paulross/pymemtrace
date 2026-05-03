@@ -17,8 +17,25 @@ PYTHON_VERSIONS=('3.8' '3.9' '3.10' '3.11' '3.12' '3.13' '3.14' '3.15')
 PYTHON_VENV_ROOT="${HOME}/pyenvs"
 # Used for venvs
 PROJECT_NAME="pymemtrace"
+CPP_EXECUTABLE="cPyMemTrace"
 
 #printf "%-8s %8s %10s %10s %12s\n" "Ext" "Files" "Lines" "Words" "Bytes"
+
+build_c() {
+  echo "---> C clean debug"
+  cmake --build cmake-build-debug --target clean -- -j 6
+  echo "---> C build debug"
+  cmake --build cmake-build-debug --target ${CPP_EXECUTABLE} -- -j 6
+#  echo "---> C clean release"
+#  cmake --build cmake-build-release --target clean -- -j 6
+#  echo "---> C build release"
+#  cmake --build cmake-build-release --target ${CPP_EXECUTABLE} -- -j 6
+}
+
+run_c_tests() {
+  cmake-build-debug/${CPP_EXECUTABLE}
+  echo ""
+}
 
 deactivate_virtual_environment() {
   # https://stackoverflow.com/questions/42997258/virtualenv-activate-script-wont-run-in-bash-script-with-set-euo
@@ -149,6 +166,10 @@ show_results_of_dist() {
   echo "---> twine upload dist/*"
 }
 
+echo "===> Building C executable"
+build_c
+echo "===> Testing C executable"
+run_c_tests
 echo "===> Removing build/ and dist/"
 #rm --recursive --force -- "build" "dist"
 rm -rf -- "build" "dist"
