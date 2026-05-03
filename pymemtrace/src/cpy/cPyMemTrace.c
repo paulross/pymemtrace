@@ -2359,6 +2359,7 @@ reference_trace_is_builtin_pre_suspend(PyObject *op) {
     if (PyDateTimeAPI == NULL) {
         PyDateTime_IMPORT;
     }
+    assert(PyDateTimeAPI != NULL);
     if (
             0
             /* Datetime stuff. This needs #include "datetime.h" */
@@ -3663,6 +3664,17 @@ debug_cPyMemtrace(int argc, char **argv) {
     if (PyStatus_Exception(status)) {
         return -2;
     }
+    printf(
+            "Python version:"
+            " Major %d Minor: %d Micro: %d Release level: %d Release serial: %d"
+            " Version: %s\n",
+            PY_MAJOR_VERSION,
+            PY_MINOR_VERSION,
+            PY_MICRO_VERSION,
+            PY_RELEASE_LEVEL,
+            PY_RELEASE_SERIAL,
+            PY_VERSION
+            );
 
     /* Run the repl. exit() in the console to terminate, the rest of this code will not run. */
 #if 0
@@ -3776,8 +3788,13 @@ debug_cPyMemtrace(int argc, char **argv) {
 #if REFERENCE_TRACING_AVAILABLE
     /* Debug Reference Tracing wrapper. */
     {
-        if (PyType_Ready(&cpyReferenceTracingType) < 0) {
+        PyObject *datetime_module = PyImport_ImportModule("datetime");
+        if (!datetime_module) {
+            fprintf(stderr, "Can not import the \"datetime\" module.");
             return -32;
+        }
+        if (PyType_Ready(&cpyReferenceTracingType) < 0) {
+            return -64;
         }
         Py_INCREF(&cpyReferenceTracingType);
 
