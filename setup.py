@@ -62,7 +62,7 @@ else:
 
 setup(
     name='pymemtrace',
-    version='0.4.1',
+    version='0.4.2rc0',
     description="Python memory tracing.",
     long_description=readme + '\n\n' + history,
     long_description_content_type='text/x-rst',

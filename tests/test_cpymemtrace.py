@@ -13,10 +13,15 @@ import typing
 
 import pytest
 
+import pymemtrace
 from pymemtrace import cPyMemTrace
 from pymemtrace import cMemLeak
 
 faulthandler.enable()
+
+
+def test_version():
+    assert pymemtrace.__version__ == '0.4.2rc0'
 
 
 @pytest.mark.skipif(not (sys.version_info.minor < 13), reason='Python < 3.13')
