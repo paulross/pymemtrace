@@ -124,9 +124,9 @@ class ObjectData:
 
 class LogFileResult:
     """Class that can read the log file into an internal representation."""
-    def __init__(self, ignore_untracked: bool):
-        """If ignore_untracked is True then de-allocations without the respective allocation are ignored."""
-        self.ignore_untracked = ignore_untracked
+    def __init__(self, include_untracked: bool):
+        """If include_untracked is True then de-allocations without the respective allocation are ignored."""
+        self.include_untracked = include_untracked
         self.intro_message_lines = []
         self.header_columns = []
         # The key is the address.
@@ -218,7 +218,7 @@ class LogFileResult:
             del self.live_objects[obj_repr.address]
         else:
             self.type_count_untracked[obj_repr.type] += 1
-            if not self.ignore_untracked:
+            if self.include_untracked:
                 logger.warning(
                     f'DEL: on untracked object'
                     f' of type "{obj_repr.type}"'
@@ -237,7 +237,7 @@ class LogFileResult:
         """Add a line starting "ERR:"."""
         logger.error(f'Line {line_num} {line}')
 
-    def long_str_list(self, show_full_path: bool, ignore_historical: bool) -> typing.List[str]:
+    def long_str_list(self, show_full_path: bool, include_historical: bool) -> typing.List[str]:
         """Return the analysis as a list of strings suitable for printing."""
         def _str_from_object_file(obj: ObjectData, show_full_path: bool) -> str:
             if show_full_path:
@@ -268,7 +268,7 @@ class LogFileResult:
             ret.append('Initial Message:')
             ret.extend(self.intro_message_lines)
 
-        if not self.ignore_untracked:
+        if self.include_untracked:
             ret.append(f'Untracked Objects [{len(self.type_count_untracked)}]:')
             ret.append(f'{"Type":40} {"Count":>8}')
             for type_name in sorted(self.type_count_untracked.keys()):
@@ -283,7 +283,7 @@ class LogFileResult:
             ret.append(f'    {_str_from_object(obj, show_full_path)}')
 
         ret.append(f'Previous Objects [{len(self.prev_objects)}]:')
-        if not ignore_historical:
+        if include_historical:
             for address in sorted(self.prev_objects.keys()):
                 for obj_pair in self.prev_objects[address]:
                     ret.append(f'    {_str_from_object_pair(obj_pair, show_full_path)}')
@@ -301,10 +301,10 @@ class LogFileResult:
         return ret
 
 
-def process_file(file: typing.TextIO, ignore_untracked: bool) -> LogFileResult:
+def process_file(file: typing.TextIO, include_untracked: bool) -> LogFileResult:
     """Process the file into a LogFileResult and return that.
-    If ignore_untracked is True then de-allocations without the respective allocation are ignored."""
-    result = LogFileResult(ignore_untracked=ignore_untracked)
+    If include_untracked is True then de-allocations without the respective allocation are ignored."""
+    result = LogFileResult(include_untracked=include_untracked)
     has_sof = False
     line_num = 0
     for l, line in enumerate(file):
@@ -345,10 +345,10 @@ def process_file(file: typing.TextIO, ignore_untracked: bool) -> LogFileResult:
     return result
 
 
-def process_file_path(file_path: str, ignore_untracked: bool) -> LogFileResult:
+def process_file_path(file_path: str, include_untracked: bool) -> LogFileResult:
     """Process the file path into a LogFileResult and return that."""
     with open(file_path) as file:
-        return process_file(file, ignore_untracked)
+        return process_file(file, include_untracked)
 
 
 def main() -> int:
@@ -365,15 +365,16 @@ def main() -> int:
              " [default: %(default)s]",
     )
     parser.add_argument(
-        "--ignore-untracked",
+        "--include-untracked",
         action="store_true",
-        help="Ignore untracked objects."
+        help="Include untracked objects."
+             " These are objects that are de-allocated with no corresponding allocation."
              " [default: %(default)s]",
     )
     parser.add_argument(
-        "--ignore-historical",
+        "--include-historical",
         action="store_true",
-        help="Ignore objects that were deleted correctly."
+        help="Ignore objects that were allocated and de-allocated correctly."
              " [default: %(default)s]",
     )
     parser.add_argument("-l", "--log_level", type=int, dest="log_level", default=20,
@@ -389,8 +390,8 @@ def main() -> int:
     )
     time_start = time.perf_counter()
     print(f'File path: {args.log_path}')
-    result = process_file_path(args.log_path, args.ignore_untracked)
-    print('\n'.join(result.long_str_list(args.full_path, args.ignore_historical)))
+    result = process_file_path(args.log_path, args.include_untracked)
+    print('\n'.join(result.long_str_list(args.full_path, args.include_historical)))
     print(f'Process time: {time.perf_counter() - time_start:.3f} (s)')
     return 0
 

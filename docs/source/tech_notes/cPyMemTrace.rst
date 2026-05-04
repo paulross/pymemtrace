@@ -245,13 +245,13 @@ Here are the results compared to the baseline of no tracing:
      - 27.3
      - 36x
      - 170M
-     - 716,222
+     - 700K
      - ``include_builtins=False``
    * - Ref Trace, with builtins
      - 59.9
      - 78x
      - 1.0G
-     - 4,375,211
+     - 4M
      - ``include_builtins=True``
    * - Ref Trace, single class
      - 1.573

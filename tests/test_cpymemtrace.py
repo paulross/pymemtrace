@@ -379,6 +379,32 @@ def test_trace_basic_list_cmp_ref_trace_simple_suspend_resume_gt_313():
         print(f'DEL: {profiler.count_del()}')
 
 
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_trace_simple_gt_313():
+    with cPyMemTrace.ReferenceTracingSimple() as profiler:
+        print()
+        print('test_reference_trace_simple_gt_313():')
+        print(profiler)
+        print(f'NEW: {profiler.count_new()}')
+        print(f'DEL: {profiler.count_del()}')
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_trace_simple_stacked_gt_313():
+    with cPyMemTrace.ReferenceTracingSimple() as profiler_a:
+        print()
+        print('test_reference_trace_simple_gt_313():')
+        print(profiler_a)
+        with cPyMemTrace.ReferenceTracingSimple() as profiler_b:
+            a = '  Hello World'
+            print(a)
+            print(f'  {profiler_b}')
+            print(f'  NEW: {profiler_b.count_new()}')
+            print(f'  DEL: {profiler_b.count_del()}')
+        print(f'NEW: {profiler_a.count_new()}')
+        print(f'DEL: {profiler_a.count_del()}')
+
+
 @pytest.mark.parametrize(
     'cls',
     (

@@ -174,7 +174,16 @@ This is in ``test_reftracer()`` in ``pymemtrace/src/cpy/cPyMemTrace.c``:
         return -1;
     }
 
-You can run this in the C project under the debugger and set a breakpoint in the callback function:
+In ``pymemtrace/src/cpy/cPyMemTrace.c`` there is a fuller implementation of this as
+``cpyReferenceTracingSimpleType`` which has the following additions:
+
+* It has a Python interface :py:class:`pymemtrace.cPyMemTrace.ReferenceTracingSimple`.
+* The Python interface means that it can be used as a context manager.
+* Multiple context managers can be used, the outer one is suspended and restored when the inner one exits.
+
+See :ref:`examples-cpymemtrace-reference-tracing` for how this is used and the results of tracing.
+
+You can also run this in the C project under the debugger and set a breakpoint in the callback function:
 
 .. raw:: latex
 

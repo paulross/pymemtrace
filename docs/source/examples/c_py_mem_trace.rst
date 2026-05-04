@@ -215,14 +215,77 @@ and de-allocation.
     Some of the documentation for it is wrong.
     This is described in more detail in :ref:`tech_notes-cpymemtrace_reference_tracing`.
 
+Simple Reference Tracing
+---------------------------------------
+
+:py:class:`cPyMemTrace.ReferenceTracingSimple` is a simple tracer that just counts allocations and de-allocations.
+It can be used as a context manager thus:
+
+.. code-block:: python
+
+    from pymemtrace import cPyMemTrace
+
+    with cPyMemTrace.ReferenceTracingSimple() as profiler:
+        print()
+        print('Hi there')
+        print(profiler)
+        # Do stuff here
+        print(f'NEW: {profiler.count_new()}')
+        print(f'DEL: {profiler.count_del()}')
+
+And the output might be something like:
+
+.. code-block:: text
+
+    Hi there
+    <cPyMemTrace.ReferenceTracingSimple object at 0x600002f019c0>
+    NEW: 369347
+    DEL: 369110
+
+These profilers can be stacked, the outer one is suspended and then restored whilst the inner one is at work:
+
+.. code-block:: python
+
+    from pymemtrace import cPyMemTrace
+
+    with cPyMemTrace.ReferenceTracingSimple() as profiler_a:
+        print()
+        print('Hello World')
+        print(profiler_a)
+        with cPyMemTrace.ReferenceTracingSimple() as profiler_b:
+            a = '  Hello World'
+            print(a)
+            print(f'  {profiler_b}')
+            print(f'  NEW: {profiler_b.count_new()}')
+            print(f'  DEL: {profiler_b.count_del()}')
+        print(f'NEW: {profiler_a.count_new()}')
+        print(f'DEL: {profiler_a.count_del()}')
+
+And the output might be:
+
+.. code-block:: text
+
+    Hello World
+    <cPyMemTrace.ReferenceTracingSimple object at 0x600000c19390>
+      Hello World
+      <cPyMemTrace.ReferenceTracingSimple object at 0x600000c00f70>
+      NEW: 20
+      DEL: 31
+    NEW: 24
+    DEL: 34
+
+More Useful Reference Tracing
+---------------------------------------
+
+The :py:class:`cPyMemTrace.ReferenceTracing` is more sophisticated as it logs out all the allocations and
+de-allocations.
+It can also filter out unnecessary information such as builtin allocations.
+
 .. note::
 
     The Reference Tracing callback function ignores PyObject's of type "frame" as this can play havoc with the
     Python runtime.
     See :ref:`tech_notes-cpymemtrace_reference_tracing_pytest` for an example that revealed this problem.
-
-Example of Reference Tracing
----------------------------------------
 
 Here we create an example class that just allocates memory:
 
