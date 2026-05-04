@@ -98,6 +98,12 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     setup_requires=setup_requirements,
+    entry_points={
+        'console_scripts': [
+            'pymemtrace_ref_trace_analyse=pymemtrace.util.ref_trace_analyse:main',
+            'pymemtrace_dtrace_log_analyse=pymemtrace.util.dtrace_log_analyse:main',
+        ],
+    },
     # Extensions
     ext_modules=[
         Extension(
