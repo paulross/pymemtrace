@@ -32,9 +32,9 @@ def test_reference_tracing():
             print(' log_file_contents DONE '.center(75, '-'))
 
             f.seek(0)
-            analysis = ref_trace_analyse.process_file(f, ignore_untracked=False)
+            analysis = ref_trace_analyse.process_file(f, include_untracked=False)
             print(' analysis '.center(75, '-'))
-            print('\n'.join(analysis.long_str_list(show_full_path=False, ignore_historical=True)))
+            print('\n'.join(analysis.long_str_list(show_full_path=False, include_historical=True)))
             print(' analysis DONE '.center(75, '-'))
 
     # assert file_0_data.startswith(bytes(message + '#level0', 'ascii'))
