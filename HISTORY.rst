@@ -4,8 +4,9 @@ History
 0.4.2rc0 (TODO)
 ------------------
 
-* More documentation.
-
+* Add two console entry points in the distro: ``pymemtrace_ref_trace_analyse`` and ``pymemtrace_dtrace_log_analyse``
+* Make option names for ``ref_trace_analyse.py`` more intuitive.
+* Added documentation.
 
 0.4.1 (2026-05-03)
 ------------------
