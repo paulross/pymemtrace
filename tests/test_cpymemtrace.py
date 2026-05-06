@@ -139,7 +139,6 @@ def test_trace_basic_lt_310():
 
 @pytest.mark.skipif(not (sys.version_info.minor > 10), reason='Python > 3.10')
 def test_trace_basic_gt_310():
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Trace(0) as tracer:
         b' ' * (1024 ** 2)
         print()
@@ -239,7 +238,6 @@ def test_module_log_file_same_as_object_log_file_post_313(cls, log_path_attr):
 )
 def test_profile_start_message_to_log_file(cls):
     message = 'test_profile_start_message_to_log_file():'
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cls(message=message) as profiler:
         log_path = profiler.log_file_path()
         print(f'Log file Profile: {log_path}')
@@ -266,7 +264,6 @@ def test_profile_start_message_to_log_file(cls):
 )
 def test_profile_inline_message_to_log_file_pre_313(cls):
     message = 'test_profile_inline_message_to_log_file():'
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cls() as profiler:
         b' ' * (1024 ** 2)
         profiler.write_message_to_log(message)
@@ -287,7 +284,6 @@ def test_profile_inline_message_to_log_file_pre_313(cls):
 )
 def test_profile_inline_message_to_log_file_post_313(cls):
     message = 'test_profile_inline_message_to_log_file():'
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cls() as profiler:
         b' ' * (1024 ** 2)
         profiler.write_message_to_log(message)
@@ -306,7 +302,6 @@ def create_bytes(length: int) -> bytes:
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_reference_trace_basic_post_313():
     message = 'test_profile_inline_message_to_log_file():'
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.ReferenceTracing() as profiler:
         l = []
         for i in range(4):
@@ -326,7 +321,6 @@ def test_reference_trace_basic_post_313():
 
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_trace_basic_dir_gt_313():
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.ReferenceTracing() as profiler:
         b' ' * (1024 ** 2)
         print()
@@ -370,7 +364,6 @@ def test_trace_basic_dir_gt_313():
 
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_trace_basic_dir_suspend_resume_gt_313():
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.ReferenceTracing() as profiler:
         b' ' * (1024 ** 2)
         print()
