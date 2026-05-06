@@ -309,6 +309,8 @@ def process_file(file: typing.TextIO, include_untracked: bool) -> LogFileResult:
     line_num = 0
     for l, line in enumerate(file):
         line_num = l + 1
+        # Hack for '<frozen importlib.' column breaks
+        line = line.replace('<frozen importlib.', '<frozen_importlib.')
         if line_num % 10000 == 0:
             logger.info(f'Reading line {line_num:16,d}')
         assert line.endswith('\n')

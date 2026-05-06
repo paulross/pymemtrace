@@ -2257,6 +2257,14 @@ cpyReferenceTracing_write_c_error_message_to_log(struct reference_tracing_data *
 static int reference_tracing_call_back_is_active = 0;
 
 /**
+ * If true then all objects in the datetime library will be excluded as builtins.
+ * This has been the cause of SIGABRT and SIGSEGV with various Python versions
+ * including 3.13 and 3.15.
+ *
+ * It is reccomended to set this to zero.
+ */
+#define PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN 1
+/**
  * Returns non-zero if the Python object is one of the selected builtins.
  * This function call is designed to be cheap but requires any of the code
  * here to NOT allocate/de-allocate Python objects as that will make
@@ -2354,24 +2362,6 @@ reference_trace_is_builtin_pre_suspend(PyObject *op) {
      * See: https://docs.python.org/3.15/whatsnew/3.15.html#changed-c-apis
      * And: https://github.com/python/cpython/issues/141563
      * */
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 15
-    /* Required aa datetime is a capsule. */
-    if (PyDateTimeAPI == NULL) {
-        PyDateTime_IMPORT;
-    }
-    assert(PyDateTimeAPI != NULL);
-    if (
-            0
-            /* Datetime stuff. This needs #include "datetime.h" */
-            || PyDate_Check(op)
-            || PyDateTime_Check(op)
-            || PyTime_Check(op)
-            || PyDelta_Check(op)
-            || PyTZInfo_Check(op)
-            ) {
-        return 1;
-    }
-#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 15
     return 0;
 }
 
@@ -2392,7 +2382,7 @@ reference_trace_is_builtin_pre_suspend(PyObject *op) {
  * @param op The Python object to check.
  * @return 1 if a builtin, 0 otherwise.
  */
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 15
+#if PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN
 static int
 reference_trace_is_builtin_post_suspend(PyObject *op) {
     assert(op);
@@ -2405,7 +2395,10 @@ reference_trace_is_builtin_post_suspend(PyObject *op) {
      * And: https://github.com/python/cpython/issues/141563
      * */
     /* Required aa datetime is a capsule. */
-    PyDateTime_IMPORT;
+    if (PyDateTimeAPI == NULL) {
+        PyDateTime_IMPORT;
+    }
+    assert(PyDateTimeAPI != NULL);
     if (
             0
             /* Datetime stuff. This needs #include "datetime.h" */
@@ -2419,12 +2412,12 @@ reference_trace_is_builtin_post_suspend(PyObject *op) {
     }
     return 0;
 }
-#else /* Python version prior to 3.15. */
+#else /* ! PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN */
 static int
 reference_trace_is_builtin_post_suspend(PyObject *Py_UNUSED(op)) {
     return 0;
 }
-#endif
+#endif /* PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN */
 
 /**
  * Returns 1 if the \c exclude_tp_names sequence contains the object type name, 0 otherwise.
