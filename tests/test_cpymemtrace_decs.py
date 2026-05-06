@@ -1,9 +1,21 @@
+import os
 import random
 import sys
 
 import pytest
 
 from pymemtrace import cpymemtrace_decs
+from pymemtrace import cPyMemTrace
+
+@cpymemtrace_decs.profile()
+def test_profile_file_path():
+    assert os.path.isfile(cPyMemTrace.profile_log_path())
+
+
+@cpymemtrace_decs.trace()
+def test_trace_file_path():
+    assert os.path.isfile(cPyMemTrace.trace_log_path())
+
 
 
 # cpymemtrace_decs.profile 
@@ -80,6 +92,11 @@ if sys.version_info >= (3, 13):
     )
     def test_reference_tracing_decorator_kwargs():
         create_list_of_strings(4, 20 * 1024 ** 2, 50 * 1024 ** 2)
+
+    @cpymemtrace_decs.reference_tracing()
+    def test_reference_tracing_file_path():
+        assert os.path.isfile(cPyMemTrace.reference_tracing_log_path())
+
 
 if sys.version_info >= (3, 13):
     @cpymemtrace_decs.reference_tracing(

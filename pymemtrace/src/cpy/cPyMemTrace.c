@@ -1992,6 +1992,8 @@ struct reference_tracing_data {
     PyObject *exclude_tp_names;
     /** A Python sequence of strings of typenames to include. */
     PyObject *include_tp_names;
+    /** The log file name. */
+    char *log_file_name;
 };
 
 /**
@@ -2725,6 +2727,8 @@ cpyReferenceTracing_dealloc(cpyReferenceTracing *self) {
         self->data->exclude_tp_names = NULL;
         Py_XDECREF(self->data->include_tp_names);
         self->data->include_tp_names = NULL;
+        free(self->data->log_file_name);
+        self->data->log_file_name = NULL;
         free(self->data);
         self->data = NULL;
     }
@@ -2758,6 +2762,7 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
         self->data->include_builtins = 0;
         self->data->exclude_tp_names = NULL;
         self->data->include_tp_names = NULL;
+        self->data->log_file_name = NULL;
         self->py_specific_filename = NULL;
         self->message = NULL;
         /* Default to a full gc.collect() */
@@ -2980,8 +2985,19 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
         self->py_specific_filename = (PyObject *) PyBytes_FromString(file_path_buffer);
         new_log_filename = file_path_buffer;
     }
+    self->data->log_file_name = malloc(strlen(new_log_filename) + 1);
+    if (!self->data->log_file_name) {
+        PyErr_Format(PyExc_IOError, "Can not copy log file name %s", new_log_filename);
+        return NULL;
+    }
+    // Error check.
+    if (strcpy(self->data->log_file_name, new_log_filename) != self->data->log_file_name) {
+        PyErr_Format(PyExc_MemoryError, "Can not strcpy log file name %s", new_log_filename);
+        return NULL;
+    }
 #if DEBUG
     fprintf(stdout, "DEBUG: Reference Tracing opening log file \"%s\"\n", new_log_filename);
+//    fprintf(stdout, "DEBUG: Reference Trace self->data->log_file_name \"%s\"\n", self->data->log_file_name);
 #endif
     self->data->log_file = fopen(new_log_filename, "w");
     if (!self->data->log_file) {
@@ -3366,12 +3382,46 @@ profile_wrapper_depth(void) {
 }
 
 /**
+ * This module level function returns the current Profiler log path.
+ * This is useful when using decorators as the cPyMemTrace module can be
+ * queried when there is no object as is with a context manager.
+ *
+ * @return The current Profiler log path as a string or None if no
+ *  profiler is active.
+ */
+static PyObject *
+profile_wrapper_log_path(void) {
+    cpyTraceFileWrapper *profile_wrapper = wrapper_ll_get(static_profile_wrappers);
+    if (profile_wrapper && profile_wrapper->log_file_path) {
+        return Py_BuildValue("s", profile_wrapper->log_file_path);
+    }
+    Py_RETURN_NONE;
+}
+
+/**
  * @return The number of Tracers in the linked list as a Python integer.
  */
 static PyObject *
 trace_wrapper_depth(void) {
     assert(!PyErr_Occurred());
     return Py_BuildValue("n", wrapper_ll_length(static_trace_wrappers));
+}
+
+/**
+ * This module level function returns the current Trace log path.
+ * This is useful when using decorators as the cPyMemTrace module can be
+ * queried when there is no object as is with a context manager.
+ *
+ * @return The current Trace log path as a string or None if no
+ *  trace is active.
+ */
+static PyObject *
+trace_wrapper_log_path(void) {
+    cpyTraceFileWrapper *profile_wrapper = wrapper_ll_get(static_trace_wrappers);
+    if (profile_wrapper && profile_wrapper->log_file_path) {
+        return Py_BuildValue("s", profile_wrapper->log_file_path);
+    }
+    Py_RETURN_NONE;
 }
 
 #if REFERENCE_TRACING_AVAILABLE
@@ -3392,6 +3442,23 @@ static PyObject *
 reference_tracing_wrapper_depth(void) {
     assert(!PyErr_Occurred());
     return Py_BuildValue("n", reference_tracing_ll_length());
+}
+
+/**
+ * This module level function returns the current Reference Trace log path.
+ * This is useful when using decorators as the cPyMemTrace module can be
+ * queried when there is no object as is with a context manager.
+ *
+ * @return The current Reference Trace log path as a string or None
+ *  if no Reference Trace is active.
+ */
+static PyObject *
+reference_tracing_log_path(void) {
+    struct reference_tracing_data *ref_trace_data = reference_tracing_ll_get_data();
+    if (ref_trace_data && ref_trace_data->log_file_name) {
+        return Py_BuildValue("s", ref_trace_data->log_file_name);
+    }
+    Py_RETURN_NONE;
 }
 
 #endif // #if REFERENCE_TRACING_AVAILABLE
@@ -3419,10 +3486,22 @@ static PyMethodDef cPyMemTraceMethods[] = {
                 "Return the depth of the profile wrapper stack.",
         },
         {
+                "profile_log_path",
+                (PyCFunction) profile_wrapper_log_path,
+                METH_NOARGS,
+                "Return log path of the current profile wrapper.",
+        },
+        {
                 "trace_wrapper_depth",
                 (PyCFunction) trace_wrapper_depth,
                 METH_NOARGS,
                 "Return the depth of the trace wrapper stack.",
+        },
+        {
+                "trace_log_path",
+                (PyCFunction) trace_wrapper_log_path,
+                METH_NOARGS,
+                "Return log path of the current trace wrapper.",
         },
 #if REFERENCE_TRACING_AVAILABLE
         {
@@ -3436,6 +3515,12 @@ static PyMethodDef cPyMemTraceMethods[] = {
                 (PyCFunction) reference_tracing_wrapper_depth,
                 METH_NOARGS,
                 "Return the depth of the Reference Tracing wrapper stack.",
+        },
+        {
+                "reference_tracing_log_path",
+                (PyCFunction) reference_tracing_log_path,
+                METH_NOARGS,
+                "Return log path of the current Reference Trace.",
         },
 #endif // #if REFERENCE_TRACING_AVAILABLE
         {NULL, NULL, 0, NULL}        /* Sentinel */

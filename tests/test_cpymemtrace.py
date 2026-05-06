@@ -57,11 +57,14 @@ def test_module_dir_post_313():
         '__name__',
         '__package__',
         '__spec__',
+        'profile_log_path',
         'profile_wrapper_depth',
+        'reference_tracing_log_path',
         'reference_tracing_simple_wrapper_depth',
         'reference_tracing_wrapper_depth',
         'rss',
         'rss_peak',
+        'trace_log_path',
         'trace_wrapper_depth',
     ]
 
@@ -161,6 +164,71 @@ def test_trace_basic_gt_310():
                                'log_file_path', 'write_message_to_log', 'write_to_log']
         assert os.path.isfile(tracer.log_file_path())
 
+
+# Log file path stuff
+@pytest.mark.parametrize(
+    'attr',
+    (
+            'profile_log_path',
+            'trace_log_path',
+    )
+)
+def test_module_log_file_path_none(attr):
+    log_file_path_fn = getattr(cPyMemTrace, attr)
+    assert callable(log_file_path_fn)
+    assert log_file_path_fn() is None
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+@pytest.mark.parametrize(
+    'attr',
+    (
+            'profile_log_path',
+            'trace_log_path',
+            'reference_tracing_log_path',
+    )
+)
+def test_module_log_file_path_none_post_313(attr):
+    log_file_path_fn = getattr(cPyMemTrace, attr)
+    assert callable(log_file_path_fn)
+    assert log_file_path_fn() is None
+
+
+@pytest.mark.parametrize(
+    'cls, log_path_attr',
+    (
+            (cPyMemTrace.Profile, 'profile_log_path'),
+            (cPyMemTrace.Trace, 'trace_log_path'),
+    )
+)
+def test_module_log_file_same_as_object_log_file(cls, log_path_attr):
+    with cls() as profiler:
+        log_path = profiler.log_file_path()
+        assert os.path.isfile(log_path)
+        log_file_path_fn = getattr(cPyMemTrace, log_path_attr)
+        assert callable(log_file_path_fn)
+        assert log_file_path_fn() == log_path
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+@pytest.mark.parametrize(
+    'cls, log_path_attr',
+    (
+            (cPyMemTrace.Profile, 'profile_log_path'),
+            (cPyMemTrace.Trace, 'trace_log_path'),
+            (cPyMemTrace.ReferenceTracing, 'reference_tracing_log_path'),
+    )
+)
+def test_module_log_file_same_as_object_log_file_post_313(cls, log_path_attr):
+    with cls() as profiler:
+        log_path = profiler.log_file_path()
+        assert os.path.isfile(log_path)
+        log_file_path_fn = getattr(cPyMemTrace, log_path_attr)
+        assert callable(log_file_path_fn)
+        assert log_file_path_fn() == log_path
+
+
+# END: Log file path stuff
 
 @pytest.mark.parametrize(
     'cls',
@@ -474,10 +542,10 @@ def test_reference_trace_too_many_args_post_313():
         with cPyMemTrace.ReferenceTracing(
                 'message',
                 'file_path',
-                False, #'include_builtins',
-                [], #'exclude_tp_names',
-                [], #'include_tp_names',
-                2, # 'gc_collect_on_exit'
+                False,  # 'include_builtins',
+                [],  # 'exclude_tp_names',
+                [],  # 'include_tp_names',
+                2,  # 'gc_collect_on_exit'
                 'and_one_more'
         ):
             pass
@@ -743,7 +811,7 @@ def test_reference_tracing_include_builtins_choice(include_builtins):
 @pytest.mark.parametrize(
     'exclude_tp_names',
     (
-            ['range_iterator',],
+            ['range_iterator', ],
     )
 )
 def test_reference_tracing_exclude_tp_names(exclude_tp_names):
@@ -778,7 +846,7 @@ def test_reference_tracing_exclude_tp_names(exclude_tp_names):
 @pytest.mark.parametrize(
     'include_tp_names',
     (
-            ['BytesWrapper',],
+            ['BytesWrapper', ],
     )
 )
 def test_reference_tracing_include_tp_names(include_tp_names):
@@ -812,7 +880,7 @@ def test_reference_tracing_include_tp_names(include_tp_names):
 @pytest.mark.parametrize(
     'include_tp_names',
     (
-            ['BytesWrapper',],
+            ['BytesWrapper', ],
     )
 )
 def test_reference_tracing_include_tp_names_with_gc_collect(include_tp_names):
@@ -874,7 +942,7 @@ def test_reference_tracing_deliberate_leak_to_temp_file(cls, cause_leak):
         with cPyMemTrace.ReferenceTracing(
                 message=message, filepath=file.name,
                 include_builtins=False,
-                include_tp_names=[f'cMemLeak.{cls.__name__}',],
+                include_tp_names=[f'cMemLeak.{cls.__name__}', ],
                 gc_collect_on_exit=2,
         ) as profiler:
             assert profiler.log_file_path() == file.name
@@ -910,7 +978,7 @@ def test_reference_tracing_deliberate_leak_to_cwd(cls, cause_leak):
     with cPyMemTrace.ReferenceTracing(
             message=message,
             include_builtins=False,
-            include_tp_names=[f'cMemLeak.{cls.__name__}',],
+            include_tp_names=[f'cMemLeak.{cls.__name__}', ],
             gc_collect_on_exit=2,
     ) as profiler:
         create_tmp_list_of_memory_objects(cls, 128, 4, cause_leak)
