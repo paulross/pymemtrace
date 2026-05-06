@@ -2263,7 +2263,7 @@ static int reference_tracing_call_back_is_active = 0;
  *
  * It is reccomended to set this to zero.
  */
-#define PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN 1
+#define PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN 0
 /**
  * Returns non-zero if the Python object is one of the selected builtins.
  * This function call is designed to be cheap but requires any of the code
