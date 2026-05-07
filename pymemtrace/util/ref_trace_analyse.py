@@ -139,6 +139,8 @@ class LogFileResult:
         self.type_count_del: typing.Dict[str, int] = collections.defaultdict(int)
         self.type_count_untracked: typing.Dict[str, int] = collections.defaultdict(int)
         self.count_new = self.count_del = self.count_msg = 0
+        # The earliest clock value of the process.
+        self.clock_first = None
 
     def _parse_line(self, line_num: int, line: str) -> typing.Dict[str, typing.Any]:
         """Parse a line of the log file into a dict of the columns of the form: {header: value}."""
@@ -163,6 +165,8 @@ class LogFileResult:
 
     def _create_object(self, line_num: int, line_dict: typing.Dict[str, typing.Any]) -> ObjectData:
         """Create an ObjectData from the dict of {header: value}."""
+        if self.clock_first is None:
+            self.clock_first = line_dict['Clock']
         return ObjectData(
             line_num,
             line_dict['Clock'],
@@ -248,6 +252,7 @@ class LogFileResult:
             # Address is typically 0x7fd1f8028000
             return (
                 f'0x{obj.address:012x}'
+                f' {obj.clock:.6f}'
                 f' {obj.ref_cnt:4d}'
                 f' {obj.type:40}'
                 f' {obj.function:32}'
@@ -259,8 +264,12 @@ class LogFileResult:
             assert obj_pair[0].type == obj_pair[1].type
             return (
                 f'0x{obj_pair[0].address:012x} {obj_pair[0].type:40}'
-                f' NEW: {_str_from_object_file(obj_pair[0], show_full_path)}#{obj_pair[0].line}'
-                f' DEL: {_str_from_object_file(obj_pair[1], show_full_path)}#{obj_pair[1].line}'
+                f' NEW:'
+                f' t: {obj_pair[0].clock:.6f}'
+                f' {_str_from_object_file(obj_pair[0], show_full_path)}#{obj_pair[0].line}'
+                f' DEL:'
+                f' dt: {obj_pair[1].clock - obj_pair[0].clock:.6f}'
+                f' {_str_from_object_file(obj_pair[1], show_full_path)}#{obj_pair[1].line}'
             )
 
         ret = []
@@ -282,11 +291,17 @@ class LogFileResult:
             obj = self.live_objects[address]
             ret.append(f'    {_str_from_object(obj, show_full_path)}')
 
-        ret.append(f'Previous Objects [{len(self.prev_objects)}]:')
+        ret.append(f'Previous Objects, sorted by clock [{len(self.prev_objects)}]:')
         if include_historical:
-            for address in sorted(self.prev_objects.keys()):
-                for obj_pair in self.prev_objects[address]:
-                    ret.append(f'    {_str_from_object_pair(obj_pair, show_full_path)}')
+            # for address in sorted(self.prev_objects.keys()):
+            #     for obj_pair in self.prev_objects[address]:
+            #         ret.append(f'    {_str_from_object_pair(obj_pair, show_full_path)}')
+            all_values = []
+            for k in self.prev_objects.keys():
+                all_values.extend(self.prev_objects[k])
+            all_values.sort(key=lambda v: v[0].clock)
+            for obj_pair in all_values:
+                ret.append(f'    {_str_from_object_pair(obj_pair, show_full_path)}')
 
         all_types = sorted(set(self.type_count_new.keys()) | set(self.type_count_del.keys()))
         ret.append(f'Type count [{len(all_types)}]:')
@@ -309,8 +324,8 @@ def process_file(file: typing.TextIO, include_untracked: bool) -> LogFileResult:
     line_num = 0
     for l, line in enumerate(file):
         line_num = l + 1
-        # Hack for '<frozen importlib.' column breaks
-        line = line.replace('<frozen importlib.', '<frozen_importlib.')
+        # Hack for '<frozen importlib.' etc. column breaks
+        line = line.replace('<frozen ', '<frozen_')
         if line_num % 10000 == 0:
             logger.info(f'Reading line {line_num:16,d}')
         assert line.endswith('\n')
@@ -333,6 +348,10 @@ def process_file(file: typing.TextIO, include_untracked: bool) -> LogFileResult:
                     result.add_del(line_num, line)
                 elif line.startswith('MSG:'):
                     result.add_msg(line_num, line)
+                    # TODO: Handle this and include sub-file if requested.
+                    # MSG:     3.289042 # Detaching this Reference Tracing file wrapper. New file:
+                    # MSG:     3.289045 # /Users/paulross/Documents/workspace/pymemtrace/20260420_091558_50_53552_O_1_PY3.13.0.log
+                    # MSG:     3.298763 # Re-attaching this trace file wrapper.
                 elif line.startswith('ERR:'):
                     result.add_err(line_num, line)
                 else:
