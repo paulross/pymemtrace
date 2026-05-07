@@ -100,6 +100,7 @@ import collections
 import dataclasses
 import logging
 import os
+import re
 import sys
 import time
 import typing
@@ -316,10 +317,15 @@ class LogFileResult:
         return ret
 
 
-def process_file(file: typing.TextIO, include_untracked: bool) -> LogFileResult:
-    """Process the file into a LogFileResult and return that.
-    If include_untracked is True then de-allocations without the respective allocation are ignored."""
-    result = LogFileResult(include_untracked=include_untracked)
+# Matches:
+# MSG:     3.289042 # Detaching this Reference Tracing file wrapper. New file: 20260420_091558_50_53552_O_1_PY3.13.0.log
+RE_COMPILE_LOG_FILE_PUSH = re.compile(r'MSG: .+ # Detaching this Reference Tracing file wrapper. New file: (.+)')
+# Matches:
+# MSG:     3.298763 # Re-attaching this Reference Tracing file wrapper.
+RE_COMPILE_LOG_FILE_POP = re.compile(r'MSG: .+ Re-attaching this Reference Tracing file wrapper.')
+
+
+def process_file_to_log_result(file: typing.TextIO, recurse_files: bool, result: LogFileResult):
     has_sof = False
     line_num = 0
     for l, line in enumerate(file):
@@ -340,18 +346,31 @@ def process_file(file: typing.TextIO, include_untracked: bool) -> LogFileResult:
                 result.intro_message_lines.append(line[:-1])
             else:
                 if line.startswith('HDR:'):
-                    assert len(result.header_columns) == 0
-                    result.header_columns = line.strip().split()
+                    if len(result.header_columns) == 0:
+                        assert len(result.header_columns) == 0
+                        result.header_columns = line.strip().split()
+                    else:
+                        assert result.header_columns == line.strip().split()
                 elif line.startswith('NEW:'):
                     result.add_new(line_num, line)
                 elif line.startswith('DEL:'):
                     result.add_del(line_num, line)
                 elif line.startswith('MSG:'):
                     result.add_msg(line_num, line)
-                    # TODO: Handle this and include sub-file if requested.
-                    # MSG:     3.289042 # Detaching this Reference Tracing file wrapper. New file:
-                    # MSG:     3.289045 # /Users/paulross/Documents/workspace/pymemtrace/20260420_091558_50_53552_O_1_PY3.13.0.log
-                    # MSG:     3.298763 # Re-attaching this trace file wrapper.
+                    # Handle this and include sub-file if requested.
+                    if recurse_files:
+                        # MSG:     3.289042 # Detaching this Reference Tracing file wrapper. New file: /Users/paulross/Documents/workspace/pymemtrace/20260420_091558_50_53552_O_1_PY3.13.0.log
+                        m = RE_COMPILE_LOG_FILE_PUSH.match(line)
+                        if m is not None:
+                            # recurse
+                            logger.info(f'Recusing into log file: {m.group(1)}')
+                            with open(m.group(1)) as sub_file:
+                                process_file_to_log_result(sub_file, recurse_files, result)
+                    # MSG:     3.298763 # Re-attaching this Reference Tracing file wrapper.
+                    # m = RE_COMPILE_LOG_FILE_POP.match(line)
+                    # if m is not None:
+                    #     # Ignore.
+                    #     pass
                 elif line.startswith('ERR:'):
                     result.add_err(line_num, line)
                 else:
@@ -363,13 +382,20 @@ def process_file(file: typing.TextIO, include_untracked: bool) -> LogFileResult:
         f' NEW - DEL: {result.count_new - result.count_del:,d}'
         f' MSG: {result.count_msg:,d}'
     )
+
+
+def process_file(file: typing.TextIO, include_untracked: bool, recurse_files: bool) -> LogFileResult:
+    """Process the file into a LogFileResult and return that.
+    If include_untracked is True then de-allocations without the respective allocation are ignored."""
+    result = LogFileResult(include_untracked=include_untracked)
+    process_file_to_log_result(file, recurse_files, result)
     return result
 
 
-def process_file_path(file_path: str, include_untracked: bool) -> LogFileResult:
+def process_file_path(file_path: str, include_untracked: bool, recurse_files: bool) -> LogFileResult:
     """Process the file path into a LogFileResult and return that."""
     with open(file_path) as file:
-        return process_file(file, include_untracked)
+        return process_file(file, include_untracked, recurse_files)
 
 
 def main() -> int:
@@ -398,6 +424,12 @@ def main() -> int:
         help="Ignore objects that were allocated and de-allocated correctly."
              " [default: %(default)s]",
     )
+    parser.add_argument(
+        "--recurse-files",
+        action="store_true",
+        help="If True then recurse into child log files."
+             " [default: %(default)s]",
+    )
     parser.add_argument("-l", "--log_level", type=int, dest="log_level", default=20,
                         help="Log Level (debug=10, info=20, warning=30, error=40, critical=50)"
                              " [default: %(default)s]"
@@ -411,7 +443,7 @@ def main() -> int:
     )
     time_start = time.perf_counter()
     print(f'File path: {args.log_path}')
-    result = process_file_path(args.log_path, args.include_untracked)
+    result = process_file_path(args.log_path, args.include_untracked, args.recurse_files)
     print('\n'.join(result.long_str_list(args.full_path, args.include_historical)))
     print(f'Process time: {time.perf_counter() - time_start:.3f} (s)')
     return 0

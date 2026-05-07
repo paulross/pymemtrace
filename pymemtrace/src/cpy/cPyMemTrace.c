@@ -381,17 +381,28 @@ trace_wrapper_write_event_time_to_event_text(cpyTraceFileWrapper *trace_wrapper)
  *
  * @param trace_wrapper The trace or profile wrapper.
  * @param message The message to write.
+ * @param include_prefix If true then write prefix, event time and so on.
+ * @param newline If true add a terminating newline.
  */
 static void
-trace_wrapper_write_message_to_log_file(cpyTraceFileWrapper *trace_wrapper, const char *message) {
+trace_wrapper_write_message_to_log_file(
+        cpyTraceFileWrapper *trace_wrapper,
+        const char *message,
+        int include_prefix,
+        int newline
+) {
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
     assert(trace_wrapper->file);
-    fputs("MSG:  ", trace_wrapper->file);
-    trace_wrapper_write_event_time_to_event_text(trace_wrapper);
-    fputs(trace_wrapper->event_text, trace_wrapper->file);
-    fputs(" # ", trace_wrapper->file);
+    if (include_prefix) {
+        fputs("MSG:  ", trace_wrapper->file);
+        trace_wrapper_write_event_time_to_event_text(trace_wrapper);
+        fputs(trace_wrapper->event_text, trace_wrapper->file);
+        fputs(" # ", trace_wrapper->file);
+    }
     fputs(message, trace_wrapper->file);
-    fputc('\n', trace_wrapper->file);
+    if (newline) {
+        fputc('\n', trace_wrapper->file);
+    }
 #endif // PY_MEM_TRACE_WRITE_OUTPUT
 }
 
@@ -561,7 +572,7 @@ cpyTraceFileWrapper_write_message_to_log(cpyTraceFileWrapper *self, PyObject *op
     }
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     Py_UCS1 *c_str = PyUnicode_1BYTE_DATA(op);
-    trace_wrapper_write_message_to_log_file(self, (const char *) c_str);
+    trace_wrapper_write_message_to_log_file(self, (const char *) c_str, 1, 1);
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     Py_RETURN_NONE;
 }
@@ -851,17 +862,20 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
                 if (is_profile) {
                     trace_wrapper_write_message_to_log_file(
                             wrapper_old,
-                            "Detaching this profile file wrapper. New file:"
+                            "Detaching this profile file wrapper. New file:",
+                            1, 0
                     );
                 } else {
                     trace_wrapper_write_message_to_log_file(
                             wrapper_old,
-                            "Detaching this trace file wrapper. New file:"
+                            "Detaching this trace file wrapper. New file:",
+                            1, 0
                     );
                 }
                 trace_wrapper_write_message_to_log_file(
                         wrapper_old,
-                        file_path_buffer
+                        file_path_buffer,
+                        0, 1
                 );
             }
         }
@@ -1138,7 +1152,8 @@ ProfileObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
             assert(trace_file_wrapper->file);
             trace_wrapper_write_message_to_log_file(
                     trace_file_wrapper,
-                    "Re-attaching this profile file wrapper."
+                    "Re-attaching this profile file wrapper.",
+                    1, 1
             );
         }
 
@@ -1322,7 +1337,8 @@ TraceObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
             assert(trace_file_wrapper->file);
             trace_wrapper_write_message_to_log_file(
                     trace_file_wrapper,
-                    "Re-attaching this trace file wrapper."
+                    "Re-attaching this trace file wrapper.",
+                    1, 1
             );
         }
 
@@ -2202,28 +2218,37 @@ static char reference_tracing_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
  * Format and write a prefix and message to the log file.
  * The prefix is typically "MSG" or "ERR"
  *
- * @param data The <tt>struct reference_tracing_data</tt>
- * @param message The message.
+ * @param data The <tt>struct reference_tracing_data</tt>. Can be NULL, if so .
+ * @param message The message. Can be NULL, if so no clock time is written.
  * @param prefix The message prefix such as "MSG" or "ERR".
- * @return Number of bytes written by \c snprintf.
+ * @param newlinw If true then a newline is written at the end.
+ * @return Number of bytes written by \c snprintf() or \c fputs() .
  */
 static int
 cpyReferenceTracing_write_c_prefix_and_message_to_log(struct reference_tracing_data *data, char *prefix,
-                                                      char *message) {
+                                                      char *message, int newline) {
     assert(data);
     assert(data->log_file);
     /* I suspect that this is undefined if the write buffer is the read buffer. */
     assert(message != reference_tracing_event_text);
 
-    double clock_time = (double) clock() / CLOCKS_PER_SEC;
-    int ret = snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-                       "%s: %12.6f # %s",
-                       prefix,
-                       clock_time,
-                       message
-    );
-    fputs((const char *) reference_tracing_event_text, data->log_file);
-    fputc('\n', data->log_file);
+    int ret = 0;
+    if (prefix) {
+        double clock_time = (double) clock() / CLOCKS_PER_SEC;
+        ret = snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+                           "%s: %12.6f # %s",
+                           prefix,
+                           clock_time,
+                           message
+        );
+        fputs((const char *) reference_tracing_event_text, data->log_file);
+    } else {
+        ret = (int)strlen(message);
+        fputs((const char *) message, data->log_file);
+    }
+    if (newline)  {
+        fputc('\n', data->log_file);
+    }
     return ret;
 }
 
@@ -2236,7 +2261,7 @@ cpyReferenceTracing_write_c_prefix_and_message_to_log(struct reference_tracing_d
  */
 static int
 cpyReferenceTracing_write_c_message_to_log(struct reference_tracing_data *data, char *message) {
-    return cpyReferenceTracing_write_c_prefix_and_message_to_log(data, "MSG", message);
+    return cpyReferenceTracing_write_c_prefix_and_message_to_log(data, "MSG", message, 1);
 }
 
 /**
@@ -2248,7 +2273,7 @@ cpyReferenceTracing_write_c_message_to_log(struct reference_tracing_data *data, 
  */
 static int
 cpyReferenceTracing_write_c_error_message_to_log(struct reference_tracing_data *data, char *message) {
-    return cpyReferenceTracing_write_c_prefix_and_message_to_log(data, "ERR", message);
+    return cpyReferenceTracing_write_c_prefix_and_message_to_log(data, "ERR", message, 1);
 }
 
 /**
@@ -3007,11 +3032,17 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     /* Write suspension message in the old file. */
     struct reference_tracing_data *data_old = reference_tracing_ll_get_data();
     if (data_old) {
-        cpyReferenceTracing_write_c_message_to_log(
-                data_old, "Detaching this Reference Tracing file wrapper. New file:"
+//        cpyReferenceTracing_write_c_message_to_log(
+//                data_old, "Detaching this Reference Tracing file wrapper. New file:"
+//        );
+//        cpyReferenceTracing_write_c_message_to_log(
+//                data_old, new_log_filename
+//        );
+        cpyReferenceTracing_write_c_prefix_and_message_to_log(
+                data_old, "MSG", "Detaching this Reference Tracing file wrapper. New file: ", 0
         );
-        cpyReferenceTracing_write_c_message_to_log(
-                data_old, new_log_filename
+        cpyReferenceTracing_write_c_prefix_and_message_to_log(
+                data_old, NULL, new_log_filename, 1
         );
     }
     /* Write the opening message in the new log file. */
@@ -3096,7 +3127,7 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
         data = reference_tracing_ll_get_data();
         if (data) {
             /* Report re-attaching the reference tracer. */
-            cpyReferenceTracing_write_c_message_to_log(data, "Re-attaching this trace file wrapper.");
+            cpyReferenceTracing_write_c_message_to_log(data, "Re-attaching this Reference Tracing file wrapper.");
             PyRefTracer_SetTracer(&reference_trace_allocations_callback, data);
         }
         if (PyErr_Occurred()) {
