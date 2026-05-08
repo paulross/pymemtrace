@@ -407,7 +407,7 @@ trace_wrapper_write_message_to_log_file(
 }
 
 /**
- * Write the last event then teh EOF marker and then close the file.
+ * Write the last event then the EOF marker and then close the file.
  *
  * @param self The Profiler or Tracer as a \c cpyTraceFileWrapper
  */
@@ -2402,7 +2402,7 @@ reference_trace_is_builtin_pre_suspend(PyObject *op) {
  *  This is Python version specific as some code, such as
  *  the \c datetime API change in Python 3.15.
  *  With Python 3.15+ the PyDateTimeAPI import now triggers arbitrary object
- *  creation so the Reference Tracing must be suspended otherwise teh callback\
+ *  creation so the Reference Tracing must be suspended otherwise the callback\
  *  will be re-entrant.
  *  See also \c reference_trace_is_builtin_pre_suspend()
  *
