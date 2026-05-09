@@ -12,7 +12,10 @@ class StringAndTime:
         self.str = ''.join(random.choices(string.printable, k=size))
 
 
-@cpymemtrace_decs.reference_tracing()
+@cpymemtrace_decs.reference_tracing(
+    message='With include_builtins=True',
+    include_builtins=True,
+)
 def example_reference_tracing():
     print(f'example_reference_tracing()')
     print(f'Logging to {cPyMemTrace.reference_tracing_log_path()}')

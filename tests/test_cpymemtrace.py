@@ -1,11 +1,13 @@
 """
 At the moment these produce a log file per test.
 """
+import datetime
 import faulthandler
 import gc
 import os
 import pprint
 import random
+import string
 import sys
 import tempfile
 import time
@@ -1176,3 +1178,80 @@ if __name__ == '__main__':
     print('START')
     test_profile_basic_gt_310()
     print('FINISH')
+
+
+class StringAndTime:
+    def __init__(self, size: int):
+        self.now = datetime.datetime.now()
+        self.str = ''.join(random.choices(string.printable, k=size))
+
+
+class StringAndTime_A(StringAndTime):
+    pass
+
+
+class StringAndTime_B(StringAndTime):
+    pass
+
+
+class StringAndTime_C(StringAndTime):
+    pass
+
+
+def create_string_and_time_c():
+    with cPyMemTrace.ReferenceTracing(message="Reference Tracing C", ) as ref_trace_c:
+        print(f'ref_trace_c is logging to {ref_trace_c.log_file_path()}')
+        list_of_str_and_time_c = []
+        for i in range(4):
+            str_len = random.randint(1024, 2048)
+            v = StringAndTime_C(str_len)
+            list_of_str_and_time_c.append(v)
+
+        # while len(list_of_str_and_time_c):
+        #     list_of_str_and_time_c.pop()
+
+
+def create_string_and_time_b():
+    with cPyMemTrace.ReferenceTracing(message="Reference Tracing B", ) as ref_trace_b:
+        print(f'ref_trace_b is logging to {ref_trace_b.log_file_path()}')
+        list_of_str_and_time_b = []
+        for i in range(2):
+            str_len = random.randint(1024, 2048)
+            v = StringAndTime_B(str_len)
+            list_of_str_and_time_b.append(v)
+
+        create_string_and_time_c()
+
+        for i in range(2):
+            str_len = random.randint(1024, 2048)
+            v = StringAndTime_B(str_len)
+            list_of_str_and_time_b.append(v)
+
+        # while len(list_of_str_and_time_b):
+        #     list_of_str_and_time_b.pop()
+
+
+def create_string_and_time_a():
+    with cPyMemTrace.ReferenceTracing(message="Reference Tracing A", ) as ref_trace_a:
+        print(f'ref_trace_a is logging to {ref_trace_a.log_file_path()}')
+        list_of_str_and_time_a = []
+        for i in range(2):
+            str_len = random.randint(1024, 2048)
+            v = StringAndTime_A(str_len)
+            list_of_str_and_time_a.append(v)
+
+        create_string_and_time_b()
+
+        for i in range(2):
+            str_len = random.randint(1024, 2048)
+            v = StringAndTime_A(str_len)
+            list_of_str_and_time_a.append(v)
+
+        while len(list_of_str_and_time_a):
+            list_of_str_and_time_a.pop()
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_tracing_nested_with_sig_log_files():
+    print()
+    create_string_and_time_a()

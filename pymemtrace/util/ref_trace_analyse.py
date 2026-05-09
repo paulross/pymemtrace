@@ -366,6 +366,7 @@ def process_file_to_log_result(file: typing.TextIO, recurse_files: bool, result:
                             logger.info(f'Recusing into log file: {m.group(1)}')
                             with open(m.group(1)) as sub_file:
                                 process_file_to_log_result(sub_file, recurse_files, result)
+                            logger.info(f'Finished log file: {m.group(1)}')
                     # MSG:     3.298763 # Re-attaching this Reference Tracing file wrapper.
                     # m = RE_COMPILE_LOG_FILE_POP.match(line)
                     # if m is not None:
@@ -395,7 +396,10 @@ def process_file(file: typing.TextIO, include_untracked: bool, recurse_files: bo
 def process_file_path(file_path: str, include_untracked: bool, recurse_files: bool) -> LogFileResult:
     """Process the file path into a LogFileResult and return that."""
     with open(file_path) as file:
-        return process_file(file, include_untracked, recurse_files)
+        logger.info(f'Starting log file: {file_path}')
+        result = process_file(file, include_untracked, recurse_files)
+        logger.info(f'Finished log file: {file_path}')
+        return result
 
 
 def main() -> int:
