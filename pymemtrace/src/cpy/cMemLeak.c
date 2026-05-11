@@ -446,6 +446,51 @@ py_decref(PyObject *Py_UNUSED(module), PyObject *pobj) {
 }
 
 /**
+ * Retursn the reference count of an object.
+ *
+ * @param _unused_module
+ * @param pobj The Python object.
+ * @return The reference count.
+ */
+static PyObject *
+py_refcnt_of_object(PyObject *Py_UNUSED(module), PyObject *pobj) {
+    Py_ssize_t refcnt = Py_REFCNT(pobj);
+    return PyLong_FromSsize_t(refcnt);
+}
+
+/**
+ * Given an arbitrary address this assumes a PyObject * is there and returns its reference count.
+ * The count returned is generally one higher than you might expect, because it includes the
+ * (temporary) reference as an argument and so emulates sys.getrefcount().
+ *
+ * WARNING: This will segfault if de-referencing the address is undefined.
+ *
+ * @param _unused_module
+ * @param pobj The address as an integer.
+ * @return The reference count of the object.
+ */
+static PyObject *
+py_refcnt_of_address(PyObject *Py_UNUSED(module), PyObject *pobj) {
+    assert(!PyErr_Occurred());
+    assert(pobj);
+    Py_ssize_t address = PyLong_AsSsize_t(pobj);
+
+    if (PyErr_Occurred()) {
+        return NULL;
+    }
+    if (address <= 0) {
+        PyErr_Format(PyExc_ValueError, "py_refcnt_of_address(): Illegal address of %z", address);
+        return NULL;
+    }
+    PyObject *py_object = (PyObject *) address;
+    /* We increment the reference count to emulate teh behaviour of sys.getrefcount(). */
+    Py_INCREF(py_object);
+    Py_ssize_t refcnt = Py_REFCNT(py_object);
+    Py_DECREF(py_object);
+    return PyLong_FromSsize_t(refcnt);
+}
+
+/**
  * Returns a Python bytes object of specified size.
  * The content is uninitialised.
  *
@@ -472,6 +517,10 @@ static PyMethodDef MemLeakMethods[] = {
      "Decrement the reference count of the Python object."},
     {"py_bytes_of_size",   (PyCFunction) py_bytes_of_size, METH_VARARGS | METH_KEYWORDS,
      "Returns a Python bytes object of specified size. The content is uninitialised."},
+    {"py_refcnt_of_object",   (PyCFunction) py_refcnt_of_object, METH_O,
+     "Return the reference count of the Python object."},
+    {"py_refcnt_of_address",   (PyCFunction) py_refcnt_of_address, METH_O,
+     "Return the reference count of the Python object at an arbitrary address. May segfault."},
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
