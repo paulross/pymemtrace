@@ -1,11 +1,15 @@
 History
 =======
 
-0.4.2rc0 (TODO)
+0.5.0 (2026-05-12)
 ------------------
 
 * Add two console entry points in the distro: ``pymemtrace_ref_trace_analyse`` and ``pymemtrace_dtrace_log_analyse``
 * Make option names for ``ref_trace_analyse.py`` more intuitive.
+* Fix issues with initialising the datatime capsule.
+* Minor change to the Reference Tracing log file format.
+* ``ref_trace_analyse.py`` can now merge log files.
+* Add the ability to get reference counts from arbitrary addresses.
 * Added documentation.
 
 0.4.1 (2026-05-03)
