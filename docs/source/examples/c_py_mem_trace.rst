@@ -214,6 +214,7 @@ and de-allocation.
     The Reference Tracing API is quite new.
     Some of the documentation for it is wrong.
     This is described in more detail in :ref:`tech_notes-cpymemtrace_reference_tracing`.
+    and :ref:`tech_notes-cpymemtrace_reference_tracing_specific`.
 
 Simple Reference Tracing
 ---------------------------------------
@@ -633,9 +634,15 @@ and much smaller.
      - By default these are ignored
      - If ``include_builtins=True`` is set then these will be reported.
        Typically this makes the running time and the log file size 2x to 4x bigger.
+       See :ref:`tech_notes-cpymemtrace_reference_tracing_performance` for a comprehensive
+       performance analysis.
        The builtin types are those C types that have a ``Py*_Check()`` function.
        These include all numeric types, containers (tuple, list, dict, set, frozenset), strings, bytes and so on.
-       See ``reference_trace_is_builtin_pre_suspend()`` in ``pymemtrace/src/cpy/cPyMemTrace.c`` for the specific criteria [#]_.
+       See ``reference_trace_is_builtin_pre_suspend()`` in ``pymemtrace/src/cpy/cPyMemTrace.c``
+       for the specific criteria [#]_.
+
+See the code in ``reference_trace_allocations_callback()`` in ``pymemtrace/src/cpy/cPyMemTrace.c``
+for the implementation of all this logic.
 
 For example this will log all the builtin actions:
 
@@ -687,9 +694,21 @@ This example will *only* log the events of ``MySpecialType``:
     def some_function():
         pass
 
-See the code in ``reference_trace_allocations_callback()`` in ``pymemtrace/src/cpy/cPyMemTrace.c``
-for the implementation of all this logic.
+If you want *some* of the builtins, but not all, to appear in the log along with
+your special type then use this pattern:
+This example will *only* log the events of ``MySpecialType`` and the builtin ``list``:
 
+.. code-block:: python
+
+    @cpymemtrace_decs.reference_tracing(
+        message="some_function() only MySpecialType and lists",
+        # This allows all builtins.
+        include_builtins=True,
+        # Then this filters out all of the builtins apart from lists.
+        include_tp_names=['MySpecialType', 'list'],
+    )
+    def some_function():
+        pass
 
 Common Features
 =====================

@@ -1,5 +1,5 @@
 
-.. _tech_notes-cpymemtrace_reference_tracing:
+.. _tech_notes-cpymemtrace_reference_tracing_specific:
 
 Technical Note on ``cPyMemTrace`` Reference Tracing
 ===================================================
