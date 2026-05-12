@@ -1,14 +1,14 @@
 
-.. _tech_notes-cpymemtrace:
+.. _tech_notes-cpymemtrace_perf:
 
 Technical Note on ``cPyMemTrace`` Performance
 =============================================
 
-``cPyMemTrace`` contains Python profilers and tracers written in 'C' that logs the
+:py:mod:`pymemtrace.cPyMemTrace` contains Python profilers and tracers written in 'C' that logs the
 runtime information including the `Resident Set Size <https://en.wikipedia.org/wiki/Resident_set_size>`_
 for every Python and C call and return or object allocation and de-allocation as required.
 
-.. _tech_notes-cpymemtrace_test_data:
+.. _tech_notes-cpymemtrace_perf_test_data:
 
 Test Program and Data
 ------------------------------
@@ -26,7 +26,7 @@ The command used was:
 
     time tdlastohtml --log-process=0.25  example_data/LAS/data tmp/LASTOHTML_A
 
-.. _tech_notes-cpymemtrace_profiling:
+.. _tech_notes-cpymemtrace_perf_profiling:
 
 Profiling
 ---------------------------------------
@@ -52,7 +52,7 @@ In this exercise there were 4.4m profiling events.
 When ``d_rss_trigger=-1`` then only events that change the RSS by >= the page size (4096 bytes) are reported.
 When ``d_rss_trigger=0`` then all events are reported.
 
-.. _tech_notes-cpymemtrace_profiling_performance:
+.. _tech_notes-cpymemtrace_perf_profiling_performance:
 
 Profiling Performance
 ^^^^^^^^^^^^^^^^^^^^^
@@ -91,7 +91,7 @@ Here is the cost of profiling given various options:
 As expected reporting every event is about four times as expensive (in time) compared to those events
 that trigger large changes in the RSS.
 
-.. _tech_notes-cpymemtrace_tracing:
+.. _tech_notes-cpymemtrace_perf_tracing:
 
 Tracing
 --------
@@ -118,7 +118,7 @@ When ``d_rss_trigger=-1`` then only events that change the RSS by >= the page si
 When ``d_rss_trigger=0`` then all events are reported.
 
 
-.. _tech_notes-cpymemtrace_tracing_performance:
+.. _tech_notes-cpymemtrace_perf_tracing_performance:
 
 Tracing Performance
 ^^^^^^^^^^^^^^^^^^^^^
@@ -156,7 +156,7 @@ Here is the cost of tracing given various options:
 
 This is similar to Profiling but the event count is much larger and that shows up in the runtime cost.
 
-.. _tech_notes-cpymemtrace_reference_tracing:
+.. _tech_notes-cpymemtrace_perf_reference_tracing:
 
 Reference Tracing
 -----------------
@@ -244,8 +244,7 @@ full Garbage Collection run before closing the log file:
         # Execution code here.
         pass
 
-
-.. _tech_notes-cpymemtrace_reference_tracing_performance:
+.. _tech_notes-cpymemtrace_perf_reference_tracing_performance:
 
 Reference Tracing Performance
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

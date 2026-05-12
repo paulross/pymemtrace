@@ -5,7 +5,8 @@ Technical Notes
 .. toctree::
     :maxdepth: 2
 
-    tech_notes/cPyMemTrace
+    tech_notes/cPyMemTrace_design
+    tech_notes/cPyMemTrace_perf
     tech_notes/cPyMemTrace_ReferenceTracing
     tech_notes/cPyMemTrace_ReferenceTracing_MemoryLeaks
     tech_notes/cPyMemTrace_log_format

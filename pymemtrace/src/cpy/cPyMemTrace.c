@@ -638,18 +638,18 @@ typedef struct cpyTraceFileWrapperLinkedListNode tcpyTraceFileWrapperLinkedList;
  * Linked list of Profilers.
  * The current one is at the head of this list.
  */
-static tcpyTraceFileWrapperLinkedList *static_profile_wrappers = NULL;
+static tcpyTraceFileWrapperLinkedList *static_profile_ll = NULL;
 
 /**
  * Linked list of Tracers.
  * The current one is at the head of this list.
  */
-static tcpyTraceFileWrapperLinkedList *static_trace_wrappers = NULL;
+static tcpyTraceFileWrapperLinkedList *static_trace_ll = NULL;
 
 /**
  * Get the head of the linked list which is the current Profiler/Tracer.
  *
- * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @param linked_list The linked list, either \c static_profile_ll or \c static_trace_ll .
  * @return The head node or NULL if the list is empty.
  */
 cpyTraceFileWrapper *wrapper_ll_get(tcpyTraceFileWrapperLinkedList *linked_list) {
@@ -662,7 +662,7 @@ cpyTraceFileWrapper *wrapper_ll_get(tcpyTraceFileWrapperLinkedList *linked_list)
 /**
  * Push a created trace wrapper on the front of the list.
  *
- * @param h_linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @param h_linked_list The linked list, either \c static_profile_ll or \c static_trace_ll .
  * @param node The node to add. The linked list takes ownership of this pointer.
  */
 void wrapper_ll_push(tcpyTraceFileWrapperLinkedList **h_linked_list, cpyTraceFileWrapper *node) {
@@ -679,7 +679,7 @@ void wrapper_ll_push(tcpyTraceFileWrapperLinkedList **h_linked_list, cpyTraceFil
 /**
  * Free the first value on the list and adjust the list pointer.
  *
- * @param h_linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @param h_linked_list The linked list, either \c static_profile_ll or \c static_trace_ll .
  * @return The node at the head of the linked list.
  */
 cpyTraceFileWrapper *
@@ -697,7 +697,7 @@ wrapper_ll_pop(tcpyTraceFileWrapperLinkedList **h_linked_list) {
 /**
  * Return the length of the linked list.
  *
- * @param p_linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @param p_linked_list The linked list, either \c static_profile_ll or \c static_trace_ll .
  * @return The length of the linked list
  */
 size_t wrapper_ll_length(tcpyTraceFileWrapperLinkedList *p_linked_list) {
@@ -712,7 +712,7 @@ size_t wrapper_ll_length(tcpyTraceFileWrapperLinkedList *p_linked_list) {
 /**
  * Remove all the items in the linked list.
  *
- * @param h_linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @param h_linked_list The linked list, either \c static_profile_ll or \c static_trace_ll .
  */
 void wrapper_ll_clear(tcpyTraceFileWrapperLinkedList **h_linked_list) {
     tcpyTraceFileWrapperLinkedList *tmp;
@@ -849,8 +849,8 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
         snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s", specific_filename);
     } else {
         char trace_type = is_profile ? 'P' : 'T';
-        size_t ll_depth = is_profile ? wrapper_ll_length(static_profile_wrappers) : wrapper_ll_length(
-                static_trace_wrappers);
+        size_t ll_depth = is_profile ? wrapper_ll_length(static_profile_ll) : wrapper_ll_length(
+                static_trace_ll);
         create_filename_within_cwd(trace_type, ll_depth, file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH);
     }
     trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(&cpyTraceFileWrapperType, NULL, NULL);
@@ -858,9 +858,9 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
         {
             cpyTraceFileWrapper *wrapper_old = NULL;
             if (is_profile) {
-                wrapper_old = wrapper_ll_get(static_profile_wrappers);
+                wrapper_old = wrapper_ll_get(static_profile_ll);
             } else {
-                wrapper_old = wrapper_ll_get(static_trace_wrappers);
+                wrapper_old = wrapper_ll_get(static_trace_ll);
             }
             if (wrapper_old) {
                 if (is_profile) {
@@ -954,7 +954,7 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
 static PyObject *
 get_log_file_path_profile(void) {
     assert(!PyErr_Occurred());
-    cpyTraceFileWrapper *wrapper = wrapper_ll_get(static_profile_wrappers);
+    cpyTraceFileWrapper *wrapper = wrapper_ll_get(static_profile_ll);
     if (wrapper) {
         return Py_BuildValue("s", wrapper->log_file_path);
     } else {
@@ -968,7 +968,7 @@ get_log_file_path_profile(void) {
 static PyObject *
 get_log_file_path_trace(void) {
     assert(!PyErr_Occurred());
-    cpyTraceFileWrapper *wrapper = wrapper_ll_get(static_trace_wrappers);
+    cpyTraceFileWrapper *wrapper = wrapper_ll_get(static_trace_ll);
     if (wrapper) {
         return Py_BuildValue("s", wrapper->log_file_path);
     } else {
@@ -1089,7 +1089,7 @@ py_attach_profile_function(int d_rss_trigger, const char *message, const char *s
     assert(!PyErr_Occurred());
     cpyTraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 1);
     if (wrapper) {
-        wrapper_ll_push(&static_profile_wrappers, wrapper);
+        wrapper_ll_push(&static_profile_ll, wrapper);
         // This increments the wrapper reference count.
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *) wrapper);
         // Write a marker, in this case it is the line number of the frame.
@@ -1146,10 +1146,10 @@ ProfileObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
         /* NOTE: wrapper_ll_pop returns a cpyTraceFileWrapper *.
          * This should **not** be decref'd here as CPython will do that on completion of a
          * with statement. */
-        wrapper_ll_pop(&static_profile_wrappers);
+        wrapper_ll_pop(&static_profile_ll);
 
         /* Now set the Profile of the previous one if available. */
-        trace_file_wrapper = wrapper_ll_get(static_profile_wrappers);
+        trace_file_wrapper = wrapper_ll_get(static_profile_ll);
         if (trace_file_wrapper) {
             PyEval_SetProfile(&trace_or_profile_function, (PyObject *) trace_file_wrapper);
             /* Put a marker in the file. */
@@ -1276,7 +1276,7 @@ py_attach_trace_function(int d_rss_trigger, const char *message, const char *spe
     assert(!PyErr_Occurred());
     cpyTraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 0);
     if (wrapper) {
-        wrapper_ll_push(&static_trace_wrappers, wrapper);
+        wrapper_ll_push(&static_trace_ll, wrapper);
         // This increments the wrapper reference count.
         PyEval_SetTrace(&trace_or_profile_function, (PyObject *) wrapper);
         // Write a marker, in this case it is the line number of the frame.
@@ -1331,10 +1331,10 @@ TraceObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
         /* NOTE: wrapper_ll_pop returns a cpyTraceFileWrapper *.
          * This should **not** be decref'd here as CPython will do that on completion of a
          * with statement. */
-        wrapper_ll_pop(&static_trace_wrappers);
+        wrapper_ll_pop(&static_trace_ll);
 
         /* Now set the Profile of the previous one if available. */
-        trace_file_wrapper = wrapper_ll_get(static_trace_wrappers);
+        trace_file_wrapper = wrapper_ll_get(static_trace_ll);
         if (trace_file_wrapper) {
             PyEval_SetTrace(&trace_or_profile_function, (PyObject *) trace_file_wrapper);
             /* Put a marker in the file. */
@@ -3413,7 +3413,7 @@ py_rss_peak(void) {
 static PyObject *
 profile_wrapper_depth(void) {
     assert(!PyErr_Occurred());
-    return Py_BuildValue("n", wrapper_ll_length(static_profile_wrappers));
+    return Py_BuildValue("n", wrapper_ll_length(static_profile_ll));
 }
 
 /**
@@ -3426,7 +3426,7 @@ profile_wrapper_depth(void) {
  */
 static PyObject *
 profile_wrapper_log_path(void) {
-    cpyTraceFileWrapper *profile_wrapper = wrapper_ll_get(static_profile_wrappers);
+    cpyTraceFileWrapper *profile_wrapper = wrapper_ll_get(static_profile_ll);
     if (profile_wrapper && profile_wrapper->log_file_path) {
         return Py_BuildValue("s", profile_wrapper->log_file_path);
     }
@@ -3439,7 +3439,7 @@ profile_wrapper_log_path(void) {
 static PyObject *
 trace_wrapper_depth(void) {
     assert(!PyErr_Occurred());
-    return Py_BuildValue("n", wrapper_ll_length(static_trace_wrappers));
+    return Py_BuildValue("n", wrapper_ll_length(static_trace_ll));
 }
 
 /**
@@ -3452,7 +3452,7 @@ trace_wrapper_depth(void) {
  */
 static PyObject *
 trace_wrapper_log_path(void) {
-    cpyTraceFileWrapper *profile_wrapper = wrapper_ll_get(static_trace_wrappers);
+    cpyTraceFileWrapper *profile_wrapper = wrapper_ll_get(static_trace_ll);
     if (profile_wrapper && profile_wrapper->log_file_path) {
         return Py_BuildValue("s", profile_wrapper->log_file_path);
     }
