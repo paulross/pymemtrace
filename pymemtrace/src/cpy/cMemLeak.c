@@ -487,11 +487,14 @@ py_refcnt_of_address(PyObject *Py_UNUSED(module), PyObject *pobj) {
         return NULL;
     }
     PyObject *py_object = (PyObject *) address;
-    Py_ssize_t refcnt = Py_REFCNT(py_object);
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 14
     /* For some reason in Python prior to 3.14 we need to increment
      * the reference count to emulate the behaviour of sys.getrefcount(). */
-    refcnt++;
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 14
+    Py_INCREF(py_object);
+#endif
+    Py_ssize_t refcnt = Py_REFCNT(py_object);
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 14
+    Py_DECREF(py_object);
 #endif
     return PyLong_FromSsize_t(refcnt);
 }
