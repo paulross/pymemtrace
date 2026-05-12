@@ -15,6 +15,10 @@
 */
 #undef DEBUG_REPORT_MALLOC_FREE
 
+#if PY_MAJOR_VERSION != 3
+#error "Only Python version 3 is supported."
+#endif
+
 /******** Allocate a buffer with C's malloc() ********/
 typedef struct {
     PyObject_HEAD
@@ -483,10 +487,12 @@ py_refcnt_of_address(PyObject *Py_UNUSED(module), PyObject *pobj) {
         return NULL;
     }
     PyObject *py_object = (PyObject *) address;
-    /* We increment the reference count to emulate teh behaviour of sys.getrefcount(). */
-    Py_INCREF(py_object);
     Py_ssize_t refcnt = Py_REFCNT(py_object);
-    Py_DECREF(py_object);
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 14
+    /* For some reason in Python prior to 3.14 we need to increment
+     * the reference count to emulate the behaviour of sys.getrefcount(). */
+    refcnt++;
+#endif
     return PyLong_FromSsize_t(refcnt);
 }
 

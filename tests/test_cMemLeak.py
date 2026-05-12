@@ -48,16 +48,34 @@ def test_cmemleak_inc_refcnt(cls):
     assert cobj.refcnt() == 2
 
 
-def test_py_refcnt_of_object():
-    i = 123456
-    py_refcnt_of_object = cMemLeak.py_refcnt_of_object(i)
-    assert py_refcnt_of_object == cMemLeak.py_refcnt_of_object(i)
-    assert py_refcnt_of_object == sys.getrefcount(i)
+@pytest.mark.parametrize(
+    'value',
+    (
+            123456,
+            '',
+            b'',
+            [],
+            dict(),
+    )
+)
+def test_py_refcnt_of_object(value):
+    py_refcnt_of_object = cMemLeak.py_refcnt_of_object(value)
+    assert py_refcnt_of_object == cMemLeak.py_refcnt_of_object(value)
+    assert py_refcnt_of_object == sys.getrefcount(value)
 
 
-def test_py_refcnt_of_address():
-    i = 123456
-    i_id = id(i)
+@pytest.mark.parametrize(
+    'value',
+    (
+            123456,
+            '',
+            b'',
+            [],
+            dict(),
+    )
+)
+def test_py_refcnt_of_address(value):
+    i_id = id(value)
     py_refcnt_of_address = cMemLeak.py_refcnt_of_address(i_id)
-    assert py_refcnt_of_address == cMemLeak.py_refcnt_of_object(i)
-    assert py_refcnt_of_address == sys.getrefcount(i)
+    assert py_refcnt_of_address == cMemLeak.py_refcnt_of_object(value)
+    assert py_refcnt_of_address == sys.getrefcount(value)
