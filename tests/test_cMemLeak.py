@@ -46,3 +46,36 @@ def test_cmemleak_inc_refcnt(cls):
     assert cobj.refcnt() == 3
     cobj.inc_refcnt(-1)
     assert cobj.refcnt() == 2
+
+
+@pytest.mark.parametrize(
+    'value',
+    (
+            123456,
+            '',
+            b'',
+            [],
+            dict(),
+    )
+)
+def test_py_refcnt_of_object(value):
+    py_refcnt_of_object = cMemLeak.py_refcnt_of_object(value)
+    assert py_refcnt_of_object == cMemLeak.py_refcnt_of_object(value)
+    assert py_refcnt_of_object == sys.getrefcount(value)
+
+
+@pytest.mark.parametrize(
+    'value',
+    (
+            123456,
+            '',
+            b'',
+            [],
+            dict(),
+    )
+)
+def test_py_refcnt_of_address(value):
+    i_id = id(value)
+    py_refcnt_of_address = cMemLeak.py_refcnt_of_address(i_id)
+    assert py_refcnt_of_address == cMemLeak.py_refcnt_of_object(value)
+    assert py_refcnt_of_address == sys.getrefcount(value)

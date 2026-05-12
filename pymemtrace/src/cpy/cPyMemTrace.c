@@ -56,6 +56,10 @@
 /* Used in reference_trace_is_builtin() */
 #include "datetime.h"
 
+#if PY_MAJOR_VERSION != 3
+#error "Only Python version 3 is supported."
+#endif
+
 #include <stdio.h>
 #include <time.h>
 #include <assert.h>
