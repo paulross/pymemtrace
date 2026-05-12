@@ -403,7 +403,32 @@ def process_file_path(file_path: str, include_untracked: bool, recurse_files: bo
 
 
 def main() -> int:
-    """Main entry point."""
+    """Main entry point. Options:
+
+    usage: ref_trace_analyse.py
+           [-h] [--full-path] [--include-untracked] [--include-historical]
+           [--recurse-files] [-l LOG_LEVEL]
+           log_path
+
+    Reads an Reference Tracing log of a process and analyses it.
+
+    positional arguments:
+      log_path              Input path to the log.
+
+    options:
+      -h, --help            show this help message and exit
+      --full-path           Show the full Python file path. [default: False]
+      --include-untracked   Include untracked objects. These are objects that are
+                            de-allocated with no corresponding allocation.
+                            [default: False]
+      --include-historical  Ignore objects that were allocated and de-allocated
+                            correctly. [default: False]
+      --recurse-files       If True then recurse into child log files. [default:
+                            False]
+      -l, --log_level LOG_LEVEL
+                            Log Level (debug=10, info=20, warning=30, error=40,
+                            critical=50) [default: 20]
+    """
     parser = argparse.ArgumentParser(
         prog=__file__,
         description="""Reads an Reference Tracing log of a process and analyses it.""",
