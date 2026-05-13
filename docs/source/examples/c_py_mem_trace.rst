@@ -187,7 +187,7 @@ And the log file looks like this:
     NEXT: 64    +1      0.084566     C_CALL   test.py #  65 len     17526784            0
     NEXT: 65    +1      0.084568     C_RETURN test.py #  65 len     17526784            0
 
-There is some discussion about the performance of :py:mod:`pymemtrace.cPyMemTrace` here :ref:`tech_notes-cpymemtrace`
+There is some discussion about the performance of :py:mod:`pymemtrace.cPyMemTrace` here :ref:`tech_notes-cpymemtrace_perf`
 
 .. _examples-cpymemtrace-reference-tracing:
 
@@ -213,16 +213,79 @@ and de-allocation.
     Reference Tracing is highly invasive and can lead to some undesirable side effects.
     The Reference Tracing API is quite new.
     Some of the documentation for it is wrong.
-    This is described in more detail in :ref:`tech_notes-cpymemtrace_reference_tracing`.
+    This is described in more detail in :ref:`tech_notes-cpymemtrace_reference_tracing_specific`.
+
+Simple Reference Tracing
+---------------------------------------
+
+:py:class:`cPyMemTrace.ReferenceTracingSimple` is a simple tracer that just counts allocations and de-allocations.
+It can be used as a context manager thus:
+
+.. code-block:: python
+
+    from pymemtrace import cPyMemTrace
+
+    with cPyMemTrace.ReferenceTracingSimple() as profiler:
+        print()
+        print('Hi there')
+        print(profiler)
+        # Do stuff here
+        print(f'NEW: {profiler.count_new()}')
+        print(f'DEL: {profiler.count_del()}')
+
+And the output might be something like:
+
+.. code-block:: text
+
+    Hi there
+    <cPyMemTrace.ReferenceTracingSimple object at 0x600002f019c0>
+    NEW: 369347
+    DEL: 369110
+
+These profilers can be stacked, the outer one is suspended and then restored whilst the inner one is at work:
+
+.. code-block:: python
+
+    from pymemtrace import cPyMemTrace
+
+    with cPyMemTrace.ReferenceTracingSimple() as profiler_a:
+        print()
+        print('Hello World')
+        print(profiler_a)
+        with cPyMemTrace.ReferenceTracingSimple() as profiler_b:
+            a = '  Hello World'
+            print(a)
+            print(f'  {profiler_b}')
+            print(f'  NEW: {profiler_b.count_new()}')
+            print(f'  DEL: {profiler_b.count_del()}')
+        print(f'NEW: {profiler_a.count_new()}')
+        print(f'DEL: {profiler_a.count_del()}')
+
+And the output might be:
+
+.. code-block:: text
+
+    Hello World
+    <cPyMemTrace.ReferenceTracingSimple object at 0x600000c19390>
+      Hello World
+      <cPyMemTrace.ReferenceTracingSimple object at 0x600000c00f70>
+      NEW: 20
+      DEL: 31
+    NEW: 24
+    DEL: 34
+
+More Useful Reference Tracing
+---------------------------------------
+
+The :py:class:`cPyMemTrace.ReferenceTracing` is more sophisticated as it logs out all the allocations and
+de-allocations.
+It can also filter out unnecessary information such as builtin allocations.
 
 .. note::
 
     The Reference Tracing callback function ignores PyObject's of type "frame" as this can play havoc with the
     Python runtime.
     See :ref:`tech_notes-cpymemtrace_reference_tracing_pytest` for an example that revealed this problem.
-
-Example of Reference Tracing
----------------------------------------
 
 Here we create an example class that just allocates memory:
 
@@ -404,6 +467,38 @@ Then a table of the count of creations and deletions by type:
 
     \end{landscape}
 
+``ref_trace_analyse.py`` Options
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``ref_trace_analyse.py`` has these options:
+
+.. code-block:: text
+
+    usage: ref_trace_analyse.py
+           [-h] [--full-path] [--include-untracked] [--include-historical]
+           [--recurse-files] [-l LOG_LEVEL]
+           log_path
+
+    Reads an Reference Tracing log of a process and analyses it.
+
+    positional arguments:
+      log_path              Input path to the log.
+
+    options:
+      -h, --help            show this help message and exit
+      --full-path           Show the full Python file path. [default: False]
+      --include-untracked   Include untracked objects. These are objects that are
+                            de-allocated with no corresponding allocation.
+                            [default: False]
+      --include-historical  Ignore objects that were allocated and de-allocated
+                            correctly. [default: False]
+      --recurse-files       If True then recurse into child log files. [default:
+                            False]
+      -l, --log_level LOG_LEVEL
+                            Log Level (debug=10, info=20, warning=30, error=40,
+                            critical=50) [default: 20]
+
+
 Reference Tracing and Garbage Collection
 -----------------------------------------
 
@@ -425,7 +520,7 @@ callback function and as the Garbage Collector works the relevant de-allocations
 in the log file.
 If the value is -1 this does not call :py:func:`gc.collect()` during the ``__exit__`` method.
 
-To show the effect of using the Garbage Collector a test :ref:`tech_notes-cpymemtrace_test_data` was run without
+To show the effect of using the Garbage Collector a test :ref:`tech_notes-cpymemtrace_perf_test_data` was run without
 Garbage Collection (``gc_collect_on_exit=-1``) and a full garbage collection (``gc_collect_on_exit=2``).
 The logs were analysed with :py:mod:`pymemtrace.util.ref_trace_analyse`.
 
@@ -538,9 +633,15 @@ and much smaller.
      - By default these are ignored
      - If ``include_builtins=True`` is set then these will be reported.
        Typically this makes the running time and the log file size 2x to 4x bigger.
+       See :ref:`tech_notes-cpymemtrace_perf_reference_tracing_performance` for a comprehensive
+       performance analysis.
        The builtin types are those C types that have a ``Py*_Check()`` function.
        These include all numeric types, containers (tuple, list, dict, set, frozenset), strings, bytes and so on.
-       See ``reference_trace_is_builtin_pre_suspend()`` in ``pymemtrace/src/cpy/cPyMemTrace.c`` for the specific criteria [#]_.
+       See ``reference_trace_is_builtin_pre_suspend()`` in ``pymemtrace/src/cpy/cPyMemTrace.c``
+       for the specific criteria [#]_.
+
+See the code in ``reference_trace_allocations_callback()`` in ``pymemtrace/src/cpy/cPyMemTrace.c``
+for the implementation of all this logic.
 
 For example this will log all the builtin actions:
 
@@ -592,9 +693,21 @@ This example will *only* log the events of ``MySpecialType``:
     def some_function():
         pass
 
-See the code in ``reference_trace_allocations_callback()`` in ``pymemtrace/src/cpy/cPyMemTrace.c``
-for the implementation of all this logic.
+If you want *some* of the builtins, but not all, to appear in the log along with
+your special type then use this pattern:
+This example will *only* log the events of ``MySpecialType`` and the builtin ``list``:
 
+.. code-block:: python
+
+    @cpymemtrace_decs.reference_tracing(
+        message="some_function() only MySpecialType and lists",
+        # This allows all builtins.
+        include_builtins=True,
+        # Then this filters out all of the builtins apart from lists.
+        include_tp_names=['MySpecialType', 'list'],
+    )
+    def some_function():
+        pass
 
 Common Features
 =====================
@@ -610,19 +723,6 @@ with context managers.
 Each new context manager suspends the actions of the previous one.
 When the new context manager goes out of scope the previous one (if any) is restored.
 The log files are annotated to show the suspend/restore timestamps.
-
-Thus :py:mod:`pymemtrace.cPyMemTrace` tracers :py:class:`pymemtrace.cPyMemTrace.Profile`,
-:py:class:`pymemtrace.cPyMemTrace.Trace`
-and :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing`
-context managers can be stacked.
-In that case a new log file is started and the previous one is temporarily suspended.
-:py:mod:`pymemtrace.cPyMemTrace` only writes to one log file at a time for each tracer.
-The log file will have the stack depth in its name, starting from 0.
-
-Internally each Profile/Trace/Reference Tracer has its own linked list of profiling objects.
-As a new one is added to the stack the previous one is suspended.
-When the new one does an ``__exit__`` the previous one (if any) is resumed.
-The log files are annotated to show this.
 
 For example:
 
@@ -643,59 +743,104 @@ For example:
         pass
     # The log file "20241107_195847_11_62264_P_0_PY3.13.0b3.log" is closed.
 
-Or pictorially, when the outer reference tracer is active the linked list looks like this:
+This is described in more detail in :ref:`tech_notes-cpymemtrace_design_stacking_context_managers`.
 
-.. code-block:: text
+.. _examples-cpymemtrace_decorators:
 
-    List Node       File Name                                       File State
-    ---------       ---------                                       ----------
+Decorators
+------------
 
-    Head Node ----> "20241107_195847_11_62264_P_0_PY3.13.0b3.log"   Writing
-        |
-    NULL Node
+Often it is more convenient to use these as decorators of a particular function of interest.
+The decorators take the constructor arguments and will write to the appropriate file.
 
-And when the inner reference tracer is active the linked list looks like this:
+The decorators, being pure Python code, are in :py:mod:`pymemtrace.cpymemtrace_decs`
+and can be used like this:
 
-.. code-block:: text
+.. code-block:: python
 
-    List Node       File Name                                       File State
-    ---------       ---------                                       ----------
+    from pymemtrace import cpymemtrace_decs
 
-    Head Node ----> "20241107_195847_12_62264_P_1_PY3.13.0b3.log"   Writing
-        |
-    Next Node ----> "20241107_195847_11_62264_P_0_PY3.13.0b3.log"   Suspended
-        |
-    NULL Node
+    @cpymemtrace_decs.reference_tracing(
+        message='Testing some really important function',
+    )
+    def really_important_function():
+        pass
 
-The outer log file ``20241107_195847_11_62264_P_0_PY3.13.0b3.log`` will have this annotation to show
-the context switch and back:
+.. _examples-cpymemtrace-decorators-mingling:
 
-.. code-block:: text
+Mingling Decorators
+^^^^^^^^^^^^^^^^^^^
 
-    MSG:  3  +1  9.869994  # Detaching this profile file wrapper. New file:
-    MSG:  3  +1  9.869996  # pymemtrace/20241107_195847_12_62264_P_1_PY3.13.0b3.log
-    MSG:  3  +1  9.870580  # Re-attaching this profile file wrapper.
+Profile, Trace and Reference tracing decorators can be co-mingled.
+For example:
 
-The same effect is obtained when using decorators which allows a decorated function to call another decorated function.
-See :ref:`examples-cpymemtrace-decorators-stacking`.
+.. code-block:: python
 
-The :py:mod:`pymemtrace.cPyMemTrace` module has these functions to give you the stack depth for that tracer:
+    from pymemtrace import cpymemtrace_decs
 
-- :py:meth:`pymemtrace.cPyMemTrace.profile_wrapper_depth` for the
-  :py:class:`pymemtrace.cPyMemTrace.Profile` stack.
-- :py:meth:`pymemtrace.cPyMemTrace.trace_wrapper_depth` for the
-  :py:class:`pymemtrace.cPyMemTrace.Trace` stack.
-- :py:meth:`pymemtrace.cPyMemTrace.reference_tracing_wrapper_depth` for the
-  :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing` stack.
+    @cpymemtrace_decs.trace(
+        message='Trace the inner function',
+    )
+    def inner_function():
+        pass
 
+    @cpymemtrace_decs.reference_tracing(
+        message='Reference trace the outer function that calls the inner function',
+    )
+    def outer_function():
+        inner_function()
 
-.. warning::
+This will result in two specific log files:
 
-    The :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing` has methods
-    :py:meth:`~pymemtrace.cPyMemTrace.ReferenceTracing.suspend()` that temporarily stops tracing
-    and :py:meth:`~pymemtrace.cPyMemTrace.ReferenceTracing.resume()` resumes tracing.
-    If these are called out-of-order (say on the outer tracer when the inner tracer is active)
-    then a RuntimeError will be thrown.
+- The outer one reference traces both the outer function and the inner function.
+- The inner function is just traced alone.
+
+Or running tracing *and* reference tracing simultaneosuly on the same function:
+
+.. code-block:: python
+
+    from pymemtrace import cpymemtrace_decs
+
+    @cpymemtrace_decs.trace(
+        message='Trace the outer function',
+    )
+    @cpymemtrace_decs.reference_tracing(
+        message='Reference trace the outer function that calls the inner function',
+    )
+    def outer_function():
+        # Do great stuff here...
+        pass
+
+See ``tests/test_cpymemtrace_decs.py()`` for some examples.
+
+.. _examples-cpymemtrace-decorators-stacking:
+
+Stacking Decorators
+^^^^^^^^^^^^^^^^^^^
+
+Decorators allow a decorated function to call another decorated function.
+Decorated functions that call other such decorated functions will behave appropriately with each registering
+the profiler and writing to its unique log file.
+For example:
+
+.. code-block:: python
+
+    from pymemtrace import cpymemtrace_decs
+
+    @cpymemtrace_decs.reference_tracing(
+        message='Reference trace the inner function',
+    )
+    def inner_function():
+        pass
+
+    @cpymemtrace_decs.reference_tracing(
+        message='Reference trace the outer function that calls the inner function',
+    )
+    def outer_function():
+        inner_function()
+
+This will result in two specific log files, one for the inner function and one for the outer which does not
+include events for the inner function.
 
 Writing Messages to a Log File
 ------------------------------
@@ -832,90 +977,6 @@ To write to a specific file, and then read it follow this pattern:
         print(' file_data DONE '.center(75, '-'))
 
 See ``tests.test_cpymemtrace.test_trace_to_specific_log_file_nested()`` for a more complicated example.
-
-.. _examples-cpymemtrace_decorators:
-
-Decorators
-------------
-
-Often it is more convenient to use these as decorators of a particular function of interest.
-The decorators take the constructor arguments and will write to the appropriate file.
-
-For example:
-
-.. code-block:: python
-
-    from pymemtrace import cpymemtrace_decs
-
-    @cpymemtrace_decs.reference_tracing(
-        message='Testing some really important function',
-    )
-    def really_important_function():
-        pass
-
-.. _examples-cpymemtrace-decorators-mingling:
-
-Mingling Decorators
-^^^^^^^^^^^^^^^^^^^
-
-Profile, Trace and Reference tracing decorators can be co-mingled.
-For example:
-
-.. code-block:: python
-
-    from pymemtrace import cpymemtrace_decs
-
-    @cpymemtrace_decs.trace(
-        message='Trace the inner function',
-    )
-    def inner_function():
-        pass
-
-    @cpymemtrace_decs.reference_tracing(
-        message='Reference trace the outer function that calls the inner function',
-    )
-    def outer_function():
-        inner_function()
-
-This will result in two specific log files:
-
-- The outer one reference traces both the outer function and the inner function.
-- The inner function is just traced alone.
-
-See ``tests/test_cpymemtrace_decs.py()`` for some examples.
-
-.. _examples-cpymemtrace-decorators-stacking:
-
-Stacking Decorators
-^^^^^^^^^^^^^^^^^^^
-
-Decorators allow a decorated function to call another decorated function.
-Decorated functions that call other such decorated functions will behave appropriately with each registering
-the profiler and writing to its unique log file.
-For example:
-
-.. code-block:: python
-
-    from pymemtrace import cpymemtrace_decs
-
-    @cpymemtrace_decs.reference_tracing(
-        message='Reference trace the inner function',
-    )
-    def inner_function():
-        pass
-
-    @cpymemtrace_decs.reference_tracing(
-        message='Reference trace the outer function that calls the inner function',
-    )
-    def outer_function():
-        inner_function()
-
-This will result in two specific log files, one for the inner function and one for the outer which does not
-include events for the inner function.
-
-.. todo::
-
-    Maybe write a merge script that takes a log file and merges it with all the descendents.
 
 .. rubric:: Footnotes
 .. [#] A handy way to find these is to use ``grep -nrI "#define Py.*_Check(" . | grep "\.h"`` on the Python source.

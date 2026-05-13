@@ -5,7 +5,7 @@ Technical Note on DTrace
 ==========================
 
 DTrace was also used on the same code and data that was used to test ``cPyMemTrace``.
-See :ref:`tech_notes-cpymemtrace_test_data` [#]_.
+See :ref:`tech_notes-cpymemtrace_perf_test_data` [#]_.
 This was traced with DTrace using ``toolkit/py_flow_malloc_free.d``:
 
 .. code-block:: bash

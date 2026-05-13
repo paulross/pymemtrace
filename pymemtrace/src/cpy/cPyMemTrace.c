@@ -56,6 +56,10 @@
 /* Used in reference_trace_is_builtin() */
 #include "datetime.h"
 
+#if PY_MAJOR_VERSION != 3
+#error "Only Python version 3 is supported."
+#endif
+
 #include <stdio.h>
 #include <time.h>
 #include <assert.h>
@@ -381,22 +385,33 @@ trace_wrapper_write_event_time_to_event_text(cpyTraceFileWrapper *trace_wrapper)
  *
  * @param trace_wrapper The trace or profile wrapper.
  * @param message The message to write.
+ * @param include_prefix If true then write prefix, event time and so on.
+ * @param newline If true add a terminating newline.
  */
 static void
-trace_wrapper_write_message_to_log_file(cpyTraceFileWrapper *trace_wrapper, const char *message) {
+trace_wrapper_write_message_to_log_file(
+        cpyTraceFileWrapper *trace_wrapper,
+        const char *message,
+        int include_prefix,
+        int newline
+) {
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
     assert(trace_wrapper->file);
-    fputs("MSG:  ", trace_wrapper->file);
-    trace_wrapper_write_event_time_to_event_text(trace_wrapper);
-    fputs(trace_wrapper->event_text, trace_wrapper->file);
-    fputs(" # ", trace_wrapper->file);
+    if (include_prefix) {
+        fputs("MSG:  ", trace_wrapper->file);
+        trace_wrapper_write_event_time_to_event_text(trace_wrapper);
+        fputs(trace_wrapper->event_text, trace_wrapper->file);
+        fputs(" # ", trace_wrapper->file);
+    }
     fputs(message, trace_wrapper->file);
-    fputc('\n', trace_wrapper->file);
+    if (newline) {
+        fputc('\n', trace_wrapper->file);
+    }
 #endif // PY_MEM_TRACE_WRITE_OUTPUT
 }
 
 /**
- * Write the last event then teh EOF marker and then close the file.
+ * Write the last event then the EOF marker and then close the file.
  *
  * @param self The Profiler or Tracer as a \c cpyTraceFileWrapper
  */
@@ -561,7 +576,7 @@ cpyTraceFileWrapper_write_message_to_log(cpyTraceFileWrapper *self, PyObject *op
     }
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     Py_UCS1 *c_str = PyUnicode_1BYTE_DATA(op);
-    trace_wrapper_write_message_to_log_file(self, (const char *) c_str);
+    trace_wrapper_write_message_to_log_file(self, (const char *) c_str, 1, 1);
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     Py_RETURN_NONE;
 }
@@ -623,18 +638,18 @@ typedef struct cpyTraceFileWrapperLinkedListNode tcpyTraceFileWrapperLinkedList;
  * Linked list of Profilers.
  * The current one is at the head of this list.
  */
-static tcpyTraceFileWrapperLinkedList *static_profile_wrappers = NULL;
+static tcpyTraceFileWrapperLinkedList *static_profile_ll = NULL;
 
 /**
  * Linked list of Tracers.
  * The current one is at the head of this list.
  */
-static tcpyTraceFileWrapperLinkedList *static_trace_wrappers = NULL;
+static tcpyTraceFileWrapperLinkedList *static_trace_ll = NULL;
 
 /**
  * Get the head of the linked list which is the current Profiler/Tracer.
  *
- * @param linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @param linked_list The linked list, either \c static_profile_ll or \c static_trace_ll .
  * @return The head node or NULL if the list is empty.
  */
 cpyTraceFileWrapper *wrapper_ll_get(tcpyTraceFileWrapperLinkedList *linked_list) {
@@ -647,7 +662,7 @@ cpyTraceFileWrapper *wrapper_ll_get(tcpyTraceFileWrapperLinkedList *linked_list)
 /**
  * Push a created trace wrapper on the front of the list.
  *
- * @param h_linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @param h_linked_list The linked list, either \c static_profile_ll or \c static_trace_ll .
  * @param node The node to add. The linked list takes ownership of this pointer.
  */
 void wrapper_ll_push(tcpyTraceFileWrapperLinkedList **h_linked_list, cpyTraceFileWrapper *node) {
@@ -664,7 +679,7 @@ void wrapper_ll_push(tcpyTraceFileWrapperLinkedList **h_linked_list, cpyTraceFil
 /**
  * Free the first value on the list and adjust the list pointer.
  *
- * @param h_linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @param h_linked_list The linked list, either \c static_profile_ll or \c static_trace_ll .
  * @return The node at the head of the linked list.
  */
 cpyTraceFileWrapper *
@@ -682,7 +697,7 @@ wrapper_ll_pop(tcpyTraceFileWrapperLinkedList **h_linked_list) {
 /**
  * Return the length of the linked list.
  *
- * @param p_linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @param p_linked_list The linked list, either \c static_profile_ll or \c static_trace_ll .
  * @return The length of the linked list
  */
 size_t wrapper_ll_length(tcpyTraceFileWrapperLinkedList *p_linked_list) {
@@ -697,7 +712,7 @@ size_t wrapper_ll_length(tcpyTraceFileWrapperLinkedList *p_linked_list) {
 /**
  * Remove all the items in the linked list.
  *
- * @param h_linked_list The linked list, either \c static_profile_wrappers or \c static_trace_wrappers .
+ * @param h_linked_list The linked list, either \c static_profile_ll or \c static_trace_ll .
  */
 void wrapper_ll_clear(tcpyTraceFileWrapperLinkedList **h_linked_list) {
     tcpyTraceFileWrapperLinkedList *tmp;
@@ -834,8 +849,8 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
         snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s", specific_filename);
     } else {
         char trace_type = is_profile ? 'P' : 'T';
-        size_t ll_depth = is_profile ? wrapper_ll_length(static_profile_wrappers) : wrapper_ll_length(
-                static_trace_wrappers);
+        size_t ll_depth = is_profile ? wrapper_ll_length(static_profile_ll) : wrapper_ll_length(
+                static_trace_ll);
         create_filename_within_cwd(trace_type, ll_depth, file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH);
     }
     trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(&cpyTraceFileWrapperType, NULL, NULL);
@@ -843,25 +858,28 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
         {
             cpyTraceFileWrapper *wrapper_old = NULL;
             if (is_profile) {
-                wrapper_old = wrapper_ll_get(static_profile_wrappers);
+                wrapper_old = wrapper_ll_get(static_profile_ll);
             } else {
-                wrapper_old = wrapper_ll_get(static_trace_wrappers);
+                wrapper_old = wrapper_ll_get(static_trace_ll);
             }
             if (wrapper_old) {
                 if (is_profile) {
                     trace_wrapper_write_message_to_log_file(
                             wrapper_old,
-                            "Detaching this profile file wrapper. New file:"
+                            "Detaching this profile file wrapper. New file:",
+                            1, 0
                     );
                 } else {
                     trace_wrapper_write_message_to_log_file(
                             wrapper_old,
-                            "Detaching this trace file wrapper. New file:"
+                            "Detaching this trace file wrapper. New file:",
+                            1, 0
                     );
                 }
                 trace_wrapper_write_message_to_log_file(
                         wrapper_old,
-                        file_path_buffer
+                        file_path_buffer,
+                        0, 1
                 );
             }
         }
@@ -936,7 +954,7 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
 static PyObject *
 get_log_file_path_profile(void) {
     assert(!PyErr_Occurred());
-    cpyTraceFileWrapper *wrapper = wrapper_ll_get(static_profile_wrappers);
+    cpyTraceFileWrapper *wrapper = wrapper_ll_get(static_profile_ll);
     if (wrapper) {
         return Py_BuildValue("s", wrapper->log_file_path);
     } else {
@@ -950,7 +968,7 @@ get_log_file_path_profile(void) {
 static PyObject *
 get_log_file_path_trace(void) {
     assert(!PyErr_Occurred());
-    cpyTraceFileWrapper *wrapper = wrapper_ll_get(static_trace_wrappers);
+    cpyTraceFileWrapper *wrapper = wrapper_ll_get(static_trace_ll);
     if (wrapper) {
         return Py_BuildValue("s", wrapper->log_file_path);
     } else {
@@ -1071,7 +1089,7 @@ py_attach_profile_function(int d_rss_trigger, const char *message, const char *s
     assert(!PyErr_Occurred());
     cpyTraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 1);
     if (wrapper) {
-        wrapper_ll_push(&static_profile_wrappers, wrapper);
+        wrapper_ll_push(&static_profile_ll, wrapper);
         // This increments the wrapper reference count.
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *) wrapper);
         // Write a marker, in this case it is the line number of the frame.
@@ -1128,17 +1146,18 @@ ProfileObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
         /* NOTE: wrapper_ll_pop returns a cpyTraceFileWrapper *.
          * This should **not** be decref'd here as CPython will do that on completion of a
          * with statement. */
-        wrapper_ll_pop(&static_profile_wrappers);
+        wrapper_ll_pop(&static_profile_ll);
 
         /* Now set the Profile of the previous one if available. */
-        trace_file_wrapper = wrapper_ll_get(static_profile_wrappers);
+        trace_file_wrapper = wrapper_ll_get(static_profile_ll);
         if (trace_file_wrapper) {
             PyEval_SetProfile(&trace_or_profile_function, (PyObject *) trace_file_wrapper);
             /* Put a marker in the file. */
             assert(trace_file_wrapper->file);
             trace_wrapper_write_message_to_log_file(
                     trace_file_wrapper,
-                    "Re-attaching this profile file wrapper."
+                    "Re-attaching this profile file wrapper.",
+                    1, 1
             );
         }
 
@@ -1257,7 +1276,7 @@ py_attach_trace_function(int d_rss_trigger, const char *message, const char *spe
     assert(!PyErr_Occurred());
     cpyTraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 0);
     if (wrapper) {
-        wrapper_ll_push(&static_trace_wrappers, wrapper);
+        wrapper_ll_push(&static_trace_ll, wrapper);
         // This increments the wrapper reference count.
         PyEval_SetTrace(&trace_or_profile_function, (PyObject *) wrapper);
         // Write a marker, in this case it is the line number of the frame.
@@ -1312,17 +1331,18 @@ TraceObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
         /* NOTE: wrapper_ll_pop returns a cpyTraceFileWrapper *.
          * This should **not** be decref'd here as CPython will do that on completion of a
          * with statement. */
-        wrapper_ll_pop(&static_trace_wrappers);
+        wrapper_ll_pop(&static_trace_ll);
 
         /* Now set the Profile of the previous one if available. */
-        trace_file_wrapper = wrapper_ll_get(static_trace_wrappers);
+        trace_file_wrapper = wrapper_ll_get(static_trace_ll);
         if (trace_file_wrapper) {
             PyEval_SetTrace(&trace_or_profile_function, (PyObject *) trace_file_wrapper);
             /* Put a marker in the file. */
             assert(trace_file_wrapper->file);
             trace_wrapper_write_message_to_log_file(
                     trace_file_wrapper,
-                    "Re-attaching this trace file wrapper."
+                    "Re-attaching this trace file wrapper.",
+                    1, 1
             );
         }
 
@@ -1992,6 +2012,8 @@ struct reference_tracing_data {
     PyObject *exclude_tp_names;
     /** A Python sequence of strings of typenames to include. */
     PyObject *include_tp_names;
+    /** The log file name. */
+    char *log_file_name;
 };
 
 /**
@@ -2200,28 +2222,37 @@ static char reference_tracing_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
  * Format and write a prefix and message to the log file.
  * The prefix is typically "MSG" or "ERR"
  *
- * @param data The <tt>struct reference_tracing_data</tt>
- * @param message The message.
+ * @param data The <tt>struct reference_tracing_data</tt>. Can be NULL, if so .
+ * @param message The message. Can be NULL, if so no clock time is written.
  * @param prefix The message prefix such as "MSG" or "ERR".
- * @return Number of bytes written by \c snprintf.
+ * @param newlinw If true then a newline is written at the end.
+ * @return Number of bytes written by \c snprintf() or \c fputs() .
  */
 static int
 cpyReferenceTracing_write_c_prefix_and_message_to_log(struct reference_tracing_data *data, char *prefix,
-                                                      char *message) {
+                                                      char *message, int newline) {
     assert(data);
     assert(data->log_file);
     /* I suspect that this is undefined if the write buffer is the read buffer. */
     assert(message != reference_tracing_event_text);
 
-    double clock_time = (double) clock() / CLOCKS_PER_SEC;
-    int ret = snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-                       "%s: %12.6f # %s",
-                       prefix,
-                       clock_time,
-                       message
-    );
-    fputs((const char *) reference_tracing_event_text, data->log_file);
-    fputc('\n', data->log_file);
+    int ret = 0;
+    if (prefix) {
+        double clock_time = (double) clock() / CLOCKS_PER_SEC;
+        ret = snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+                           "%s: %12.6f # %s",
+                           prefix,
+                           clock_time,
+                           message
+        );
+        fputs((const char *) reference_tracing_event_text, data->log_file);
+    } else {
+        ret = (int)strlen(message);
+        fputs((const char *) message, data->log_file);
+    }
+    if (newline)  {
+        fputc('\n', data->log_file);
+    }
     return ret;
 }
 
@@ -2234,7 +2265,7 @@ cpyReferenceTracing_write_c_prefix_and_message_to_log(struct reference_tracing_d
  */
 static int
 cpyReferenceTracing_write_c_message_to_log(struct reference_tracing_data *data, char *message) {
-    return cpyReferenceTracing_write_c_prefix_and_message_to_log(data, "MSG", message);
+    return cpyReferenceTracing_write_c_prefix_and_message_to_log(data, "MSG", message, 1);
 }
 
 /**
@@ -2246,7 +2277,7 @@ cpyReferenceTracing_write_c_message_to_log(struct reference_tracing_data *data, 
  */
 static int
 cpyReferenceTracing_write_c_error_message_to_log(struct reference_tracing_data *data, char *message) {
-    return cpyReferenceTracing_write_c_prefix_and_message_to_log(data, "ERR", message);
+    return cpyReferenceTracing_write_c_prefix_and_message_to_log(data, "ERR", message, 1);
 }
 
 /**
@@ -2256,6 +2287,14 @@ cpyReferenceTracing_write_c_error_message_to_log(struct reference_tracing_data *
  */
 static int reference_tracing_call_back_is_active = 0;
 
+/**
+ * If true then all objects in the datetime library will be excluded as builtins.
+ * This has been the cause of SIGABRT and SIGSEGV with various Python versions
+ * including 3.13 and 3.15.
+ *
+ * It is reccomended to set this to zero.
+ */
+#define PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN 0
 /**
  * Returns non-zero if the Python object is one of the selected builtins.
  * This function call is designed to be cheap but requires any of the code
@@ -2354,23 +2393,6 @@ reference_trace_is_builtin_pre_suspend(PyObject *op) {
      * See: https://docs.python.org/3.15/whatsnew/3.15.html#changed-c-apis
      * And: https://github.com/python/cpython/issues/141563
      * */
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 15
-    /* Required aa datetime is a capsule. */
-    if (PyDateTimeAPI == NULL) {
-        PyDateTime_IMPORT;
-    }
-    if (
-            0
-            /* Datetime stuff. This needs #include "datetime.h" */
-            || PyDate_Check(op)
-            || PyDateTime_Check(op)
-            || PyTime_Check(op)
-            || PyDelta_Check(op)
-            || PyTZInfo_Check(op)
-            ) {
-        return 1;
-    }
-#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 15
     return 0;
 }
 
@@ -2384,14 +2406,14 @@ reference_trace_is_builtin_pre_suspend(PyObject *op) {
  *  This is Python version specific as some code, such as
  *  the \c datetime API change in Python 3.15.
  *  With Python 3.15+ the PyDateTimeAPI import now triggers arbitrary object
- *  creation so the Reference Tracing must be suspended otherwise teh callback\
+ *  creation so the Reference Tracing must be suspended otherwise the callback\
  *  will be re-entrant.
  *  See also \c reference_trace_is_builtin_pre_suspend()
  *
  * @param op The Python object to check.
  * @return 1 if a builtin, 0 otherwise.
  */
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 15
+#if PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN
 static int
 reference_trace_is_builtin_post_suspend(PyObject *op) {
     assert(op);
@@ -2404,7 +2426,10 @@ reference_trace_is_builtin_post_suspend(PyObject *op) {
      * And: https://github.com/python/cpython/issues/141563
      * */
     /* Required aa datetime is a capsule. */
-    PyDateTime_IMPORT;
+    if (PyDateTimeAPI == NULL) {
+        PyDateTime_IMPORT;
+    }
+    assert(PyDateTimeAPI != NULL);
     if (
             0
             /* Datetime stuff. This needs #include "datetime.h" */
@@ -2418,12 +2443,12 @@ reference_trace_is_builtin_post_suspend(PyObject *op) {
     }
     return 0;
 }
-#else /* Python version prior to 3.15. */
+#else /* ! PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN */
 static int
 reference_trace_is_builtin_post_suspend(PyObject *Py_UNUSED(op)) {
     return 0;
 }
-#endif
+#endif /* PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN */
 
 /**
  * Returns 1 if the \c exclude_tp_names sequence contains the object type name, 0 otherwise.
@@ -2731,6 +2756,8 @@ cpyReferenceTracing_dealloc(cpyReferenceTracing *self) {
         self->data->exclude_tp_names = NULL;
         Py_XDECREF(self->data->include_tp_names);
         self->data->include_tp_names = NULL;
+        free(self->data->log_file_name);
+        self->data->log_file_name = NULL;
         free(self->data);
         self->data = NULL;
     }
@@ -2764,6 +2791,7 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
         self->data->include_builtins = 0;
         self->data->exclude_tp_names = NULL;
         self->data->include_tp_names = NULL;
+        self->data->log_file_name = NULL;
         self->py_specific_filename = NULL;
         self->message = NULL;
         /* Default to a full gc.collect() */
@@ -2986,8 +3014,19 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
         self->py_specific_filename = (PyObject *) PyBytes_FromString(file_path_buffer);
         new_log_filename = file_path_buffer;
     }
+    self->data->log_file_name = malloc(strlen(new_log_filename) + 1);
+    if (!self->data->log_file_name) {
+        PyErr_Format(PyExc_IOError, "Can not copy log file name %s", new_log_filename);
+        return NULL;
+    }
+    // Error check.
+    if (strcpy(self->data->log_file_name, new_log_filename) != self->data->log_file_name) {
+        PyErr_Format(PyExc_MemoryError, "Can not strcpy log file name %s", new_log_filename);
+        return NULL;
+    }
 #if DEBUG
     fprintf(stdout, "DEBUG: Reference Tracing opening log file \"%s\"\n", new_log_filename);
+//    fprintf(stdout, "DEBUG: Reference Trace self->data->log_file_name \"%s\"\n", self->data->log_file_name);
 #endif
     self->data->log_file = fopen(new_log_filename, "w");
     if (!self->data->log_file) {
@@ -2997,11 +3036,17 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     /* Write suspension message in the old file. */
     struct reference_tracing_data *data_old = reference_tracing_ll_get_data();
     if (data_old) {
-        cpyReferenceTracing_write_c_message_to_log(
-                data_old, "Detaching this Reference Tracing file wrapper. New file:"
+//        cpyReferenceTracing_write_c_message_to_log(
+//                data_old, "Detaching this Reference Tracing file wrapper. New file:"
+//        );
+//        cpyReferenceTracing_write_c_message_to_log(
+//                data_old, new_log_filename
+//        );
+        cpyReferenceTracing_write_c_prefix_and_message_to_log(
+                data_old, "MSG", "Detaching this Reference Tracing file wrapper. New file: ", 0
         );
-        cpyReferenceTracing_write_c_message_to_log(
-                data_old, new_log_filename
+        cpyReferenceTracing_write_c_prefix_and_message_to_log(
+                data_old, NULL, new_log_filename, 1
         );
     }
     /* Write the opening message in the new log file. */
@@ -3086,7 +3131,7 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
         data = reference_tracing_ll_get_data();
         if (data) {
             /* Report re-attaching the reference tracer. */
-            cpyReferenceTracing_write_c_message_to_log(data, "Re-attaching this trace file wrapper.");
+            cpyReferenceTracing_write_c_message_to_log(data, "Re-attaching this Reference Tracing file wrapper.");
             PyRefTracer_SetTracer(&reference_trace_allocations_callback, data);
         }
         if (PyErr_Occurred()) {
@@ -3368,7 +3413,24 @@ py_rss_peak(void) {
 static PyObject *
 profile_wrapper_depth(void) {
     assert(!PyErr_Occurred());
-    return Py_BuildValue("n", wrapper_ll_length(static_profile_wrappers));
+    return Py_BuildValue("n", wrapper_ll_length(static_profile_ll));
+}
+
+/**
+ * This module level function returns the current Profiler log path.
+ * This is useful when using decorators as the cPyMemTrace module can be
+ * queried when there is no object as is with a context manager.
+ *
+ * @return The current Profiler log path as a string or None if no
+ *  profiler is active.
+ */
+static PyObject *
+profile_wrapper_log_path(void) {
+    cpyTraceFileWrapper *profile_wrapper = wrapper_ll_get(static_profile_ll);
+    if (profile_wrapper && profile_wrapper->log_file_path) {
+        return Py_BuildValue("s", profile_wrapper->log_file_path);
+    }
+    Py_RETURN_NONE;
 }
 
 /**
@@ -3377,7 +3439,24 @@ profile_wrapper_depth(void) {
 static PyObject *
 trace_wrapper_depth(void) {
     assert(!PyErr_Occurred());
-    return Py_BuildValue("n", wrapper_ll_length(static_trace_wrappers));
+    return Py_BuildValue("n", wrapper_ll_length(static_trace_ll));
+}
+
+/**
+ * This module level function returns the current Trace log path.
+ * This is useful when using decorators as the cPyMemTrace module can be
+ * queried when there is no object as is with a context manager.
+ *
+ * @return The current Trace log path as a string or None if no
+ *  trace is active.
+ */
+static PyObject *
+trace_wrapper_log_path(void) {
+    cpyTraceFileWrapper *profile_wrapper = wrapper_ll_get(static_trace_ll);
+    if (profile_wrapper && profile_wrapper->log_file_path) {
+        return Py_BuildValue("s", profile_wrapper->log_file_path);
+    }
+    Py_RETURN_NONE;
 }
 
 #if REFERENCE_TRACING_AVAILABLE
@@ -3398,6 +3477,23 @@ static PyObject *
 reference_tracing_wrapper_depth(void) {
     assert(!PyErr_Occurred());
     return Py_BuildValue("n", reference_tracing_ll_length());
+}
+
+/**
+ * This module level function returns the current Reference Trace log path.
+ * This is useful when using decorators as the cPyMemTrace module can be
+ * queried when there is no object as is with a context manager.
+ *
+ * @return The current Reference Trace log path as a string or None
+ *  if no Reference Trace is active.
+ */
+static PyObject *
+reference_tracing_log_path(void) {
+    struct reference_tracing_data *ref_trace_data = reference_tracing_ll_get_data();
+    if (ref_trace_data && ref_trace_data->log_file_name) {
+        return Py_BuildValue("s", ref_trace_data->log_file_name);
+    }
+    Py_RETURN_NONE;
 }
 
 #endif // #if REFERENCE_TRACING_AVAILABLE
@@ -3425,10 +3521,22 @@ static PyMethodDef cPyMemTraceMethods[] = {
                 "Return the depth of the profile wrapper stack.",
         },
         {
+                "profile_log_path",
+                (PyCFunction) profile_wrapper_log_path,
+                METH_NOARGS,
+                "Return log path of the current profile wrapper.",
+        },
+        {
                 "trace_wrapper_depth",
                 (PyCFunction) trace_wrapper_depth,
                 METH_NOARGS,
                 "Return the depth of the trace wrapper stack.",
+        },
+        {
+                "trace_log_path",
+                (PyCFunction) trace_wrapper_log_path,
+                METH_NOARGS,
+                "Return log path of the current trace wrapper.",
         },
 #if REFERENCE_TRACING_AVAILABLE
         {
@@ -3442,6 +3550,12 @@ static PyMethodDef cPyMemTraceMethods[] = {
                 (PyCFunction) reference_tracing_wrapper_depth,
                 METH_NOARGS,
                 "Return the depth of the Reference Tracing wrapper stack.",
+        },
+        {
+                "reference_tracing_log_path",
+                (PyCFunction) reference_tracing_log_path,
+                METH_NOARGS,
+                "Return log path of the current Reference Trace.",
         },
 #endif // #if REFERENCE_TRACING_AVAILABLE
         {NULL, NULL, 0, NULL}        /* Sentinel */
@@ -3663,6 +3777,17 @@ debug_cPyMemtrace(int argc, char **argv) {
     if (PyStatus_Exception(status)) {
         return -2;
     }
+    printf(
+            "Python version:"
+            " Major %d Minor: %d Micro: %d Release level: %d Release serial: %d"
+            " Version: %s\n",
+            PY_MAJOR_VERSION,
+            PY_MINOR_VERSION,
+            PY_MICRO_VERSION,
+            PY_RELEASE_LEVEL,
+            PY_RELEASE_SERIAL,
+            PY_VERSION
+            );
 
     /* Run the repl. exit() in the console to terminate, the rest of this code will not run. */
 #if 0
@@ -3776,8 +3901,13 @@ debug_cPyMemtrace(int argc, char **argv) {
 #if REFERENCE_TRACING_AVAILABLE
     /* Debug Reference Tracing wrapper. */
     {
-        if (PyType_Ready(&cpyReferenceTracingType) < 0) {
+        PyObject *datetime_module = PyImport_ImportModule("datetime");
+        if (!datetime_module) {
+            fprintf(stderr, "Can not import the \"datetime\" module.");
             return -32;
+        }
+        if (PyType_Ready(&cpyReferenceTracingType) < 0) {
+            return -64;
         }
         Py_INCREF(&cpyReferenceTracingType);
 

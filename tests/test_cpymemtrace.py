@@ -1,11 +1,13 @@
 """
 At the moment these produce a log file per test.
 """
+import datetime
 import faulthandler
 import gc
 import os
 import pprint
 import random
+import string
 import sys
 import tempfile
 import time
@@ -13,10 +15,15 @@ import typing
 
 import pytest
 
+import pymemtrace
 from pymemtrace import cPyMemTrace
 from pymemtrace import cMemLeak
 
 faulthandler.enable()
+
+
+def test_version():
+    assert pymemtrace.__version__ == '0.5.0'
 
 
 @pytest.mark.skipif(not (sys.version_info.minor < 13), reason='Python < 3.13')
@@ -31,9 +38,11 @@ def test_module_dir_pre_313():
         '__name__',
         '__package__',
         '__spec__',
+        'profile_log_path',
         'profile_wrapper_depth',
         'rss',
         'rss_peak',
+        'trace_log_path',
         'trace_wrapper_depth',
     ]
 
@@ -52,11 +61,14 @@ def test_module_dir_post_313():
         '__name__',
         '__package__',
         '__spec__',
+        'profile_log_path',
         'profile_wrapper_depth',
+        'reference_tracing_log_path',
         'reference_tracing_simple_wrapper_depth',
         'reference_tracing_wrapper_depth',
         'rss',
         'rss_peak',
+        'trace_log_path',
         'trace_wrapper_depth',
     ]
 
@@ -131,7 +143,6 @@ def test_trace_basic_lt_310():
 
 @pytest.mark.skipif(not (sys.version_info.minor > 10), reason='Python > 3.10')
 def test_trace_basic_gt_310():
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.Trace(0) as tracer:
         b' ' * (1024 ** 2)
         print()
@@ -157,6 +168,63 @@ def test_trace_basic_gt_310():
         assert os.path.isfile(tracer.log_file_path())
 
 
+# Log file path stuff
+@pytest.mark.parametrize(
+    'attr',
+    (
+            'profile_log_path',
+            'trace_log_path',
+    )
+)
+def test_module_log_file_path_none(attr):
+    log_file_path_fn = getattr(cPyMemTrace, attr)
+    assert callable(log_file_path_fn)
+    assert log_file_path_fn() is None
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+@pytest.mark.parametrize(
+    'attr',
+    (
+            'profile_log_path',
+            'trace_log_path',
+            'reference_tracing_log_path',
+    )
+)
+def test_module_log_file_path_none_post_313(attr):
+    log_file_path_fn = getattr(cPyMemTrace, attr)
+    assert callable(log_file_path_fn)
+    assert log_file_path_fn() is None
+
+
+@pytest.mark.parametrize(
+    'cls, log_path_attr',
+    (
+            (cPyMemTrace.Profile, 'profile_log_path'),
+            (cPyMemTrace.Trace, 'trace_log_path'),
+    )
+)
+def test_module_log_file_same_as_object_log_file(cls, log_path_attr):
+    with cls() as profiler:
+        log_path = profiler.log_file_path()
+        assert os.path.isfile(log_path)
+        log_file_path_fn = getattr(cPyMemTrace, log_path_attr)
+        assert callable(log_file_path_fn)
+        assert log_file_path_fn() == log_path
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_module_log_file_same_as_object_log_file_post_313():
+    with cPyMemTrace.ReferenceTracing() as profiler:
+        log_path = profiler.log_file_path()
+        assert os.path.isfile(log_path)
+        log_file_path_fn = getattr(cPyMemTrace, 'reference_tracing_log_path')
+        assert callable(log_file_path_fn)
+        assert log_file_path_fn() == log_path
+
+
+# END: Log file path stuff
+
 @pytest.mark.parametrize(
     'cls',
     (
@@ -166,7 +234,6 @@ def test_trace_basic_gt_310():
 )
 def test_profile_start_message_to_log_file(cls):
     message = 'test_profile_start_message_to_log_file():'
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cls(message=message) as profiler:
         log_path = profiler.log_file_path()
         print(f'Log file Profile: {log_path}')
@@ -193,7 +260,6 @@ def test_profile_start_message_to_log_file(cls):
 )
 def test_profile_inline_message_to_log_file_pre_313(cls):
     message = 'test_profile_inline_message_to_log_file():'
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cls() as profiler:
         b' ' * (1024 ** 2)
         profiler.write_message_to_log(message)
@@ -214,7 +280,6 @@ def test_profile_inline_message_to_log_file_pre_313(cls):
 )
 def test_profile_inline_message_to_log_file_post_313(cls):
     message = 'test_profile_inline_message_to_log_file():'
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cls() as profiler:
         b' ' * (1024 ** 2)
         profiler.write_message_to_log(message)
@@ -233,7 +298,6 @@ def create_bytes(length: int) -> bytes:
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_reference_trace_basic_post_313():
     message = 'test_profile_inline_message_to_log_file():'
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.ReferenceTracing() as profiler:
         l = []
         for i in range(4):
@@ -253,7 +317,6 @@ def test_reference_trace_basic_post_313():
 
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_trace_basic_dir_gt_313():
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.ReferenceTracing() as profiler:
         b' ' * (1024 ** 2)
         print()
@@ -297,7 +360,6 @@ def test_trace_basic_dir_gt_313():
 
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_trace_basic_dir_suspend_resume_gt_313():
-    time.sleep(1.1)  # Make sure that we increment the log file name by one second.
     with cPyMemTrace.ReferenceTracing() as profiler:
         b' ' * (1024 ** 2)
         print()
@@ -379,6 +441,32 @@ def test_trace_basic_list_cmp_ref_trace_simple_suspend_resume_gt_313():
         print(f'DEL: {profiler.count_del()}')
 
 
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_trace_simple_gt_313():
+    with cPyMemTrace.ReferenceTracingSimple() as profiler:
+        print()
+        print('test_reference_trace_simple_gt_313():')
+        print(profiler)
+        print(f'NEW: {profiler.count_new()}')
+        print(f'DEL: {profiler.count_del()}')
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_trace_simple_stacked_gt_313():
+    with cPyMemTrace.ReferenceTracingSimple() as profiler_a:
+        print()
+        print('test_reference_trace_simple_gt_313():')
+        print(profiler_a)
+        with cPyMemTrace.ReferenceTracingSimple() as profiler_b:
+            a = '  Hello World'
+            print(a)
+            print(f'  {profiler_b}')
+            print(f'  NEW: {profiler_b.count_new()}')
+            print(f'  DEL: {profiler_b.count_del()}')
+        print(f'NEW: {profiler_a.count_new()}')
+        print(f'DEL: {profiler_a.count_del()}')
+
+
 @pytest.mark.parametrize(
     'cls',
     (
@@ -443,10 +531,10 @@ def test_reference_trace_too_many_args_post_313():
         with cPyMemTrace.ReferenceTracing(
                 'message',
                 'file_path',
-                False, #'include_builtins',
-                [], #'exclude_tp_names',
-                [], #'include_tp_names',
-                2, # 'gc_collect_on_exit'
+                False,  # 'include_builtins',
+                [],  # 'exclude_tp_names',
+                [],  # 'include_tp_names',
+                2,  # 'gc_collect_on_exit'
                 'and_one_more'
         ):
             pass
@@ -712,7 +800,7 @@ def test_reference_tracing_include_builtins_choice(include_builtins):
 @pytest.mark.parametrize(
     'exclude_tp_names',
     (
-            ['range_iterator',],
+            ['range_iterator', ],
     )
 )
 def test_reference_tracing_exclude_tp_names(exclude_tp_names):
@@ -747,7 +835,7 @@ def test_reference_tracing_exclude_tp_names(exclude_tp_names):
 @pytest.mark.parametrize(
     'include_tp_names',
     (
-            ['BytesWrapper',],
+            ['BytesWrapper', ],
     )
 )
 def test_reference_tracing_include_tp_names(include_tp_names):
@@ -781,7 +869,7 @@ def test_reference_tracing_include_tp_names(include_tp_names):
 @pytest.mark.parametrize(
     'include_tp_names',
     (
-            ['BytesWrapper',],
+            ['BytesWrapper', ],
     )
 )
 def test_reference_tracing_include_tp_names_with_gc_collect(include_tp_names):
@@ -843,7 +931,7 @@ def test_reference_tracing_deliberate_leak_to_temp_file(cls, cause_leak):
         with cPyMemTrace.ReferenceTracing(
                 message=message, filepath=file.name,
                 include_builtins=False,
-                include_tp_names=[f'cMemLeak.{cls.__name__}',],
+                include_tp_names=[f'cMemLeak.{cls.__name__}', ],
                 gc_collect_on_exit=2,
         ) as profiler:
             assert profiler.log_file_path() == file.name
@@ -879,7 +967,7 @@ def test_reference_tracing_deliberate_leak_to_cwd(cls, cause_leak):
     with cPyMemTrace.ReferenceTracing(
             message=message,
             include_builtins=False,
-            include_tp_names=[f'cMemLeak.{cls.__name__}',],
+            include_tp_names=[f'cMemLeak.{cls.__name__}', ],
             gc_collect_on_exit=2,
     ) as profiler:
         create_tmp_list_of_memory_objects(cls, 128, 4, cause_leak)
@@ -1090,3 +1178,80 @@ if __name__ == '__main__':
     print('START')
     test_profile_basic_gt_310()
     print('FINISH')
+
+
+class StringAndTime:
+    def __init__(self, size: int):
+        self.now = datetime.datetime.now()
+        self.str = ''.join(random.choices(string.printable, k=size))
+
+
+class StringAndTime_A(StringAndTime):
+    pass
+
+
+class StringAndTime_B(StringAndTime):
+    pass
+
+
+class StringAndTime_C(StringAndTime):
+    pass
+
+
+def create_string_and_time_c():
+    with cPyMemTrace.ReferenceTracing(message="Reference Tracing C", ) as ref_trace_c:
+        print(f'ref_trace_c is logging to {ref_trace_c.log_file_path()}')
+        list_of_str_and_time_c = []
+        for i in range(4):
+            str_len = random.randint(1024, 2048)
+            v = StringAndTime_C(str_len)
+            list_of_str_and_time_c.append(v)
+
+        # while len(list_of_str_and_time_c):
+        #     list_of_str_and_time_c.pop()
+
+
+def create_string_and_time_b():
+    with cPyMemTrace.ReferenceTracing(message="Reference Tracing B", ) as ref_trace_b:
+        print(f'ref_trace_b is logging to {ref_trace_b.log_file_path()}')
+        list_of_str_and_time_b = []
+        for i in range(2):
+            str_len = random.randint(1024, 2048)
+            v = StringAndTime_B(str_len)
+            list_of_str_and_time_b.append(v)
+
+        create_string_and_time_c()
+
+        for i in range(2):
+            str_len = random.randint(1024, 2048)
+            v = StringAndTime_B(str_len)
+            list_of_str_and_time_b.append(v)
+
+        # while len(list_of_str_and_time_b):
+        #     list_of_str_and_time_b.pop()
+
+
+def create_string_and_time_a():
+    with cPyMemTrace.ReferenceTracing(message="Reference Tracing A", ) as ref_trace_a:
+        print(f'ref_trace_a is logging to {ref_trace_a.log_file_path()}')
+        list_of_str_and_time_a = []
+        for i in range(2):
+            str_len = random.randint(1024, 2048)
+            v = StringAndTime_A(str_len)
+            list_of_str_and_time_a.append(v)
+
+        create_string_and_time_b()
+
+        for i in range(2):
+            str_len = random.randint(1024, 2048)
+            v = StringAndTime_A(str_len)
+            list_of_str_and_time_a.append(v)
+
+        while len(list_of_str_and_time_a):
+            list_of_str_and_time_a.pop()
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_tracing_nested_with_sig_log_files():
+    print()
+    create_string_and_time_a()

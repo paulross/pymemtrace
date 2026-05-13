@@ -100,6 +100,7 @@ import collections
 import dataclasses
 import logging
 import os
+import re
 import sys
 import time
 import typing
@@ -124,9 +125,9 @@ class ObjectData:
 
 class LogFileResult:
     """Class that can read the log file into an internal representation."""
-    def __init__(self, ignore_untracked: bool):
-        """If ignore_untracked is True then de-allocations without the respective allocation are ignored."""
-        self.ignore_untracked = ignore_untracked
+    def __init__(self, include_untracked: bool):
+        """If include_untracked is True then de-allocations without the respective allocation are ignored."""
+        self.include_untracked = include_untracked
         self.intro_message_lines = []
         self.header_columns = []
         # The key is the address.
@@ -139,6 +140,8 @@ class LogFileResult:
         self.type_count_del: typing.Dict[str, int] = collections.defaultdict(int)
         self.type_count_untracked: typing.Dict[str, int] = collections.defaultdict(int)
         self.count_new = self.count_del = self.count_msg = 0
+        # The earliest clock value of the process.
+        self.clock_first = None
 
     def _parse_line(self, line_num: int, line: str) -> typing.Dict[str, typing.Any]:
         """Parse a line of the log file into a dict of the columns of the form: {header: value}."""
@@ -163,6 +166,8 @@ class LogFileResult:
 
     def _create_object(self, line_num: int, line_dict: typing.Dict[str, typing.Any]) -> ObjectData:
         """Create an ObjectData from the dict of {header: value}."""
+        if self.clock_first is None:
+            self.clock_first = line_dict['Clock']
         return ObjectData(
             line_num,
             line_dict['Clock'],
@@ -218,7 +223,7 @@ class LogFileResult:
             del self.live_objects[obj_repr.address]
         else:
             self.type_count_untracked[obj_repr.type] += 1
-            if not self.ignore_untracked:
+            if self.include_untracked:
                 logger.warning(
                     f'DEL: on untracked object'
                     f' of type "{obj_repr.type}"'
@@ -237,7 +242,7 @@ class LogFileResult:
         """Add a line starting "ERR:"."""
         logger.error(f'Line {line_num} {line}')
 
-    def long_str_list(self, show_full_path: bool, ignore_historical: bool) -> typing.List[str]:
+    def long_str_list(self, show_full_path: bool, include_historical: bool) -> typing.List[str]:
         """Return the analysis as a list of strings suitable for printing."""
         def _str_from_object_file(obj: ObjectData, show_full_path: bool) -> str:
             if show_full_path:
@@ -248,6 +253,7 @@ class LogFileResult:
             # Address is typically 0x7fd1f8028000
             return (
                 f'0x{obj.address:012x}'
+                f' {obj.clock:.6f}'
                 f' {obj.ref_cnt:4d}'
                 f' {obj.type:40}'
                 f' {obj.function:32}'
@@ -259,8 +265,12 @@ class LogFileResult:
             assert obj_pair[0].type == obj_pair[1].type
             return (
                 f'0x{obj_pair[0].address:012x} {obj_pair[0].type:40}'
-                f' NEW: {_str_from_object_file(obj_pair[0], show_full_path)}#{obj_pair[0].line}'
-                f' DEL: {_str_from_object_file(obj_pair[1], show_full_path)}#{obj_pair[1].line}'
+                f' NEW:'
+                f' t: {obj_pair[0].clock:.6f}'
+                f' {_str_from_object_file(obj_pair[0], show_full_path)}#{obj_pair[0].line}'
+                f' DEL:'
+                f' dt: {obj_pair[1].clock - obj_pair[0].clock:.6f}'
+                f' {_str_from_object_file(obj_pair[1], show_full_path)}#{obj_pair[1].line}'
             )
 
         ret = []
@@ -268,7 +278,7 @@ class LogFileResult:
             ret.append('Initial Message:')
             ret.extend(self.intro_message_lines)
 
-        if not self.ignore_untracked:
+        if self.include_untracked:
             ret.append(f'Untracked Objects [{len(self.type_count_untracked)}]:')
             ret.append(f'{"Type":40} {"Count":>8}')
             for type_name in sorted(self.type_count_untracked.keys()):
@@ -282,11 +292,17 @@ class LogFileResult:
             obj = self.live_objects[address]
             ret.append(f'    {_str_from_object(obj, show_full_path)}')
 
-        ret.append(f'Previous Objects [{len(self.prev_objects)}]:')
-        if not ignore_historical:
-            for address in sorted(self.prev_objects.keys()):
-                for obj_pair in self.prev_objects[address]:
-                    ret.append(f'    {_str_from_object_pair(obj_pair, show_full_path)}')
+        ret.append(f'Previous Objects, sorted by clock [{len(self.prev_objects)}]:')
+        if include_historical:
+            # for address in sorted(self.prev_objects.keys()):
+            #     for obj_pair in self.prev_objects[address]:
+            #         ret.append(f'    {_str_from_object_pair(obj_pair, show_full_path)}')
+            all_values = []
+            for k in self.prev_objects.keys():
+                all_values.extend(self.prev_objects[k])
+            all_values.sort(key=lambda v: v[0].clock)
+            for obj_pair in all_values:
+                ret.append(f'    {_str_from_object_pair(obj_pair, show_full_path)}')
 
         all_types = sorted(set(self.type_count_new.keys()) | set(self.type_count_del.keys()))
         ret.append(f'Type count [{len(all_types)}]:')
@@ -301,14 +317,21 @@ class LogFileResult:
         return ret
 
 
-def process_file(file: typing.TextIO, ignore_untracked: bool) -> LogFileResult:
-    """Process the file into a LogFileResult and return that.
-    If ignore_untracked is True then de-allocations without the respective allocation are ignored."""
-    result = LogFileResult(ignore_untracked=ignore_untracked)
+# Matches:
+# MSG:     3.289042 # Detaching this Reference Tracing file wrapper. New file: 20260420_091558_50_53552_O_1_PY3.13.0.log
+RE_COMPILE_LOG_FILE_PUSH = re.compile(r'MSG: .+ # Detaching this Reference Tracing file wrapper. New file: (.+)')
+# Matches:
+# MSG:     3.298763 # Re-attaching this Reference Tracing file wrapper.
+RE_COMPILE_LOG_FILE_POP = re.compile(r'MSG: .+ Re-attaching this Reference Tracing file wrapper.')
+
+
+def process_file_to_log_result(file: typing.TextIO, recurse_files: bool, result: LogFileResult):
     has_sof = False
     line_num = 0
     for l, line in enumerate(file):
         line_num = l + 1
+        # Hack for '<frozen importlib.' etc. column breaks
+        line = line.replace('<frozen ', '<frozen_')
         if line_num % 10000 == 0:
             logger.info(f'Reading line {line_num:16,d}')
         assert line.endswith('\n')
@@ -323,14 +346,32 @@ def process_file(file: typing.TextIO, ignore_untracked: bool) -> LogFileResult:
                 result.intro_message_lines.append(line[:-1])
             else:
                 if line.startswith('HDR:'):
-                    assert len(result.header_columns) == 0
-                    result.header_columns = line.strip().split()
+                    if len(result.header_columns) == 0:
+                        assert len(result.header_columns) == 0
+                        result.header_columns = line.strip().split()
+                    else:
+                        assert result.header_columns == line.strip().split()
                 elif line.startswith('NEW:'):
                     result.add_new(line_num, line)
                 elif line.startswith('DEL:'):
                     result.add_del(line_num, line)
                 elif line.startswith('MSG:'):
                     result.add_msg(line_num, line)
+                    # Handle this and include sub-file if requested.
+                    if recurse_files:
+                        # MSG:     3.289042 # Detaching this Reference Tracing file wrapper. New file: /Users/paulross/Documents/workspace/pymemtrace/20260420_091558_50_53552_O_1_PY3.13.0.log
+                        m = RE_COMPILE_LOG_FILE_PUSH.match(line)
+                        if m is not None:
+                            # recurse
+                            logger.info(f'Recusing into log file: {m.group(1)}')
+                            with open(m.group(1)) as sub_file:
+                                process_file_to_log_result(sub_file, recurse_files, result)
+                            logger.info(f'Finished log file: {m.group(1)}')
+                    # MSG:     3.298763 # Re-attaching this Reference Tracing file wrapper.
+                    # m = RE_COMPILE_LOG_FILE_POP.match(line)
+                    # if m is not None:
+                    #     # Ignore.
+                    #     pass
                 elif line.startswith('ERR:'):
                     result.add_err(line_num, line)
                 else:
@@ -342,17 +383,52 @@ def process_file(file: typing.TextIO, ignore_untracked: bool) -> LogFileResult:
         f' NEW - DEL: {result.count_new - result.count_del:,d}'
         f' MSG: {result.count_msg:,d}'
     )
+
+
+def process_file(file: typing.TextIO, include_untracked: bool, recurse_files: bool) -> LogFileResult:
+    """Process the file into a LogFileResult and return that.
+    If include_untracked is True then de-allocations without the respective allocation are ignored."""
+    result = LogFileResult(include_untracked=include_untracked)
+    process_file_to_log_result(file, recurse_files, result)
     return result
 
 
-def process_file_path(file_path: str, ignore_untracked: bool) -> LogFileResult:
+def process_file_path(file_path: str, include_untracked: bool, recurse_files: bool) -> LogFileResult:
     """Process the file path into a LogFileResult and return that."""
     with open(file_path) as file:
-        return process_file(file, ignore_untracked)
+        logger.info(f'Starting log file: {file_path}')
+        result = process_file(file, include_untracked, recurse_files)
+        logger.info(f'Finished log file: {file_path}')
+        return result
 
 
 def main() -> int:
-    """Main entry point."""
+    """Main entry point. Options:
+
+    usage: ref_trace_analyse.py
+           [-h] [--full-path] [--include-untracked] [--include-historical]
+           [--recurse-files] [-l LOG_LEVEL]
+           log_path
+
+    Reads an Reference Tracing log of a process and analyses it.
+
+    positional arguments:
+      log_path              Input path to the log.
+
+    options:
+      -h, --help            show this help message and exit
+      --full-path           Show the full Python file path. [default: False]
+      --include-untracked   Include untracked objects. These are objects that are
+                            de-allocated with no corresponding allocation.
+                            [default: False]
+      --include-historical  Ignore objects that were allocated and de-allocated
+                            correctly. [default: False]
+      --recurse-files       If True then recurse into child log files. [default:
+                            False]
+      -l, --log_level LOG_LEVEL
+                            Log Level (debug=10, info=20, warning=30, error=40,
+                            critical=50) [default: 20]
+    """
     parser = argparse.ArgumentParser(
         prog=__file__,
         description="""Reads an Reference Tracing log of a process and analyses it.""",
@@ -365,15 +441,22 @@ def main() -> int:
              " [default: %(default)s]",
     )
     parser.add_argument(
-        "--ignore-untracked",
+        "--include-untracked",
         action="store_true",
-        help="Ignore untracked objects."
+        help="Include untracked objects."
+             " These are objects that are de-allocated with no corresponding allocation."
              " [default: %(default)s]",
     )
     parser.add_argument(
-        "--ignore-historical",
+        "--include-historical",
         action="store_true",
-        help="Ignore objects that were deleted correctly."
+        help="Ignore objects that were allocated and de-allocated correctly."
+             " [default: %(default)s]",
+    )
+    parser.add_argument(
+        "--recurse-files",
+        action="store_true",
+        help="If True then recurse into child log files."
              " [default: %(default)s]",
     )
     parser.add_argument("-l", "--log_level", type=int, dest="log_level", default=20,
@@ -389,8 +472,8 @@ def main() -> int:
     )
     time_start = time.perf_counter()
     print(f'File path: {args.log_path}')
-    result = process_file_path(args.log_path, args.ignore_untracked)
-    print('\n'.join(result.long_str_list(args.full_path, args.ignore_historical)))
+    result = process_file_path(args.log_path, args.include_untracked, args.recurse_files)
+    print('\n'.join(result.long_str_list(args.full_path, args.include_historical)))
     print(f'Process time: {time.perf_counter() - time_start:.3f} (s)')
     return 0
 

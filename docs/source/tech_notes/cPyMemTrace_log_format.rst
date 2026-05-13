@@ -439,17 +439,15 @@ The second column is the clock:
 
 .. code-block:: text
 
-    MSG:     0.889521 # Detaching this Reference Tracing file wrapper. New file:
-    MSG:     0.889528 # pymemtrace/20260325_121858_9_95352_O_1_PY3.13.2.log
-    MSG:     0.890656 # Re-attaching this trace file wrapper.
+    MSG:     0.889521 # Detaching this Reference Tracing file wrapper. New file: pymemtrace/20260325_121858_9_95352_O_1_PY3.13.2.log
+    MSG:     0.890656 # Re-attaching this Reference Tracing file wrapper.
 
 The middle file, ``20260325_121858_9_95352_O_1_PY3.13.2.log``, will have this content when the context switch
 takes place and back:
 
 .. code-block:: text
 
-    MSG:     0.890185 # Detaching this Reference Tracing file wrapper. New file:
-    MSG:     0.890191 # pymemtrace/20260325_121858_10_95352_O_2_PY3.13.2.log
-    MSG:     0.890488 # Re-attaching this trace file wrapper.
+    MSG:     0.890185 # Detaching this Reference Tracing file wrapper. New file: pymemtrace/20260325_121858_10_95352_O_2_PY3.13.2.log
+    MSG:     0.890488 # Re-attaching this Reference Tracing file wrapper.
 
 The inner file has no context switches.

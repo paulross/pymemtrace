@@ -52,8 +52,8 @@ if sys.platform.startswith('linux'):
         ]
     )
 
-# DEBUG = False
-DEBUG = True
+DEBUG = False
+# DEBUG = True
 
 if DEBUG:
     extra_compile_args.extend(['-g3', '-O0', '-DDEBUG=1', '-UNDEBUG'])
@@ -62,7 +62,7 @@ else:
 
 setup(
     name='pymemtrace',
-    version='0.4.1',
+    version='0.5.0',
     description="Python memory tracing.",
     long_description=readme + '\n\n' + history,
     long_description_content_type='text/x-rst',
@@ -98,6 +98,12 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     setup_requires=setup_requirements,
+    entry_points={
+        'console_scripts': [
+            'pymemtrace_ref_trace_analyse=pymemtrace.util.ref_trace_analyse:main',
+            'pymemtrace_dtrace_log_analyse=pymemtrace.util.dtrace_log_analyse:main',
+        ],
+    },
     # Extensions
     ext_modules=[
         Extension(

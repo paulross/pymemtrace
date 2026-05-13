@@ -8,7 +8,7 @@ Typically, monitoring software runs at a frequency of one second or so more so t
 not significant.
 However with memory profiling the RSS is required per function call or per line and the cost of calculating RSS becomes
 a bottleneck.
-For example see the :ref:`tech_notes-cpymemtrace`.
+For example see the :ref:`tech_notes-cpymemtrace_perf`.
 
 Here is a comparative look at what that cost is.
 The platform is a Mac mini (late 2014) 2.8 GHz Intel Core i5 running macOS Mojave 10.14.6.
@@ -39,7 +39,7 @@ Here is the cost:
     >>> timeit.repeat('cPyMemTrace.rss()', setup='import cPyMemTrace', number=1_000_000, repeat=5)
     [1.656, 1.649, 1.636, 1.626, 1.646]
 
-So 1.64 µs ± 0.015 µs which agrees very closely with our estimate of 1.5 µs from :ref:`tech_notes-cpymemtrace`.
+So 1.64 µs ± 0.015 µs which agrees very closely with our estimate of 1.5 µs from :ref:`tech_notes-cpymemtrace_perf`.
 
 Peak RSS (not available in ``psutil``) is much faster for some reason:
 

@@ -1,14 +1,14 @@
 
-.. _tech_notes-cpymemtrace:
+.. _tech_notes-cpymemtrace_perf:
 
 Technical Note on ``cPyMemTrace`` Performance
 =============================================
 
-``cPyMemTrace`` contains Python profilers and tracers written in 'C' that logs the
+:py:mod:`pymemtrace.cPyMemTrace` contains Python profilers and tracers written in 'C' that logs the
 runtime information including the `Resident Set Size <https://en.wikipedia.org/wiki/Resident_set_size>`_
 for every Python and C call and return or object allocation and de-allocation as required.
 
-.. _tech_notes-cpymemtrace_test_data:
+.. _tech_notes-cpymemtrace_perf_test_data:
 
 Test Program and Data
 ------------------------------
@@ -25,6 +25,8 @@ The command used was:
 .. code-block::  shell
 
     time tdlastohtml --log-process=0.25  example_data/LAS/data tmp/LASTOHTML_A
+
+.. _tech_notes-cpymemtrace_perf_profiling:
 
 Profiling
 ---------------------------------------
@@ -50,7 +52,14 @@ In this exercise there were 4.4m profiling events.
 When ``d_rss_trigger=-1`` then only events that change the RSS by >= the page size (4096 bytes) are reported.
 When ``d_rss_trigger=0`` then all events are reported.
 
-.. list-table:: **cPyMemTrace Profiling**
+.. _tech_notes-cpymemtrace_perf_profiling_performance:
+
+Profiling Performance
+^^^^^^^^^^^^^^^^^^^^^
+
+Here is the cost of profiling given various options:
+
+.. list-table:: **cPyMemTrace Profiling Performance**
    :widths: 30 15 15 15 15 50
    :header-rows: 1
 
@@ -82,6 +91,8 @@ When ``d_rss_trigger=0`` then all events are reported.
 As expected reporting every event is about four times as expensive (in time) compared to those events
 that trigger large changes in the RSS.
 
+.. _tech_notes-cpymemtrace_perf_tracing:
+
 Tracing
 --------
 
@@ -106,7 +117,15 @@ In this exercise there were 7m profiling events.
 When ``d_rss_trigger=-1`` then only events that change the RSS by >= the page size (4096 bytes) are reported.
 When ``d_rss_trigger=0`` then all events are reported.
 
-.. list-table:: **cPyMemTrace Tracing**
+
+.. _tech_notes-cpymemtrace_perf_tracing_performance:
+
+Tracing Performance
+^^^^^^^^^^^^^^^^^^^^^
+
+Here is the cost of tracing given various options:
+
+.. list-table:: **cPyMemTrace Tracing Performance**
    :widths: 30 15 15 15 15 50
    :header-rows: 1
 
@@ -136,6 +155,8 @@ When ``d_rss_trigger=0`` then all events are reported.
      - ``d_rss_trigger=0``
 
 This is similar to Profiling but the event count is much larger and that shows up in the runtime cost.
+
+.. _tech_notes-cpymemtrace_perf_reference_tracing:
 
 Reference Tracing
 -----------------
@@ -223,9 +244,14 @@ full Garbage Collection run before closing the log file:
         # Execution code here.
         pass
 
+.. _tech_notes-cpymemtrace_perf_reference_tracing_performance:
+
+Reference Tracing Performance
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 Here are the results compared to the baseline of no tracing:
 
-.. list-table:: **cPyMemTrace Reference Tracing**
+.. list-table:: **cPyMemTrace Reference Tracing Performance**
    :widths: 30 15 15 15 15 50
    :header-rows: 1
 
@@ -245,13 +271,13 @@ Here are the results compared to the baseline of no tracing:
      - 27.3
      - 36x
      - 170M
-     - 716,222
+     - 700K
      - ``include_builtins=False``
    * - Ref Trace, with builtins
      - 59.9
      - 78x
      - 1.0G
-     - 4,375,211
+     - 4M
      - ``include_builtins=True``
    * - Ref Trace, single class
      - 1.573
