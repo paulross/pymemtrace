@@ -1,6 +1,12 @@
 History
 =======
 
+0.5.1rc0 (TODO)
+------------------
+
+* Supported Python versions are: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
+* Development Status :: 5 - Production/Stable
+
 0.5.0 (2026-05-12)
 ------------------
 
@@ -11,6 +17,8 @@ History
 * ``ref_trace_analyse.py`` can now merge log files.
 * Add the ability to get reference counts from arbitrary addresses.
 * Added documentation.
+* Supported Python versions are: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
+* Development Status :: 5 - Production/Stable
 
 0.4.1 (2026-05-03)
 ------------------

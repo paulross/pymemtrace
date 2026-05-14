@@ -23,7 +23,7 @@ faulthandler.enable()
 
 
 def test_version():
-    assert pymemtrace.__version__ == '0.5.0'
+    assert pymemtrace.__version__ == '0.5.1rc0'
 
 
 @pytest.mark.skipif(not (sys.version_info.minor < 13), reason='Python < 3.13')
