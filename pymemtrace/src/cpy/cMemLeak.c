@@ -1,7 +1,8 @@
-/*
+/** @file
+ *
  * Created by Paul Ross on 07/11/2020.
  *
- * Functions to cause memory memory usage and leaks in C and CPython.
+ * Functions to cause memory usage and leaks in C and CPython.
  *
 */
 #define PY_SSIZE_T_CLEAN
@@ -19,13 +20,24 @@
 #error "Only Python version 3 is supported."
 #endif
 
-/******** Allocate a buffer with C's malloc() ********/
+// MARK: CMallocObject
+
+/**
+ * Allocate a buffer with C's malloc()
+ */
 typedef struct {
     PyObject_HEAD
+    /** Size of buffer. */
     size_t size;
-    void *buffer; /* Buffer created by malloc() */
+    /** Buffer created by malloc() */
+    void *buffer;
 } CMallocObject;
 
+/**
+ * Deallocate the \c CMallocObject object.
+ *
+ * @param self The \c CMallocObject object.
+ */
 static void
 CMallocObject_dealloc(CMallocObject *self) {
 #ifdef DEBUG_REPORT_MALLOC_FREE
@@ -35,6 +47,13 @@ CMallocObject_dealloc(CMallocObject *self) {
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
+/**
+ * Allocate a new \c CMallocObject object.
+ * @param type The \c CMallocObject type.
+ * @param _unused_args
+ * @param _unused_kwds
+ * @return The \c CMallocObject object.
+ */
 static PyObject *
 CMallocObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
     CMallocObject *self;
@@ -46,6 +65,14 @@ CMallocObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UN
     return (PyObject *) self;
 }
 
+/**
+ * Initialise a new \c CMallocObject object.
+ *
+ * @param self The \c CMallocObject object.
+ * @param args size argument.
+ * @param kwds "size" keyword argument.
+ * @return 0 on success. Non-zero on failure.
+ */
 static int
 CMallocObject_init(CMallocObject *self, PyObject *args, PyObject *kwds) {
     static char *kwlist[] = {"size", NULL};
@@ -66,21 +93,49 @@ CMallocObject_init(CMallocObject *self, PyObject *args, PyObject *kwds) {
     return 0;
 }
 
+/**
+ * Return the size of the buffer as a getter.
+ *
+ * @param self The \c CMallocObject object.
+ * @param _unused_closure
+ * @return The size of the buffer.
+ */
 static PyObject *
 CMallocObject_getsize(CMallocObject *self, void *Py_UNUSED(closure)) {
     return PyLong_FromSsize_t(self->size);
 }
 
+/**
+ * Return the buffer address as a getter.
+ *
+ * @param self The \c CMallocObject object.
+ * @param _unused_closure
+ * @return The buffer address.
+ */
 static PyObject *
 CMallocObject_getbuffer(CMallocObject *self, void *Py_UNUSED(closure)) {
     return PyLong_FromSsize_t((size_t)(self->buffer));
 }
 
+/**
+ * Return the reference count.
+ *
+ * @param self The \c CMallocObject object.
+ * @param _unused_args
+ * @return The reference count.
+ */
 static PyObject *
 CMallocObject_refcnt(CMallocObject *self, PyObject *Py_UNUSED(args)) {
     return PyLong_FromSsize_t(Py_REFCNT(self));
 }
 
+/**
+ * Increment or decrement the reference count.
+ *
+ * @param self The \c CMallocObject object.
+ * @param arg The amount ot increment or decrement the reference count.
+ * @return The new reference count.
+ */
 static PyObject *
 CMallocObject_inc_refcnt(CMallocObject *self, PyObject *arg) {
     assert(!PyErr_Occurred());
@@ -102,17 +157,26 @@ CMallocObject_inc_refcnt(CMallocObject *self, PyObject *arg) {
     return PyLong_FromSsize_t(Py_REFCNT(self));
 }
 
+/**
+ * \c CMallocObject members (none).
+ */
 static PyMemberDef CMallocObject_members[] = {
 //    {"size", T_ULONG, offsetof(CMallocObject, size), 0, "Buffer size."},
     {NULL, 0, 0, 0, NULL}  /* Sentinel */
 };
 
+/**
+ * \c CMallocObject getters and setters.
+ */
 static PyGetSetDef CMallocObject_getsetters[] = {
     {"size", (getter) CMallocObject_getsize, (setter) NULL, "Buffer size.", NULL},
     {"buffer", (getter) CMallocObject_getbuffer, (setter) NULL, "Buffer address.", NULL},
     {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 
+/**
+ * \c CMallocObject methods.
+ */
 static PyMethodDef CMallocObject_methods[] = {
         {
                 "refcnt",
@@ -136,6 +200,9 @@ PyDoc_STRVAR(
     " Actual reserved memory is always >=1 byte."
 );
 
+/**
+ * The \c CMallocObject type definition.
+ */
 static PyTypeObject CMallocObjectType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "cMemLeak.CMalloc",
@@ -151,6 +218,8 @@ static PyTypeObject CMallocObjectType = {
     .tp_getset = CMallocObject_getsetters,
 };
 /******** END: Allocate a buffer with C's malloc() ********/
+
+// MARK: PyRawMallocObject
 
 /******** Allocate a buffer with Python's raw memory interface ********/
 typedef struct {
