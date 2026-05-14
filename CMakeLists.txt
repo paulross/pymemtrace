@@ -40,6 +40,7 @@ add_executable(
     pymemtrace/src/c/pymemtrace_util.c
     pymemtrace/src/cpy/cPyMemTrace.h
     pymemtrace/src/cpy/cPyMemTrace.c
+    pymemtrace/src/cpy/cPyRefTraceExample.c
 )
 
 include_directories(
