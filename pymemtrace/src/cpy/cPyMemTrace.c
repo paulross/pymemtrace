@@ -1461,7 +1461,6 @@ static PyTypeObject cpyTraceObjectType = {
 
 // This is only used by Reference Tracing as Profile/Trace use
 // py_frame_get_python_function_name_with_profile_trace_args()
-#if REFERENCE_TRACING_AVAILABLE
 /**
  * Returns the function name in a static C buffer.
  *
@@ -1492,7 +1491,6 @@ py_frame_get_python_function_name(PyFrameObject *frame) {
     }
     return func_name;
 }
-#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
 
 /**
  * This will be the opaque <tt>void *data</tt> structure registered with
@@ -2240,17 +2238,17 @@ cpyReferenceTracing_write_c_prefix_and_message_to_log(struct reference_tracing_d
     if (prefix) {
         double clock_time = (double) clock() / CLOCKS_PER_SEC;
         ret = snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-                           "%s: %12.6f # %s",
-                           prefix,
-                           clock_time,
-                           message
+                       "%s: %12.6f # %s",
+                       prefix,
+                       clock_time,
+                       message
         );
         fputs((const char *) reference_tracing_event_text, data->log_file);
     } else {
-        ret = (int)strlen(message);
+        ret = (int) strlen(message);
         fputs((const char *) message, data->log_file);
     }
-    if (newline)  {
+    if (newline) {
         fputc('\n', data->log_file);
     }
     return ret;
@@ -2295,6 +2293,7 @@ static int reference_tracing_call_back_is_active = 0;
  * It is reccomended to set this to zero.
  */
 #define PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN 0
+
 /**
  * Returns non-zero if the Python object is one of the selected builtins.
  * This function call is designed to be cheap but requires any of the code
@@ -2444,10 +2443,12 @@ reference_trace_is_builtin_post_suspend(PyObject *op) {
     return 0;
 }
 #else /* ! PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN */
+
 static int
 reference_trace_is_builtin_post_suspend(PyObject *Py_UNUSED(op)) {
     return 0;
 }
+
 #endif /* PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN */
 
 /**
@@ -2828,8 +2829,8 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
                                      &(self->data->exclude_tp_names),
                                      &(self->data->include_tp_names),
                                      &(self->gc_collect_on_exit)
-                                     )
-                                     ) {
+    )
+            ) {
         assert(PyErr_Occurred());
         return -1;
     }
@@ -2850,7 +2851,7 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
                     PyExc_TypeError,
                     "cpyReferenceTracing_init() exclude_tp_names must be a sequence, not type %s.",
                     Py_TYPE(self->data->exclude_tp_names)->tp_name
-                    );
+            );
             return -3;
         }
         /* PyArg_ParseTupleAndKeywords returns a borrowed reference with "O" format. */
@@ -2863,7 +2864,7 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
                     PyExc_TypeError,
                     "cpyReferenceTracing_init() include_tp_names must be a sequence, not type %s.",
                     Py_TYPE(self->data->include_tp_names)->tp_name
-                    );
+            );
             return -3;
         }
         /* PyArg_ParseTupleAndKeywords returns a borrowed reference with "O" format. */
@@ -2951,10 +2952,10 @@ cpyReferenceTracing_invoke_gc_collect(cpyReferenceTracing *self) {
     long ret = 0;
     if (!gc_module) {
         PyErr_SetString(
-            PyExc_ImportError,
-            "cpyReferenceTracing_invoke_gc_collect() can not import the \"gc\" module."
+                PyExc_ImportError,
+                "cpyReferenceTracing_invoke_gc_collect() can not import the \"gc\" module."
         );
-        ret= -1;
+        ret = -1;
     } else {
         PyObject *result = PyObject_CallMethod(gc_module, "collect", "i", self->gc_collect_on_exit);
         if (result) {
@@ -2969,9 +2970,9 @@ cpyReferenceTracing_invoke_gc_collect(cpyReferenceTracing *self) {
             Py_DECREF(result);
         } else {
             PyErr_Format(
-                PyExc_RuntimeError,
-                "cpyReferenceTracing_invoke_gc_collect() invoking \"gc.collect(%d)\" failed.",
-                self->gc_collect_on_exit
+                    PyExc_RuntimeError,
+                    "cpyReferenceTracing_invoke_gc_collect() invoking \"gc.collect(%d)\" failed.",
+                    self->gc_collect_on_exit
             );
             ret = -2;
         }
@@ -3748,6 +3749,231 @@ test_reftracer(void) {
 
 #endif // REFERENCE_TRACING_AVAILABLE
 
+// MARK: cpyReferenceTracingSimple from C code
+
+#if REFERENCE_TRACING_AVAILABLE
+
+struct ref_trace_data {
+    size_t count_new;
+    size_t count_del;
+};
+
+static int
+ref_trace_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data) {
+    assert(data);
+    struct ref_trace_data *data_alias = (struct ref_trace_data *) data;
+
+    if (event == PyRefTracer_CREATE) {
+        data_alias->count_new++;
+    } else if (event == PyRefTracer_DESTROY) {
+        data_alias->count_del++;
+    } else {
+        // Ignore unknown events.
+    }
+    return 0;
+}
+
+/**
+ * An illustration of using a reference tracer from C.
+ *
+ * @return 0 on success, Non-zero on failure.
+ */
+int important_function(void) {
+    static struct ref_trace_data data;
+    data.count_new = 0;
+    data.count_del = 0;
+    if (PyRefTracer_SetTracer(&ref_trace_callback, (void *) &data)) {
+        return -1;
+    }
+
+    /* Do some important stuff here... */
+    PyObject *p_list = PyList_New(0);
+#if 0
+    /* This apparently looks OK but only as we are using eternal objects. */
+    for (long i = 0; i < 8; ++i) {
+        PyList_Append(p_list, PyLong_FromLong(i));
+    }
+#endif
+#if 0
+    /* This does not look OK because append() does not steal. */
+    for (long i = 1024; i < 1024 + 8; ++i) {
+        PyList_Append(p_list, PyLong_FromLong(i));
+    }
+#endif
+#if 1
+    /* This works as we correctly decref the value.. */
+    for (long i = 1024; i < 1024 + 8; ++i) {
+        PyObject *value = PyLong_FromLong(i);
+        PyList_Append(p_list, value);
+        Py_DECREF(value);
+    }
+#endif
+    Py_DECREF(p_list);
+
+    /* Switch the tracer off. */
+    if (PyRefTracer_SetTracer(NULL, NULL)) {
+        return -1;
+    }
+    /* Now write out the results. */
+    fprintf(stdout, "%s(): New: %zu Del: %zu\n",
+            __FUNCTION__, data.count_new, data.count_del
+    );
+    return 0;
+}
+
+#endif // REFERENCE_TRACING_AVAILABLE
+
+/** Debug trace wrapper. */
+int debug_cPyMemtrace_trace_wrapper(void) {
+    {
+        if (PyType_Ready(&cpyTraceFileWrapperType) < 0) {
+            return -8;
+        }
+        Py_INCREF(&cpyTraceFileWrapperType);
+
+        cpyTraceFileWrapper *trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(
+                &cpyTraceFileWrapperType, NULL, NULL
+        );
+        fprintf(stdout, "cpyTraceFileWrapper *trace_wrapper:\n");
+        PyObject_Print((PyObject *) trace_wrapper, stdout, Py_PRINT_RAW);
+
+        PyFrameObject *frame_object = PyEval_GetFrame();
+        trace_wrapper_write_frame_data_to_event_text(trace_wrapper, frame_object, PyTrace_CALL, Py_None);
+
+        Py_DECREF((PyObject *) trace_wrapper);
+    }
+    /* END: Debug trace wrapper. */
+    return 0;
+}
+
+/** Debug profile wrapper. */
+int debug_cPyMemtrace_profile_wrapper(void) {
+    if (PyType_Ready(&cpyProfileObjectType) < 0) {
+        return -16;
+    }
+    Py_INCREF(&cpyProfileObjectType);
+
+    cpyProfileOrTraceObject *profile_object = (cpyProfileOrTraceObject *) cpyProfileOrTraceObject_new(
+            &cpyProfileObjectType, NULL, NULL
+    );
+    {
+        PyObject *py_args = Py_BuildValue("()");
+//            PyObject *py_kwargs = Py_BuildValue("{}");
+
+        PyObject *py_kwargs = Py_BuildValue("{ss}", "filepath", "Profile_foo_bar_baz.log");
+        PyObject_Print((PyObject *) py_kwargs, stdout, Py_PRINT_RAW);
+        fputc('\n', stdout);
+        int init = cpyProfileOrTraceObject_init(profile_object, py_args, py_kwargs);
+
+        Py_DECREF(py_args);
+        Py_DECREF(py_kwargs);
+        fprintf(stdout, "cpyProfileOrTraceObject_init() returned %d\n", init);
+        PyObject_Print((PyObject *) profile_object, stdout, Py_PRINT_RAW);
+        fprintf(stdout, "\n");
+    }
+
+/* This attaches the profiler to the Python runtime. */
+    PyObject *result_enter = ProfileObject_enter(profile_object);
+    fprintf(stdout, "result_enter:\n");
+    PyObject_Print(result_enter, stdout, Py_PRINT_RAW);
+    fprintf(stdout, "\n");
+
+#if 0
+    /* TODO: Write to the profiler by calling a Python function. */
+        PyObject *code_object = Py_CompileStringObject(
+                "import os; os.getpid()\n" /* const char *str */,
+                NULL /*PyObject *filename */,
+                Py_eval_input /* int start */,
+                NULL /* PyCompilerFlags *flags */,
+                -1 /* int optimize */
+        );
+        fprintf(stdout, "Py_CompileStringObject: ");
+        PyObject_Print(code_object, stdout, Py_PRINT_RAW);
+        fprintf(stdout, "\n");
+        PyObject *eval_result = PyEval_EvalCode(
+                code_object /* PyObject *co */,
+                NULL /* PyObject *globals */,
+                NULL /* PyObject *locals */
+        );
+        fprintf(stdout, "Py_CompileStringObject: ");
+        PyObject_Print(eval_result, stdout, Py_PRINT_RAW);
+        fprintf(stdout, "\n");
+#endif
+
+/* This detaches the profiler from the Python runtime. */
+    PyObject *result_exit = ProfileObject_exit(profile_object, NULL);
+    fprintf(stdout, "result_exit: ");
+    if (result_exit) {
+        PyObject_Print(result_exit, stdout, Py_PRINT_RAW);
+    } else {
+        fprintf(stdout, "NULL");
+    }
+    fprintf(stdout, "\n");
+
+/* Context manager example:
+ *  with cPyMemTrace.Profile(message=message) as profiler:
+ *      # profiler will have refcount of 2, one from the ctor, one from __enter__.
+ *  # profiler has a refcount of 1 as __exit__ decrements self.
+ *  del profiler
+ *  # profiler has a refcount of 0 and is deallocated.
+ */
+    fprintf(stdout, "First decref from %zd\n", Py_REFCNT(profile_object));
+    Py_DECREF((PyObject *) profile_object);
+    fprintf(stdout, "Second decref from %zd\n", Py_REFCNT(profile_object));
+    Py_DECREF((PyObject *) profile_object);
+    /* END: Debug profile wrapper. */
+    return 0;
+}
+
+#if REFERENCE_TRACING_AVAILABLE
+/** Debug Reference Tracing wrapper. */
+int debug_cPyMemtrace_reference_tracing(void) {
+    PyObject *datetime_module = PyImport_ImportModule("datetime");
+    if (!datetime_module) {
+        fprintf(stderr, "Can not import the \"datetime\" module.");
+        return -32;
+    }
+    if (PyType_Ready(&cpyReferenceTracingType) < 0) {
+        return -64;
+    }
+    Py_INCREF(&cpyReferenceTracingType);
+
+    cpyReferenceTracing *ref_tracing_object = (cpyReferenceTracing *) cpyReferenceTracing_new(
+            &cpyReferenceTracingType, NULL, NULL
+    );
+    {
+        PyObject *py_args = Py_BuildValue("()");
+        PyObject *py_kwargs = Py_BuildValue("{ss}", "filepath", "foo_bar_baz.log");
+        PyObject_Print((PyObject *) py_kwargs, stdout, Py_PRINT_RAW);
+        fputc('\n', stdout);
+        int init = cpyReferenceTracing_init(ref_tracing_object, py_args, py_kwargs);
+        Py_DECREF(py_args);
+        Py_DECREF(py_kwargs);
+        fprintf(stdout, "cpyReferenceTracing_init() returned %d\n", init);
+        PyObject_Print((PyObject *) ref_tracing_object, stdout, Py_PRINT_RAW);
+        fprintf(stdout, "\n");
+
+        PyObject *result_enter = cpyReferenceTracing_enter(ref_tracing_object);
+        fprintf(stdout, "result_enter:\n");
+        PyObject_Print(result_enter, stdout, Py_PRINT_RAW);
+        fprintf(stdout, "\n");
+
+        /* This detaches the profiler from the Python runtime. */
+        PyObject *result_exit = cpyReferenceTracing_exit(ref_tracing_object, NULL);
+        fprintf(stdout, "result_exit: ");
+        if (result_exit) {
+            PyObject_Print(result_exit, stdout, Py_PRINT_RAW);
+        } else {
+            fprintf(stdout, "NULL");
+        }
+        fprintf(stdout, "\n");
+        Py_DECREF(result_enter);
+    }
+    Py_DECREF(ref_tracing_object);
+    return 0;
+}
+#endif // REFERENCE_TRACING_AVAILABLE
+
 /**
  * Debug code.
  *
@@ -3787,7 +4013,7 @@ debug_cPyMemtrace(int argc, char **argv) {
             PY_RELEASE_LEVEL,
             PY_RELEASE_SERIAL,
             PY_VERSION
-            );
+    );
 
     /* Run the repl. exit() in the console to terminate, the rest of this code will not run. */
 #if 0
@@ -3798,153 +4024,30 @@ debug_cPyMemtrace(int argc, char **argv) {
     }
 #endif
 
-    {
-        /* Debug trace wrapper. */
-        {
-            if (PyType_Ready(&cpyTraceFileWrapperType) < 0) {
-                return -8;
-            }
-            Py_INCREF(&cpyTraceFileWrapperType);
-
-            cpyTraceFileWrapper *trace_wrapper = (cpyTraceFileWrapper *) cpyTraceFileWrapper_new(
-                    &cpyTraceFileWrapperType, NULL, NULL
-            );
-            fprintf(stdout, "cpyTraceFileWrapper *trace_wrapper:\n");
-            PyObject_Print((PyObject *) trace_wrapper, stdout, Py_PRINT_RAW);
-
-            PyFrameObject *frame_object = PyEval_GetFrame();
-            trace_wrapper_write_frame_data_to_event_text(trace_wrapper, frame_object, PyTrace_CALL, Py_None);
-
-            Py_DECREF((PyObject *) trace_wrapper);
-        }
+    int err = 0;
+    err = debug_cPyMemtrace_trace_wrapper();
+    if (err) {
+        return err;
     }
-    /* END: Debug trace wrapper. */
-
-    /* Debug profile wrapper. */
-    {
-        if (PyType_Ready(&cpyProfileObjectType) < 0) {
-            return -16;
-        }
-        Py_INCREF(&cpyProfileObjectType);
-
-        cpyProfileOrTraceObject *profile_object = (cpyProfileOrTraceObject *) cpyProfileOrTraceObject_new(
-                &cpyProfileObjectType, NULL, NULL
-        );
-        {
-            PyObject *py_args = Py_BuildValue("()");
-//            PyObject *py_kwargs = Py_BuildValue("{}");
-
-            PyObject *py_kwargs = Py_BuildValue("{ss}", "filepath", "Profile_foo_bar_baz.log");
-            PyObject_Print((PyObject *) py_kwargs, stdout, Py_PRINT_RAW);
-            fputc('\n', stdout);
-            int init = cpyProfileOrTraceObject_init(profile_object, py_args, py_kwargs);
-
-            Py_DECREF(py_args);
-            Py_DECREF(py_kwargs);
-            fprintf(stdout, "cpyProfileOrTraceObject_init() returned %d\n", init);
-            PyObject_Print((PyObject *) profile_object, stdout, Py_PRINT_RAW);
-            fprintf(stdout, "\n");
-        }
-
-        /* This attaches the profiler to the Python runtime. */
-        PyObject *result_enter = ProfileObject_enter(profile_object);
-        fprintf(stdout, "result_enter:\n");
-        PyObject_Print(result_enter, stdout, Py_PRINT_RAW);
-        fprintf(stdout, "\n");
-
-#if 0
-        /* TODO: Write to the profiler by calling a Python function. */
-    PyObject *code_object = Py_CompileStringObject(
-            "import os; os.getpid()\n" /* const char *str */,
-            NULL /*PyObject *filename */,
-            Py_eval_input /* int start */,
-            NULL /* PyCompilerFlags *flags */,
-            -1 /* int optimize */
-    );
-    fprintf(stdout, "Py_CompileStringObject: ");
-    PyObject_Print(code_object, stdout, Py_PRINT_RAW);
-    fprintf(stdout, "\n");
-    PyObject *eval_result = PyEval_EvalCode(
-            code_object /* PyObject *co */,
-            NULL /* PyObject *globals */,
-            NULL /* PyObject *locals */
-    );
-    fprintf(stdout, "Py_CompileStringObject: ");
-    PyObject_Print(eval_result, stdout, Py_PRINT_RAW);
-    fprintf(stdout, "\n");
-#endif
-
-        /* This detaches the profiler from the Python runtime. */
-        PyObject *result_exit = ProfileObject_exit(profile_object, NULL);
-        fprintf(stdout, "result_exit: ");
-        if (result_exit) {
-            PyObject_Print(result_exit, stdout, Py_PRINT_RAW);
-        } else {
-            fprintf(stdout, "NULL");
-        }
-        fprintf(stdout, "\n");
-
-        /* Context manager example:
-         *  with cPyMemTrace.Profile(message=message) as profiler:
-         *      # profiler will have refcount of 2, one from the ctor, one from __enter__.
-         *  # profiler has a refcount of 1 as __exit__ decrements self.
-         *  del profiler
-         *  # profiler has a refcount of 0 and is deallocated.
-         */
-        fprintf(stdout, "First decref from %zd\n", Py_REFCNT(profile_object));
-        Py_DECREF((PyObject *) profile_object);
-        fprintf(stdout, "Second decref from %zd\n", Py_REFCNT(profile_object));
-        Py_DECREF((PyObject *) profile_object);
+    err = debug_cPyMemtrace_profile_wrapper();
+    if (err) {
+        return err;
     }
-    /* END: Debug profile wrapper. */
 
 #if REFERENCE_TRACING_AVAILABLE
-    /* Debug Reference Tracing wrapper. */
-    {
-        PyObject *datetime_module = PyImport_ImportModule("datetime");
-        if (!datetime_module) {
-            fprintf(stderr, "Can not import the \"datetime\" module.");
-            return -32;
-        }
-        if (PyType_Ready(&cpyReferenceTracingType) < 0) {
-            return -64;
-        }
-        Py_INCREF(&cpyReferenceTracingType);
-
-        cpyReferenceTracing *ref_tracing_object = (cpyReferenceTracing *) cpyReferenceTracing_new(
-                &cpyReferenceTracingType, NULL, NULL
-        );
-        {
-            PyObject *py_args = Py_BuildValue("()");
-            PyObject *py_kwargs = Py_BuildValue("{ss}", "filepath", "foo_bar_baz.log");
-            PyObject_Print((PyObject *) py_kwargs, stdout, Py_PRINT_RAW);
-            fputc('\n', stdout);
-            int init = cpyReferenceTracing_init(ref_tracing_object, py_args, py_kwargs);
-            Py_DECREF(py_args);
-            Py_DECREF(py_kwargs);
-            fprintf(stdout, "cpyReferenceTracing_init() returned %d\n", init);
-            PyObject_Print((PyObject *) ref_tracing_object, stdout, Py_PRINT_RAW);
-            fprintf(stdout, "\n");
-
-            PyObject *result_enter = cpyReferenceTracing_enter(ref_tracing_object);
-            fprintf(stdout, "result_enter:\n");
-            PyObject_Print(result_enter, stdout, Py_PRINT_RAW);
-            fprintf(stdout, "\n");
-
-            /* This detaches the profiler from the Python runtime. */
-            PyObject *result_exit = cpyReferenceTracing_exit(ref_tracing_object, NULL);
-            fprintf(stdout, "result_exit: ");
-            if (result_exit) {
-                PyObject_Print(result_exit, stdout, Py_PRINT_RAW);
-            } else {
-                fprintf(stdout, "NULL");
-            }
-            fprintf(stdout, "\n");
-            Py_DECREF(result_enter);
-        }
-        Py_DECREF(ref_tracing_object);
+    err = debug_cPyMemtrace_reference_tracing();
+    if (err) {
+        return err;
     }
     test_reftracer();
+    {
+        fprintf(stdout, "\nimportant_function() starting\n");
+        err = important_function();
+        fprintf(stdout, "important_function() returns %d\n\n", err);
+        if (err) {
+            return err;
+        }
+    }
     /* End: Debug Reference Tracing wrapper. */
 #endif // REFERENCE_TRACING_AVAILABLE
 
