@@ -4,7 +4,12 @@
  *
  * Functions to cause memory usage and leaks in C and CPython.
  *
-*/
+ * NOTE: There is another allocator "Object allocators".
+ * https://docs.python.org/3/c-api/memory.html#object-allocators
+ * but looking at this table: https://docs.python.org/3/c-api/memory.html#default-memory-allocators
+ * it seems to have the same behaviour of \c PyMem_Malloc() .
+ *
+ */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include "structmember.h"
@@ -23,13 +28,14 @@
 // MARK: CMallocObject
 
 /**
- * Allocate a buffer with C's malloc()
+ * \c CMallocObject allocates a buffer of a specific size with C's \c malloc()
+ * The buffer is uninitialised.
  */
 typedef struct {
     PyObject_HEAD
-    /** Size of buffer. */
+    /** Size of allocation. */
     size_t size;
-    /** Buffer created by malloc() */
+    /** Buffer created by \c malloc() */
     void *buffer;
 } CMallocObject;
 
@@ -133,7 +139,7 @@ CMallocObject_refcnt(CMallocObject *self, PyObject *Py_UNUSED(args)) {
  * Increment or decrement the reference count.
  *
  * @param self The \c CMallocObject object.
- * @param arg The amount ot increment or decrement the reference count.
+ * @param arg The amount ot increment (if positive value) or decrement (if negative value) the reference count.
  * @return The new reference count.
  */
 static PyObject *
@@ -221,13 +227,24 @@ static PyTypeObject CMallocObjectType = {
 
 // MARK: PyRawMallocObject
 
-/******** Allocate a buffer with Python's raw memory interface ********/
+/**
+ * \c PyRawMallocObject allocates a buffer of a specific size with
+ * Python's raw memory interface \c PyMem_RawMalloc() .
+ * The buffer is uninitialised.
+ */
 typedef struct {
     PyObject_HEAD
+    /** The size of the allocation. */
     size_t size;
-    void *buffer; /* Buffer created by PyMem_RawMalloc() */
+    /** The buffer created by \c PyMem_RawMalloc() */
+    void *buffer; /* Buffer created by  */
 } PyRawMallocObject;
 
+/**
+ * De-allocate the buffer.
+ *
+ * @param self The \c PyRawMallocObject object.
+ */
 static void
 PyRawMallocObject_dealloc(PyRawMallocObject *self) {
 #ifdef DEBUG_REPORT_MALLOC_FREE
@@ -237,6 +254,14 @@ PyRawMallocObject_dealloc(PyRawMallocObject *self) {
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
+/**
+ * Create an instance of the \c PyRawMallocObject type.
+ *
+ * @param type The \c PyRawMallocObject type.
+ * @param _unused_args
+ * @param _unused_kwds
+ * @return The \c PyRawMallocObject instance.
+ */
 static PyObject *
 PyRawMallocObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
     PyRawMallocObject *self;
@@ -248,6 +273,15 @@ PyRawMallocObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *P
     return (PyObject *) self;
 }
 
+/**
+ * Initialise the \c PyRawMallocObject object.
+ * This allocates memory with \c PyMem_RawMalloc()
+ *
+ * @param self The \c PyRawMallocObject object.
+ * @param args The size of the allocation.
+ * @param kwds The "size" keyword used for the allocation size.
+ * @return Zero on success, non-zero on failure and an exception will have been set.
+ */
 static int
 PyRawMallocObject_init(PyRawMallocObject *self, PyObject *args, PyObject *kwds) {
     static char *kwlist[] = {"size", NULL};
@@ -268,21 +302,49 @@ PyRawMallocObject_init(PyRawMallocObject *self, PyObject *args, PyObject *kwds) 
     return 0;
 }
 
+/**
+ * Return the size of the buffer as a getter.
+ *
+ * @param self The \c PyRawMallocObject object.
+ * @param _unused_closure
+ * @return The size of the buffer.
+ */
 static PyObject *
 PyRawMallocObject_getsize(PyRawMallocObject *self, void *Py_UNUSED(closure)) {
     return PyLong_FromSsize_t(self->size);
 }
 
+/**
+ * Return the buffer address as a getter.
+ *
+ * @param self The \c PyRawMallocObject object.
+ * @param _unused_closure
+ * @return The buffer address.
+ */
 static PyObject *
 PyRawMallocObject_getbuffer(PyRawMallocObject *self, void *Py_UNUSED(closure)) {
     return PyLong_FromSsize_t((size_t)(self->buffer));
 }
 
+/**
+ * Return the reference count.
+ *
+ * @param self The \c PyRawMallocObject object.
+ * @param _unused_args
+ * @return The reference count.
+ */
 static PyObject *
 PyRawMallocObject_refcnt(PyRawMallocObject *self, PyObject *Py_UNUSED(args)) {
     return PyLong_FromSsize_t(Py_REFCNT(self));
 }
 
+/**
+ * Increment or decrement the reference count.
+ *
+ * @param self The \c PyRawMallocObject object.
+ * @param arg The amount ot increment (if positive value) or decrement (if negative value) the reference count.
+ * @return The new reference count.
+ */
 static PyObject *
 PyRawMallocObject_inc_refcnt(PyRawMallocObject *self, PyObject *arg) {
     assert(!PyErr_Occurred());
@@ -304,17 +366,26 @@ PyRawMallocObject_inc_refcnt(PyRawMallocObject *self, PyObject *arg) {
     return PyLong_FromSsize_t(Py_REFCNT(self));
 }
 
+/**
+ * \c PyRawMallocObject members (none).
+ */
 static PyMemberDef PyRawMallocObject_members[] = {
 //    {"size", T_ULONG, offsetof(PyRawMallocObject, size), 0, "Buffer size."},
     {NULL, 0, 0, 0, NULL}  /* Sentinel */
 };
 
+/**
+ * \c PyRawMallocObject getters and setters.
+ */
 static PyGetSetDef PyRawMallocObject_getsetters[] = {
     {"size", (getter) PyRawMallocObject_getsize, (setter) NULL, "Buffer size.", NULL},
     {"buffer", (getter) PyRawMallocObject_getbuffer, (setter) NULL, "Buffer address.", NULL},
     {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 
+/**
+ * \c PyRawMallocObject methods.
+ */
 static PyMethodDef PyRawMallocObject_methods[] = {
         {
                 "refcnt",
@@ -339,6 +410,9 @@ PyDoc_STRVAR(
     " Actual reserved memory is always >=1 byte."
 );
 
+/**
+ * The \c PyRawMallocObject type definition.
+ */
 static PyTypeObject PyRawMallocObjectType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "cMemLeak.PyRawMalloc",
@@ -355,13 +429,31 @@ static PyTypeObject PyRawMallocObjectType = {
 };
 /******** END: Allocate a buffer with Python's raw memory interface ********/
 
+// MARK: PyMallocObject
+
 /******** Allocate a buffer with Python's pymalloc memory interface ********/
+/**
+ * \c PyMallocObject allocates a buffer of a specific size with
+ * Python's memory interface \c PyMem_Malloc() .
+ * The buffer is uninitialised.
+ *
+ * See: https://docs.python.org/3/c-api/memory.html#c.PyMem_Malloc
+ */
 typedef struct {
     PyObject_HEAD
+    /** The size of the allocation. */
     size_t size;
+    /** The buffer created by \c PyMem_Malloc() */
     void *buffer; /* Buffer created by PyMem_Malloc() */
 } PyMallocObject;
 
+/**
+ * De-allocate the buffer using \c PyMem_Free() .
+ *
+ * See: https://docs.python.org/3/c-api/memory.html#c.PyMem_Free
+ *
+ * @param self The \c PyMallocObject object.
+ */
 static void
 PyMallocObject_dealloc(PyMallocObject *self) {
 #ifdef DEBUG_REPORT_MALLOC_FREE
@@ -371,6 +463,14 @@ PyMallocObject_dealloc(PyMallocObject *self) {
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
+/**
+ * Create an instance of the \c PyMallocObject type.
+ *
+ * @param type The \c PyMallocObject type.
+ * @param _unused_args
+ * @param _unused_kwds
+ * @return The \c PyMallocObject instance.
+ */
 static PyObject *
 PyMallocObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
     PyMallocObject *self;
@@ -382,6 +482,15 @@ PyMallocObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_U
     return (PyObject *) self;
 }
 
+/**
+ * Initialise the \c PyMallocObject object.
+ * This allocates memory with \c PyMem_RawMalloc()
+ *
+ * @param self The \c PyMallocObject object.
+ * @param args The size of the allocation.
+ * @param kwds The "size" keyword used for the allocation size.
+ * @return Zero on success, non-zero on failure and an exception will have been set.
+ */
 static int
 PyMallocObject_init(PyMallocObject *self, PyObject *args, PyObject *kwds) {
     static char *kwlist[] = {"size", NULL};
@@ -402,22 +511,50 @@ PyMallocObject_init(PyMallocObject *self, PyObject *args, PyObject *kwds) {
     return 0;
 }
 
+/**
+ * Return the size of the buffer as a getter.
+ *
+ * @param self The \c PyMallocObject object.
+ * @param _unused_closure
+ * @return The size of the buffer.
+ */
 static PyObject *
 PyMallocObject_getsize(PyMallocObject *self, void *Py_UNUSED(closure)) {
     return PyLong_FromSsize_t(self->size);
 }
 
+/**
+ * Return the buffer address as a getter.
+ *
+ * @param self The \c PyMallocObject object.
+ * @param _unused_closure
+ * @return The buffer address.
+ */
 static PyObject *
 PyMallocObject_getbuffer(PyMallocObject *self, void *Py_UNUSED(closure)) {
     return PyLong_FromSsize_t((size_t)(self->buffer));
 }
 
 
+/**
+ * Increment or decrement the reference count.
+ *
+ * @param self The \c PyMallocObject object.
+ * @param arg The amount ot increment (if positive value) or decrement (if negative value) the reference count.
+ * @return The new reference count.
+ */
 static PyObject *
 PyMallocObject_refcnt(PyMallocObject *self, PyObject *Py_UNUSED(args)) {
     return PyLong_FromSsize_t(Py_REFCNT(self));
 }
 
+/**
+ * Increment or decrement the reference count.
+ *
+ * @param self The \c PyMallocObject object.
+ * @param arg The amount ot increment (if positive value) or decrement (if negative value) the reference count.
+ * @return The new reference count.
+ */
 static PyObject *
 PyMallocObject_inc_refcnt(PyMallocObject *self, PyObject *arg) {
     assert(!PyErr_Occurred());
@@ -439,17 +576,26 @@ PyMallocObject_inc_refcnt(PyMallocObject *self, PyObject *arg) {
     return PyLong_FromSsize_t(Py_REFCNT(self));
 }
 
+/**
+ * \c PyMallocObject members (none).
+ */
 static PyMemberDef PyMallocObject_members[] = {
 //    {"size", T_ULONG, offsetof(PyMallocObject, size), 0, "Buffer size."},
     {NULL, 0, 0, 0, NULL}  /* Sentinel */
 };
 
+/**
+ * \c PyMallocObject getters and setters.
+ */
 static PyGetSetDef PyMallocObject_getsetters[] = {
     {"size", (getter) PyMallocObject_getsize, (setter) NULL, "Buffer size.", NULL},
     {"buffer", (getter) PyMallocObject_getbuffer, (setter) NULL, "Buffer address.", NULL},
     {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 
+/**
+ * \c PyMallocObject methods.
+ */
 static PyMethodDef PyMallocObject_methods[] = {
         {
                 "refcnt",
@@ -474,6 +620,9 @@ PyDoc_STRVAR(
     " Actual reserved memory is always >=1 byte."
 );
 
+/**
+ * The \c PyMallocObject type definition.
+ */
 static PyTypeObject PyMallocObjectType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "cMemLeak.PyMalloc",
@@ -490,6 +639,7 @@ static PyTypeObject PyMallocObjectType = {
 };
 /******** END: Allocate a buffer with Python's pymalloc memory interface ********/
 
+// MARK: Module methods.
 /**
  * Increments the reference count by 1 of the supplied PyObject.
  * This will cause a memory leak.
@@ -588,6 +738,9 @@ py_bytes_of_size(PyObject *Py_UNUSED(module), PyObject *args, PyObject *kwds) {
     return PyBytes_FromStringAndSize(NULL, size);
 }
 
+/**
+ * \c cMemLeak module method table.
+ */
 static PyMethodDef MemLeakMethods[] = {
     {"py_incref",   (PyCFunction) py_incref, METH_O,
      "Increment the reference count of the Python object."},
@@ -602,6 +755,9 @@ static PyMethodDef MemLeakMethods[] = {
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
+/**
+ * \c cMemLeak module definition.
+ */
 static PyModuleDef cMemLeakmodule = {
     PyModuleDef_HEAD_INIT,
     .m_name = "cMemLeak",
@@ -610,6 +766,9 @@ static PyModuleDef cMemLeakmodule = {
     .m_methods = MemLeakMethods,
 };
 
+/**
+ * \c cMemLeak module initialisation.
+ */
 PyMODINIT_FUNC
 PyInit_cMemLeak(void) {
     PyObject *m;
