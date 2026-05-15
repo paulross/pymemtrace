@@ -391,7 +391,7 @@ trace_wrapper_write_event_time_to_event_text(cpyTraceFileWrapper *trace_wrapper)
 static void
 trace_wrapper_write_message_to_log_file(
         cpyTraceFileWrapper *trace_wrapper,
-        const char *message,
+        char *message,
         int include_prefix,
         int newline
 ) {
@@ -576,7 +576,7 @@ cpyTraceFileWrapper_write_message_to_log(cpyTraceFileWrapper *self, PyObject *op
     }
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     Py_UCS1 *c_str = PyUnicode_1BYTE_DATA(op);
-    trace_wrapper_write_message_to_log_file(self, (const char *) c_str, 1, 1);
+    trace_wrapper_write_message_to_log_file(self, (char *) c_str, 1, 1);
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     Py_RETURN_NONE;
 }
@@ -3435,6 +3435,61 @@ profile_wrapper_log_path(void) {
 }
 
 /**
+ * This module level function writes a message to the current Profiler or Tracer log path.
+ *
+ * @param _unused_module
+ * @param py_message The message, a unicode string.
+ * @return None
+ */
+static int
+profile_trace_wrapper_write_message_to_log(cpyTraceFileWrapper *profile_wrapper, PyObject *py_message) {
+    assert(!PyErr_Occurred());
+
+    if (profile_wrapper) {
+        if (!profile_wrapper->file) {
+            PyErr_SetString(PyExc_IOError, "Profile log file is closed.");
+            return -1;
+        }
+        if (!PyUnicode_Check(py_message)) {
+            PyErr_Format(
+                    PyExc_ValueError,
+                    "write_to_log() requires a single string, not type %s",
+                    Py_TYPE(py_message)->tp_name
+            );
+            return -2;
+        }
+        Py_UCS1 *c_str = PyUnicode_1BYTE_DATA(py_message);
+        trace_wrapper_write_message_to_log_file(profile_wrapper, (char *)c_str, 1, 1);
+    }
+    return 0;
+}
+
+/**
+ * This module level function writes a message to the current Profiler log path.
+ *
+ * @param _unused_module
+ * @param py_message The message, a unicode string.
+ * @return None
+ */
+static PyObject *
+profile_wrapper_write_message_to_log(PyObject *Py_UNUSED(module), PyObject *py_message) {
+    assert(!PyErr_Occurred());
+    cpyTraceFileWrapper *profile_wrapper = wrapper_ll_get(static_profile_ll);
+    if (!profile_wrapper) {
+        PyErr_SetString(
+                PyExc_ValueError,
+                "Trying to write to a profile log file when no reference tracer is active."
+        );
+        return NULL;
+    }
+    if (profile_trace_wrapper_write_message_to_log(profile_wrapper, py_message)) {
+        assert(PyErr_Occurred());
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
+/**
  * @return The number of Tracers in the linked list as a Python integer.
  */
 static PyObject *
@@ -3456,6 +3511,31 @@ trace_wrapper_log_path(void) {
     cpyTraceFileWrapper *profile_wrapper = wrapper_ll_get(static_trace_ll);
     if (profile_wrapper && profile_wrapper->log_file_path) {
         return Py_BuildValue("s", profile_wrapper->log_file_path);
+    }
+    Py_RETURN_NONE;
+}
+
+/**
+ * This module level function writes a message to the current Tracer log path.
+ *
+ * @param _unused_module
+ * @param py_message The message, a unicode string.
+ * @return None
+ */
+static PyObject *
+trace_wrapper_write_message_to_log(PyObject *Py_UNUSED(module), PyObject *py_message) {
+    assert(!PyErr_Occurred());
+    cpyTraceFileWrapper *trace_wrapper = wrapper_ll_get(static_trace_ll);
+    if (!trace_wrapper) {
+        PyErr_SetString(
+                PyExc_ValueError,
+                "Trying to write to a trace log file when no reference tracer is active."
+        );
+        return NULL;
+    }
+    if (profile_trace_wrapper_write_message_to_log(trace_wrapper, py_message)) {
+        assert(PyErr_Occurred());
+        return NULL;
     }
     Py_RETURN_NONE;
 }
@@ -3497,6 +3577,30 @@ reference_tracing_log_path(void) {
     Py_RETURN_NONE;
 }
 
+/**
+ * This module level function writes a message to the current Tracer log path.
+ *
+ * @param _unused_module
+ * @param py_message The message, a unicode string.
+ * @return None
+ */
+static PyObject *
+reference_tracing_write_message_to_log(PyObject *Py_UNUSED(module), PyObject *py_message) {
+    assert(!PyErr_Occurred());
+    struct reference_tracing_data *ref_trace_data = reference_tracing_ll_get_data();
+    if (!ref_trace_data) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Trying to write to a reference tracing log file when no reference tracer is active."
+        );
+        return NULL;
+    }
+    Py_UCS1 *c_str = PyUnicode_1BYTE_DATA(py_message);
+    /* Discard return value, the number of characters written. */
+    cpyReferenceTracing_write_c_message_to_log(ref_trace_data, (char *)c_str);
+    Py_RETURN_NONE;
+}
+
 #endif // #if REFERENCE_TRACING_AVAILABLE
 
 /**
@@ -3528,6 +3632,12 @@ static PyMethodDef cPyMemTraceMethods[] = {
                 "Return log path of the current profile wrapper.",
         },
         {
+                "profile_write_message_to_log",
+                (PyCFunction) profile_wrapper_write_message_to_log,
+                METH_O,
+                "Write a message to the log of the current profile wrapper.",
+        },
+        {
                 "trace_wrapper_depth",
                 (PyCFunction) trace_wrapper_depth,
                 METH_NOARGS,
@@ -3538,6 +3648,12 @@ static PyMethodDef cPyMemTraceMethods[] = {
                 (PyCFunction) trace_wrapper_log_path,
                 METH_NOARGS,
                 "Return log path of the current trace wrapper.",
+        },
+        {
+                "trace_write_message_to_log",
+                (PyCFunction) trace_wrapper_write_message_to_log,
+                METH_O,
+                "Write a message to the log of the current trace wrapper.",
         },
 #if REFERENCE_TRACING_AVAILABLE
         {
@@ -3557,6 +3673,12 @@ static PyMethodDef cPyMemTraceMethods[] = {
                 (PyCFunction) reference_tracing_log_path,
                 METH_NOARGS,
                 "Return log path of the current Reference Trace.",
+        },
+        {
+                "reference_tracing_write_message_to_log",
+                (PyCFunction) reference_tracing_write_message_to_log,
+                METH_O,
+                "Write a message to the log of the current reference tracer.",
         },
 #endif // #if REFERENCE_TRACING_AVAILABLE
         {NULL, NULL, 0, NULL}        /* Sentinel */

@@ -3,7 +3,6 @@ At the moment these produce a log file per test.
 """
 import datetime
 import faulthandler
-import gc
 import os
 import pprint
 import random
@@ -40,10 +39,12 @@ def test_module_dir_pre_313():
         '__spec__',
         'profile_log_path',
         'profile_wrapper_depth',
+        'profile_write_message_to_log',
         'rss',
         'rss_peak',
         'trace_log_path',
         'trace_wrapper_depth',
+        'trace_write_message_to_log',
     ]
 
 
@@ -63,13 +64,16 @@ def test_module_dir_post_313():
         '__spec__',
         'profile_log_path',
         'profile_wrapper_depth',
+        'profile_write_message_to_log',
         'reference_tracing_log_path',
         'reference_tracing_simple_wrapper_depth',
         'reference_tracing_wrapper_depth',
+        'reference_tracing_write_message_to_log',
         'rss',
         'rss_peak',
         'trace_log_path',
         'trace_wrapper_depth',
+        'trace_write_message_to_log',
     ]
 
 
@@ -269,6 +273,68 @@ def test_profile_inline_message_to_log_file_pre_313(cls):
         print()
         print(f'File data [{len(file_data)}]:\n{file_data}')
         assert message in file_data
+
+
+def test_profile_module_level_message_to_log_file_pre_313():
+    message = 'test_profile_module_level_message_to_log_file_pre_313():'
+    with cPyMemTrace.Profile() as profiler:
+        b' ' * (1024 ** 2)
+        cPyMemTrace.profile_write_message_to_log(message)
+        log_file_path = profiler.log_file_path()
+    with open(log_file_path) as file:
+        file_data = file.read()
+        print()
+        print(f'File data [{len(file_data)}]:\n{file_data}')
+        assert message in file_data
+
+
+def test_trace_module_level_message_to_log_file_pre_313():
+    message = 'test_trace_module_level_message_to_log_file_pre_313():'
+    with cPyMemTrace.Trace() as profiler:
+        b' ' * (1024 ** 2)
+        cPyMemTrace.trace_write_message_to_log(message)
+        log_file_path = profiler.log_file_path()
+    with open(log_file_path) as file:
+        file_data = file.read()
+        print()
+        print(f'File data [{len(file_data)}]:\n{file_data}')
+        assert message in file_data
+
+
+def test_profile_module_level_message_to_log_file_raises_pre_313():
+    message = 'test_profile_module_level_message_to_log_file_raises_pre_313():'
+    with pytest.raises(ValueError) as err:
+        cPyMemTrace.profile_write_message_to_log(message)
+    assert err.value.args[0] == 'Trying to write to a profile log file when no reference tracer is active.'
+
+
+def test_trace_module_level_message_to_log_file_raises_pre_313():
+    message = 'test_trace_module_level_message_to_log_file_raises_pre_313():'
+    with pytest.raises(ValueError) as err:
+        cPyMemTrace.trace_write_message_to_log(message)
+    assert err.value.args[0] == 'Trying to write to a trace log file when no reference tracer is active.'
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_trace_module_level_message_to_log_file_post_313():
+    message = 'test_reference_trace_module_level_message_to_log_file_post_313():'
+    with cPyMemTrace.ReferenceTracing() as profiler:
+        b' ' * (1024 ** 2)
+        cPyMemTrace.reference_tracing_write_message_to_log(message)
+        log_file_path = profiler.log_file_path()
+    with open(log_file_path) as file:
+        file_data = file.read()
+        print()
+        print(f'File data [{len(file_data)}]:\n{file_data}')
+        assert message in file_data
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_trace_module_level_message_to_log_file_raises_post_313():
+    message = 'test_reference_trace_module_level_message_to_log_file_raises_post_313():'
+    with pytest.raises(ValueError) as err:
+        cPyMemTrace.reference_tracing_write_message_to_log(message)
+    assert err.value.args[0] == 'Trying to write to a reference tracing log file when no reference tracer is active.'
 
 
 @pytest.mark.parametrize(
@@ -646,11 +712,11 @@ def test_messaging_for_documentation(cls):
             str_len = random.randint(100 * 1024 ** 2, 500 * 1024 ** 2)
             profiler.write_message_to_log(f'Before allocation of {str_len} bytes.')
             s = ' ' * str_len
-            time.sleep(0.5)
+            # time.sleep(0.5)
             del s
             profiler.write_message_to_log(f'After de-allocation of {str_len} bytes.')
-            time.sleep(0.5)
-        time.sleep(0.5)
+            # time.sleep(0.5)
+        # time.sleep(0.5)
         with open(profiler.log_file_path()) as file:
             file_data = file.read()
             print()
