@@ -52,6 +52,7 @@ cpyRefTraceCount_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py
 static int
 cpyRefTraceCount_init(cpyRefTraceCount *self, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
     assert(!PyErr_Occurred());
+    assert(self);
     if (PyRefTracer_SetTracer(&ref_trace_callback, (void *) self->data)) {
         return -1;
     }
@@ -60,6 +61,7 @@ cpyRefTraceCount_init(cpyRefTraceCount *self, PyObject *Py_UNUSED(args), PyObjec
 
 static void
 cpyRefTraceCount_dealloc(cpyRefTraceCount *self) {
+    assert(self);
     free(self->data);
     self->data = NULL;
     /* De-register the tracer. */
@@ -70,12 +72,16 @@ cpyRefTraceCount_dealloc(cpyRefTraceCount *self) {
 static PyObject *
 cpyRefTraceCount_count_new(cpyRefTraceCount *self) {
     assert(!PyErr_Occurred());
+    assert(self);
+    assert(self->data);
     return PyLong_FromSize_t(self->data->count_new);
 }
 
 static PyObject *
 cpyRefTraceCount_count_del(cpyRefTraceCount *self) {
     assert(!PyErr_Occurred());
+    assert(self);
+    assert(self->data);
     return PyLong_FromSize_t(self->data->count_del);
 }
 
