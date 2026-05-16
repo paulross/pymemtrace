@@ -7,10 +7,17 @@
 #include <Python.h>
 #include "structmember.h"
 
+/* NOTEL ISO C requires a translation unit to contain at least one declaration [-Wempty-translation-unit] */
+
 struct ref_trace_data {
     size_t count_new;
     size_t count_del;
 };
+
+/**
+ * See https://docs.python.org/3/c-api/profiling.html#reference-tracing
+ */
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
 
 static int
 ref_trace_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data) {
@@ -148,3 +155,5 @@ PyInit_cPyRefTraceExample(void) {
     }
     return m;
 }
+
+#endif // PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
