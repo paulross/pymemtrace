@@ -60,6 +60,64 @@ if DEBUG:
 else:
     extra_compile_args.extend(['-O3', '-UDEBUG', '-DNDEBUG'])
 
+# Extensions
+ext_modules = [
+    Extension(
+        "pymemtrace.custom",
+        sources=[
+            'pymemtrace/src/cpy/cCustom.c',
+        ],
+        include_dirs=[
+            '/usr/local/include',
+            os.path.join('pymemtrace', 'src', 'include'),
+        ],
+        library_dirs=[os.getcwd(), ],  # path to .a or .so file(s)
+        extra_compile_args=extra_compile_args,
+    ),
+    Extension(
+        "pymemtrace.cPyMemTrace",
+        sources=[
+            'pymemtrace/src/c/get_rss.c',
+            'pymemtrace/src/c/pymemtrace_util.c',
+            'pymemtrace/src/cpy/cPyMemTrace.c',
+        ],
+        include_dirs=[
+            '/usr/local/include',
+            os.path.join('pymemtrace', 'src', 'include'),
+        ],
+        library_dirs=[os.getcwd(), ],  # path to .a or .so file(s)
+        extra_compile_args=extra_compile_args,
+    ),
+    Extension(
+        "pymemtrace.cMemLeak",
+        sources=[
+            'pymemtrace/src/cpy/cMemLeak.c',
+        ],
+        include_dirs=[
+            '/usr/local/include',
+            os.path.join('pymemtrace', 'src', 'include'),
+        ],
+        library_dirs=[os.getcwd(), ],  # path to .a or .so file(s)
+        extra_compile_args=extra_compile_args,
+    ),
+]
+
+if sys.version_info.major >= 3 and sys.version_info.minor >= 13:
+    ext_modules.append(
+        Extension(
+            "pymemtrace.cPyRefTraceExample",
+            sources=[
+                'pymemtrace/src/cpy/cPyRefTraceExample.c',
+            ],
+            include_dirs=[
+                '/usr/local/include',
+                os.path.join('pymemtrace', 'src', 'include'),
+            ],
+            library_dirs=[os.getcwd(), ],  # path to .a or .so file(s)
+            extra_compile_args=extra_compile_args,
+        ),
+    )
+
 setup(
     name='pymemtrace',
     version='0.5.1rc0',
@@ -109,7 +167,7 @@ setup(
         Extension(
             "pymemtrace.custom",
             sources=[
-              'pymemtrace/src/cpy/cCustom.c',
+                'pymemtrace/src/cpy/cCustom.c',
             ],
             include_dirs=[
                 '/usr/local/include',
@@ -121,9 +179,9 @@ setup(
         Extension(
             "pymemtrace.cPyMemTrace",
             sources=[
-              'pymemtrace/src/c/get_rss.c',
-              'pymemtrace/src/c/pymemtrace_util.c',
-              'pymemtrace/src/cpy/cPyMemTrace.c',
+                'pymemtrace/src/c/get_rss.c',
+                'pymemtrace/src/c/pymemtrace_util.c',
+                'pymemtrace/src/cpy/cPyMemTrace.c',
             ],
             include_dirs=[
                 '/usr/local/include',
@@ -135,7 +193,7 @@ setup(
         Extension(
             "pymemtrace.cPyRefTraceExample",
             sources=[
-              'pymemtrace/src/cpy/cPyRefTraceExample.c',
+                'pymemtrace/src/cpy/cPyRefTraceExample.c',
             ],
             include_dirs=[
                 '/usr/local/include',
@@ -147,7 +205,7 @@ setup(
         Extension(
             "pymemtrace.cMemLeak",
             sources=[
-              'pymemtrace/src/cpy/cMemLeak.c',
+                'pymemtrace/src/cpy/cMemLeak.c',
             ],
             include_dirs=[
                 '/usr/local/include',

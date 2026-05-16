@@ -1240,12 +1240,6 @@ def test_context_manager_refcounts_post_314():
     assert sys.getrefcount(f) == 1
 
 
-if __name__ == '__main__':
-    print('START')
-    test_profile_basic_gt_310()
-    print('FINISH')
-
-
 class StringAndTime:
     def __init__(self, size: int):
         self.now = datetime.datetime.now()
@@ -1321,3 +1315,9 @@ def create_string_and_time_a():
 def test_reference_tracing_nested_with_sig_log_files():
     print()
     create_string_and_time_a()
+
+
+if __name__ == '__main__':
+    print('START')
+    test_profile_basic_gt_310()
+    print('FINISH')

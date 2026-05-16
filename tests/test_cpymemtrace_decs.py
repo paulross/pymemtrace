@@ -107,6 +107,22 @@ if sys.version_info >= (3, 13):
 
 
     @cpymemtrace_decs.reference_tracing(
+        message='test_reference_tracing_decorator_write_messages()',
+    )
+    def test_reference_tracing_decorator_write_messages():
+        l = []
+        for i in range(4):
+            length = random.randint(20 * 1024 ** 2, 50 * 1024 ** 2)
+            cPyMemTrace.reference_tracing_write_message_to_log(f'Appending index {i} length {length}')
+            l.append(' ' * length)
+        while len(l):
+            l.pop()
+        assert os.path.isfile(cPyMemTrace.reference_tracing_log_path())
+        with open(cPyMemTrace.reference_tracing_log_path()) as f:
+            print(f.read())
+
+
+    @cpymemtrace_decs.reference_tracing(
         message='test_reference_tracing_decorator_outer_function_kwargs()',
     )
     def test_reference_tracing_decorator_outer_function_kwargs():
