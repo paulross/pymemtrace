@@ -1317,7 +1317,40 @@ def test_reference_tracing_nested_with_sig_log_files():
     create_string_and_time_a()
 
 
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_tracing_nested_with_sig_log_files():
+    print()
+    create_string_and_time_a()
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_write_message_to_log_file():
+    with cPyMemTrace.ReferenceTracing(
+            message="create_string_and_time_write_message_to_log_file()",
+    ) as ref_trace:
+        log_file_path = cPyMemTrace.reference_tracing_log_path()
+        print(f'ref_trace_a is logging to {log_file_path}')
+        list_of_str_and_time = []
+        for i in range(3):
+            str_len = random.randint(1024**2, 2048**2)
+            cPyMemTrace.reference_tracing_write_message_to_log(
+                f'Creating StringAndTime_A({str_len})'
+            )
+            v = StringAndTime_A(str_len)
+            list_of_str_and_time.append(v)
+        while len(list_of_str_and_time):
+            str_len = len(list_of_str_and_time[-1].str)
+            cPyMemTrace.reference_tracing_write_message_to_log(
+                f'list_of_str_and_time.pop() Length {str_len}'
+            )
+            list_of_str_and_time.pop()
+    assert os.path.isfile(log_file_path)
+    with open(log_file_path) as f:
+        print(f.read())
+
+
 if __name__ == '__main__':
     print('START')
-    test_profile_basic_gt_310()
+    # test_profile_basic_gt_310()
+    test_write_message_to_log_file()
     print('FINISH')
