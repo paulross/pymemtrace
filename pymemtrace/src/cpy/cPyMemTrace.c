@@ -64,6 +64,7 @@
 #include <time.h>
 #include <assert.h>
 
+#include "ht.h"
 #include "get_rss.h"
 #include "pymemtrace_util.h"
 
@@ -2012,6 +2013,8 @@ struct reference_tracing_data {
     PyObject *include_tp_names;
     /** The log file name. */
     char *log_file_name;
+    /** Hash table that maps {type_name : current_live_count, ...} */
+    ht* types_live_count;// = ht_create();
 };
 
 /**
@@ -2500,6 +2503,36 @@ reference_trace_type_include_matches(struct reference_tracing_data *data_alias, 
 }
 
 /**
+ * Change the hash table count of live types.
+ * If the type is not in the hash table the count for that type is set to delta.
+ *
+ * @param data The data structure that, among other things, contains the hash table.
+ * @param obj The Python object of a particular type.
+ * @param delta The amount to change the count. For example +1 to increase, -1 to decrease.
+ * @return 0 on success. Non-zero on error.
+ */
+static int
+increment_types_live_count(struct reference_tracing_data *data, PyObject *obj, int delta) {
+    const int ERROR_CODE = -1;
+    void *current_types_live_count = ht_get(data->types_live_count, Py_TYPE(obj)->tp_name);
+    if (current_types_live_count != NULL) {
+        /* Increment existing value. */
+        long *pcount = (long *)current_types_live_count;
+        *pcount += delta;
+    } else {
+        long *pcount = malloc(sizeof(long));
+        if (pcount == NULL) {
+            return ERROR_CODE;
+        }
+        *pcount = delta;
+        if (ht_set(data->types_live_count, Py_TYPE(obj)->tp_name, pcount) == NULL) {
+            return ERROR_CODE;
+        }
+    }
+    return 0;
+}
+
+/**
  * The callback function that is passed to \c PyRefTracer_SetTracer.
  * This writes to the log file.
  *
@@ -2643,15 +2676,21 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     long d_rss = (long) rss - (long) data_alias->rss;
     data_alias->rss = rss;
 
-    /* Write the event type. */
+    /* Write the event type and update the hash table of types -> count. */
     if (event == PyRefTracer_CREATE) {
         // Write the creation of an object.
         fputs("NEW:", data_alias->log_file);
         data_alias->count_new++;
+        if (increment_types_live_count(data_alias, obj, 1)) {
+            return ERROR_CODE;
+        }
     } else if (event == PyRefTracer_DESTROY) {
         // Write the destruction of an object.
         fputs("DEL:", data_alias->log_file);
         data_alias->count_del++;
+        if (increment_types_live_count(data_alias, obj, -1)) {
+            return ERROR_CODE;
+        }
     } else {
         // Unknown event. Note PyRefTracer_TRACKER_REMOVED is handled above.
         Py_UNREACHABLE();
@@ -2666,7 +2705,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     long object_size = sys_getsizeof(obj);
     // Should match:
     //     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-    //            "Clock", "Address", "RefCnt", "Sizeof", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    //            "Clock", "Address", "LiveCnt", "Sizeof", "Type", "File", "Line", "Function", "RSS", "dRSS"
     //    );
     snprintf(event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
              " %12.6f %16p %16ld %16ld %-32s %-80s %4d %-40s %16zd %16ld",
@@ -2682,15 +2721,20 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
              d_rss
              );
 #else
+    /* Get the count of live types. */
+    void *count_of_current_type = ht_get(data_alias->types_live_count, Py_TYPE(obj)->tp_name);
+    assert(count_of_current_type);
+
     // Should match:
     //     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-    //            "Clock", "Address", "RefCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    //            "Clock", "Address", "LiveCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
     //    );
     snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
              " %12.6f %16p %16ld %-32s %-80s %4d %-40s %16zd %16ld",
              clock_time,
              (void *) obj,
-             Py_REFCNT(obj),
+//             Py_REFCNT(obj),
+             *(long *)count_of_current_type,
              Py_TYPE(obj)->tp_name,
              py_frame_get_python_file_name(frame),
              py_frame_get_line_number(frame),
@@ -2759,6 +2803,10 @@ cpyReferenceTracing_dealloc(cpyReferenceTracing *self) {
         self->data->include_tp_names = NULL;
         free(self->data->log_file_name);
         self->data->log_file_name = NULL;
+        if (self->data->types_live_count != NULL) {
+            ht_destroy(self->data->types_live_count);
+            self->data->types_live_count = NULL;
+        }
         free(self->data);
         self->data = NULL;
     }
@@ -2793,6 +2841,7 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
         self->data->exclude_tp_names = NULL;
         self->data->include_tp_names = NULL;
         self->data->log_file_name = NULL;
+        self->data->types_live_count = NULL;
         self->py_specific_filename = NULL;
         self->message = NULL;
         /* Default to a full gc.collect() */
@@ -2881,6 +2930,11 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
                 self->gc_collect_on_exit
         );
         return -4;
+    }
+    self->data->types_live_count = ht_create();
+    if (self->data->types_live_count == NULL) {
+        PyErr_SetString(PyExc_MemoryError, "Can not allocate hash table of types count.");
+        return -5;
     }
     assert(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
@@ -3060,11 +3114,11 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     fputc('\n', self->data->log_file);
 #if REFERENCE_TRACING_GET_SIZEOF
     fprintf(self->data->log_file, "HDR: %12s %16s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-        "Clock", "Address", "RefCnt", "Sizeof", "Type", "File", "Line", "Function", "RSS", "dRSS"
+        "Clock", "Address", "LiveCnt", "Sizeof", "Type", "File", "Line", "Function", "RSS", "dRSS"
     );
 #else
     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-            "Clock", "Address", "RefCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
+            "Clock", "Address", "LiveCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
     );
 #endif // REFERENCE_TRACING_GET_SIZEOF
     /* Push the data onto the head of the linked list. */

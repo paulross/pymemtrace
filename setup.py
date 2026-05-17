@@ -78,6 +78,7 @@ ext_modules = [
         "pymemtrace.cPyMemTrace",
         sources=[
             'pymemtrace/src/c/get_rss.c',
+            'pymemtrace/src/c/ht.c',
             'pymemtrace/src/c/pymemtrace_util.c',
             'pymemtrace/src/cpy/cPyMemTrace.c',
         ],
@@ -163,56 +164,5 @@ setup(
         ],
     },
     # Extensions
-    ext_modules=[
-        Extension(
-            "pymemtrace.custom",
-            sources=[
-                'pymemtrace/src/cpy/cCustom.c',
-            ],
-            include_dirs=[
-                '/usr/local/include',
-                os.path.join('pymemtrace', 'src', 'include'),
-            ],
-            library_dirs=[os.getcwd(), ],  # path to .a or .so file(s)
-            extra_compile_args=extra_compile_args,
-        ),
-        Extension(
-            "pymemtrace.cPyMemTrace",
-            sources=[
-                'pymemtrace/src/c/get_rss.c',
-                'pymemtrace/src/c/pymemtrace_util.c',
-                'pymemtrace/src/cpy/cPyMemTrace.c',
-            ],
-            include_dirs=[
-                '/usr/local/include',
-                os.path.join('pymemtrace', 'src', 'include'),
-            ],
-            library_dirs=[os.getcwd(), ],  # path to .a or .so file(s)
-            extra_compile_args=extra_compile_args,
-        ),
-        Extension(
-            "pymemtrace.cPyRefTraceExample",
-            sources=[
-                'pymemtrace/src/cpy/cPyRefTraceExample.c',
-            ],
-            include_dirs=[
-                '/usr/local/include',
-                os.path.join('pymemtrace', 'src', 'include'),
-            ],
-            library_dirs=[os.getcwd(), ],  # path to .a or .so file(s)
-            extra_compile_args=extra_compile_args,
-        ),
-        Extension(
-            "pymemtrace.cMemLeak",
-            sources=[
-                'pymemtrace/src/cpy/cMemLeak.c',
-            ],
-            include_dirs=[
-                '/usr/local/include',
-                os.path.join('pymemtrace', 'src', 'include'),
-            ],
-            library_dirs=[os.getcwd(), ],  # path to .a or .so file(s)
-            extra_compile_args=extra_compile_args,
-        ),
-    ]
+    ext_modules=ext_modules
 )
