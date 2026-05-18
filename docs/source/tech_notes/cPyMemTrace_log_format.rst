@@ -284,7 +284,7 @@ The log file from the Reference Tracing object (Python 3.13+) has the following 
      - There will be only one of these at the start of the data.
    * - ``HDR:``
      - Space seperated list of column titles.
-     - Example ``HDR:  Clock  Address  RefCnt Type  File  Line Function  RSS  dRSS``.
+     - Example ``HDR:  Clock  Address  LiveCnt Type  File  Line Function  RSS  dRSS``.
        Only one of these. This names the columns. See table below for a description of the columns.
    * - ``NEW:``
      - When an object is created.
@@ -322,8 +322,10 @@ The lines that contain space seperated columns are described here:
    * - Address
      - Object location.
      - Hexadecimal.
-   * - RefCnt
-     - Object reference count.
+   * - LiveCnt
+     - Count of the number of live objects of this type.
+       For ``NEW:`` this is the count of live objects after this one is allocated.
+       For ``DEL:`` this is the count of live objects after this one has been de-allocated.
      -
    * - Type
      - The type of the object.
