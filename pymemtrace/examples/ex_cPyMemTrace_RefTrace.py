@@ -13,8 +13,8 @@ class StringAndTime:
 
 
 @cpymemtrace_decs.reference_tracing(
-    message='With include_builtins=True',
-    include_builtins=True,
+    message='With include_builtins=False',
+    include_builtins=False,
 )
 def example_reference_tracing():
     print(f'example_reference_tracing()')

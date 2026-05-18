@@ -6,7 +6,7 @@ For example, given a log file such as:
 .. code-block:: text
 
     SOF
-    HDR:        Clock          Address RefCnt Type                             File                                            Line Function                                              RSS             dRSS
+    HDR:        Clock          Address LiveCnt Type                             File                                            Line Function                                              RSS             dRSS
     DEL:     0.816121   0x60000670f980      0 builtin_function_or_method       pymemtrace/tests/test_cpymemtrace.py             292 make_bytes_wrappers                              38207488         38207488
     NEW:     0.816183   0x6000025fde70      1 list                             pymemtrace/tests/test_cpymemtrace.py             293 make_bytes_wrappers                              38207488                0
     NEW:     0.816203   0x6000025ec6a0      1 range                            pymemtrace/tests/test_cpymemtrace.py             294 make_bytes_wrappers                              38207488                0
@@ -114,7 +114,7 @@ class ObjectData:
     line_num: int
     clock: float
     address: int
-    ref_cnt: int
+    live_cnt: int
     type: str
     file: str
     line: int
@@ -157,7 +157,7 @@ class LogFileResult:
                 val = float(col)
             elif hdr == 'Address':
                 val = int(col, 16)
-            elif hdr in ('RefCnt', 'Line', 'RSS', 'dRSS'):
+            elif hdr in ('LiveCnt', 'Line', 'RSS', 'dRSS'):
                 val = int(col)
             else:
                 val = col
@@ -172,7 +172,7 @@ class LogFileResult:
             line_num,
             line_dict['Clock'],
             line_dict['Address'],
-            line_dict['RefCnt'],
+            line_dict['LiveCnt'],
             line_dict['Type'],
             line_dict['File'],
             line_dict['Line'],
@@ -186,10 +186,10 @@ class LogFileResult:
         line_dict = self._parse_line(line_num, line)
         assert line_dict['HDR:'] == 'NEW:'
         obj_repr = self._create_object(line_num, line_dict)
-        if obj_repr.ref_cnt != 1:
+        if obj_repr.live_cnt != 1:
             logger.debug(
                 f'NEW: object type "{obj_repr.type}"'
-                f' has Reference count of {obj_repr.ref_cnt} instead of unity.'
+                f' has Reference count of {obj_repr.live_cnt} instead of unity.'
                 f' Line: {line_num}'
             )
         if obj_repr.address in self.live_objects:
@@ -210,10 +210,10 @@ class LogFileResult:
         line_dict = self._parse_line(line_num, line)
         assert line_dict['HDR:'] == 'DEL:'
         obj_repr = self._create_object(line_num, line_dict)
-        if obj_repr.ref_cnt != 0:
+        if obj_repr.live_cnt != 0:
             logger.debug(
                 f'DEL: object type "{obj_repr.type}"'
-                f' has Reference count of {obj_repr.ref_cnt} instead of zero.'
+                f' has Reference count of {obj_repr.live_cnt} instead of zero.'
                 f' Line: {line_num}'
             )
         if obj_repr.address in self.live_objects:
@@ -228,7 +228,7 @@ class LogFileResult:
                     f'DEL: on untracked object'
                     f' of type "{obj_repr.type}"'
                     f' at 0x{obj_repr.address:012x}'
-                    f' RefCnt: {obj_repr.ref_cnt}'
+                    f' LiveCnt: {obj_repr.live_cnt}'
                     f' on line {line_num}'
                 )
         self.type_count_del[obj_repr.type] += 1
@@ -254,7 +254,7 @@ class LogFileResult:
             return (
                 f'0x{obj.address:012x}'
                 f' {obj.clock:.6f}'
-                f' {obj.ref_cnt:4d}'
+                f' {obj.live_cnt:4d}'
                 f' {obj.type:40}'
                 f' {obj.function:32}'
                 f' {_str_from_object_file(obj, show_full_path)}#{obj.line}'
