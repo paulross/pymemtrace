@@ -24,6 +24,7 @@ def example_reference_tracing():
         str_len = random.randint(1024, 2048)
         v = StringAndTime(str_len)
         list_of_str_and_time.append(v)
+        print(cPyMemTrace.reference_tracing_live_object_counts())
 
 
 def main():

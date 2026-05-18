@@ -287,43 +287,67 @@ It can also filter out unnecessary information such as builtin allocations.
     Python runtime.
     See :ref:`tech_notes-cpymemtrace_reference_tracing_pytest` for an example that revealed this problem.
 
-Here we create an example class that just allocates memory:
+Here we create an example class that just creates a timstamp and allocates memory
+(the full code is in ``pymemtrace/examples/ex_cPyMemTrace_RefTrace.py``):
 
 .. code-block:: python
 
-    class BytesWrapper:
-        def __init__(self, length: int):
-            self.bytes = b' ' * length
+    import datetime
+    import random
+    import string
 
-Then we invoke this multiple times under the watchful eye of a :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing`
-context manger:
-
-.. code-block:: python
-
+    from pymemtrace import cpymemtrace_decs
     from pymemtrace import cPyMemTrace
 
-    def make_bytes_wrappers() -> str:
-        with cPyMemTrace.ReferenceTracing() as profiler:
-            l = []
-            for i in range(4):
-                length = random.randint(512, 1024) + 1024 ** 2
-                l.append(BytesWrapper(length))
-                time.sleep(0.25)
-            while len(l):
-                p = l.pop()
-                del p
-                time.sleep(0.25)
-            return profiler.log_file_path()
+
+    class StringAndTime:
+        def __init__(self, size: int):
+            self.now = datetime.datetime.now()
+            self.str = ''.join(random.choices(string.printable, k=size))
+
+Then we invoke this multiple times under the watchful eye of a :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing`
+decorator:
+
+.. code-block:: python
+
+    @cpymemtrace_decs.reference_tracing()
+    def example_reference_tracing():
+        print(f'example_reference_tracing()')
+        print(f'Logging to {cPyMemTrace.reference_tracing_log_path()}')
+        list_of_str_and_time = []
+        for i in range(4):
+            str_len = random.randint(1024, 2048)
+            v = StringAndTime(str_len)
+            list_of_str_and_time.append(v)
+
+    def main():
+        example_reference_tracing()
+        return 0
+
+
+    if __name__ == '__main__':
+        exit(main())
+
+Running this will give something like:
+
+.. code-block:: shell
+
+    python3.13 pymemtrace/examples/ex_cPyMemTrace_RefTrace.py
+    example_reference_tracing()
+    Logging to pymemtrace/examples/20260518_114412_0_85511_O_0_PY3.13.2.log
+
+    Process finished with exit code 0
 
 The log file will look like this (abridged).
 
 ..
+    8<---- Snip ---->8
 
-    .. raw:: latex
+.. raw:: latex
 
-        [Continued on the next page]
+    [Continued on the next page]
 
-        \pagebreak
+    \pagebreak
 
 .. raw:: latex
 
@@ -332,40 +356,52 @@ The log file will look like this (abridged).
 .. code-block:: text
 
     SOF
-    HDR:        Clock          Address LiveCnt Type            File                           Line Function                  RSS      dRSS
-    NEW:     0.816183   0x6000025fde70       1 list            test_cpymemtrace.py             293 make_bytes_wrappers  38207488         0
-    NEW:     0.816203   0x6000025ec6a0       1 range           test_cpymemtrace.py             294 make_bytes_wrappers  38207488         0
-    NEW:     0.816218   0x60000169c210       1 range_iterator  test_cpymemtrace.py             294 make_bytes_wrappers  38207488         0
-    DEL:     0.816229   0x6000025ec6a0       0 range           test_cpymemtrace.py             294 make_bytes_wrappers  38207488         0
-    8<---- Snip ---->8
-    NEW:     0.816531   0x7fa81fbf2a00       1 BytesWrapper    test_cpymemtrace.py             296 make_bytes_wrappers  38207488         0
-    NEW:     0.816590   0x7fa823903010       1 bytes           test_cpymemtrace.py             288 __init__             38207488         0
-    DEL:     0.816645   0x6000025e34a0       0 tuple           test_cpymemtrace.py             296 make_bytes_wrappers  38207488         0
-    8<---- Snip ---->8
-    NEW:     0.817109   0x7fa81e7aa280       1 BytesWrapper    test_cpymemtrace.py             296 make_bytes_wrappers  38207488         0
-    NEW:     0.817162   0x7fa823600010       1 bytes           test_cpymemtrace.py             288 __init__             38207488         0
-    NEW:     0.817250   0x60000169c110       1 int             Python-3.13.2/Lib/random.py     340 randint              38207488         0
-    8<---- Snip ---->8
-    DEL:     0.817495   0x60000168b350       0 int             test_cpymemtrace.py             295 make_bytes_wrappers  38207488         0
-    NEW:     0.817513   0x7fa82347c940       1 BytesWrapper    test_cpymemtrace.py             296 make_bytes_wrappers  38207488         0
-    NEW:     0.817602   0x7fa823701010       1 bytes           test_cpymemtrace.py             288 __init__             38207488         0
-    NEW:     0.817762   0x600001694d90       1 int             Python-3.13.2/Lib/random.py     340 randint              38207488         0
-    NEW:     0.817885   0x600001694c90       1 int             Python-3.13.2/Lib/random.py     317 randrange            38207488         0
-    8<---- Snip ---->8
-    DEL:     0.818299   0x60000169c510       0 int             test_cpymemtrace.py             295 make_bytes_wrappers  38207488         0
-    NEW:     0.818333   0x7fa81fafbe60       1 BytesWrapper    test_cpymemtrace.py             296 make_bytes_wrappers  38207488         0
-    NEW:     0.818525   0x7fa823802010       1 bytes           test_cpymemtrace.py             288 __init__             38207488         0
-    DEL:     0.818776   0x60000169c210       0 range_iterator  test_cpymemtrace.py             294 make_bytes_wrappers  38207488         0
-    DEL:     0.818860   0x7fa81fafbe60       0 BytesWrapper    test_cpymemtrace.py             300 make_bytes_wrappers  38207488         0
-    DEL:     0.818875   0x7fa823802010       0 bytes           test_cpymemtrace.py             300 make_bytes_wrappers  38207488         0
-    DEL:     0.819012   0x7fa82347c940       0 BytesWrapper    test_cpymemtrace.py             300 make_bytes_wrappers  38207488         0
-    DEL:     0.819128   0x7fa823701010       0 bytes           test_cpymemtrace.py             300 make_bytes_wrappers  38207488         0
-    DEL:     0.819370   0x7fa81e7aa280       0 BytesWrapper    test_cpymemtrace.py             300 make_bytes_wrappers  38207488         0
-    DEL:     0.819447   0x7fa823600010       0 bytes           test_cpymemtrace.py             300 make_bytes_wrappers  38207488         0
-    DEL:     0.819582   0x7fa81fbf2a00       0 BytesWrapper    test_cpymemtrace.py             300 make_bytes_wrappers  38207488         0
-    DEL:     0.819648   0x7fa823903010       0 bytes           test_cpymemtrace.py             300 make_bytes_wrappers  38207488         0
-    NEW:     0.820073   0x600003236b30       1 str             test_cpymemtrace.py             304 make_bytes_wrappers  38211584      4096
-    NEW:     0.820357   0x6000067033e0       1 tuple           test_cpymemtrace.py             292 make_bytes_wrappers  38211584         0
+    HDR:        Clock          Address LiveCnt Type                File                                           Line Function                        RSS      dRSS
+    NEW:     1.834382   0x60000281a1d0       1 range_iterator      pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   23 example_reference_tracing  17911808  17911808
+    NEW:     1.834498   0x7ff3db813920       1 StringAndTime       pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   25 example_reference_tracing  17920000      8192
+    NEW:     1.834551   0x6000028015d0       1 datetime.datetime   pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   11 __init__                   17936384     16384
+    NEW:     1.834585   0x600001d23310       1 itertools.repeat    Python-3.13.2/Lib/random.py                     471 choices                    17940480      4096
+    DEL:     1.834927   0x600001d23310       0 itertools.repeat    Python-3.13.2/Lib/random.py                     471 choices                    17940480         0
+    NEW:     1.835052   0x7ff3db813a80       2 StringAndTime       pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   25 example_reference_tracing  17944576      4096
+    NEW:     1.835088   0x600002801850       2 datetime.datetime   pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   11 __init__                   17944576         0
+    NEW:     1.835135   0x600001d58070       1 itertools.repeat    Python-3.13.2/Lib/random.py                     471 choices                    17944576         0
+    DEL:     1.835501   0x600001d58070       0 itertools.repeat    Python-3.13.2/Lib/random.py                     471 choices                    17956864     12288
+    NEW:     1.835592   0x7ff3d9608ba0       3 StringAndTime       pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   25 example_reference_tracing  17956864         0
+    NEW:     1.835613   0x60000281a390       3 datetime.datetime   pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   11 __init__                   17956864         0
+    NEW:     1.835637   0x600001d42e10       1 itertools.repeat    Python-3.13.2/Lib/random.py                     471 choices                    17956864         0
+    DEL:     1.836171   0x600001d42e10       0 itertools.repeat    Python-3.13.2/Lib/random.py                     471 choices                    17956864         0
+    NEW:     1.836285   0x7ff3d961a3c0       4 StringAndTime       pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   25 example_reference_tracing  17956864         0
+    NEW:     1.836310   0x60000281a550       4 datetime.datetime   pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   11 __init__                   17956864         0
+    NEW:     1.836333   0x600001d42e10       1 itertools.repeat    Python-3.13.2/Lib/random.py                     471 choices                    17956864         0
+    DEL:     1.836920   0x600001d42e10       0 itertools.repeat    Python-3.13.2/Lib/random.py                     471 choices                    17960960      4096
+    DEL:     1.837031   0x60000281a1d0       0 range_iterator      pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   23 example_reference_tracing  17960960         0
+    DEL:     1.837050   0x7ff3d9608ba0       3 StringAndTime       pymemtrace/cpymemtrace_decs.py                   45 reference_tracingwrapper   17960960         0
+    DEL:     1.837064   0x60000281a390       3 datetime.datetime   pymemtrace/cpymemtrace_decs.py                   45 reference_tracingwrapper   17960960         0
+    DEL:     1.837075   0x7ff3db813a80       2 StringAndTime       pymemtrace/cpymemtrace_decs.py                   45 reference_tracingwrapper   17960960         0
+    DEL:     1.837085   0x600002801850       2 datetime.datetime   pymemtrace/cpymemtrace_decs.py                   45 reference_tracingwrapper   17960960         0
+    DEL:     1.837098   0x7ff3db813920       1 StringAndTime       pymemtrace/cpymemtrace_decs.py                   45 reference_tracingwrapper   17960960         0
+    DEL:     1.837108   0x6000028015d0       1 datetime.datetime   pymemtrace/cpymemtrace_decs.py                   45 reference_tracingwrapper   17960960         0
+    DEL:     1.837119   0x7ff3d961a3c0       0 StringAndTime       pymemtrace/cpymemtrace_decs.py                   45 reference_tracingwrapper   17960960         0
+    DEL:     1.837129   0x60000281a550       0 datetime.datetime   pymemtrace/cpymemtrace_decs.py                   45 reference_tracingwrapper   17960960         0
+    NEW:     1.837155   0x60000166d4c0       1 _ModuleLockManager  <frozen importlib._bootstrap>                  1357 _find_and_load             17960960         0
+    NEW:     1.837185   0x600000f35860       1 _ModuleLock         <frozen importlib._bootstrap>                   443 _get_module_lock           17960960         0
+    NEW:     1.837200   0x6000018715e0       1 _thread.RLock       <frozen importlib._bootstrap>                   253 __init__                   17960960         0
+    NEW:     1.837213   0x600001d42d80       1 _thread.lock        <frozen importlib._bootstrap>                   254 __init__                   17960960         0
+    NEW:     1.837235   0x6000013396b0       1 _BlockingOnManager  <frozen importlib._bootstrap>                   311 acquire                    17960960         0
+    DEL:     1.837282   0x6000013396b0       0 _BlockingOnManager  <frozen importlib._bootstrap>                   311 acquire                    17960960         0
+    NEW:     1.837327   0x600001d42d20       1 list_iterator       <frozen importlib._bootstrap>                  1255 _find_spec                 17960960         0
+    NEW:     1.837343   0x600001871530       1 _ImportLockContext  <frozen importlib._bootstrap>                  1256 _find_spec                 17960960         0
+    NEW:     1.837366   0x600001d42cd0       2 list_iterator       site-packages/_distutils_hack/__init__.py       107 find_spec                  17960960         0
+    DEL:     1.837381   0x600001d42cd0       1 list_iterator       site-packages/_distutils_hack/__init__.py       107 find_spec                  17960960         0
+    DEL:     1.837409   0x600001871530       0 _ImportLockContext  <frozen importlib._bootstrap>                  1256 _find_spec                 17960960         0
+    NEW:     1.837424   0x600001871710       1 _ImportLockContext  <frozen importlib._bootstrap>                  1256 _find_spec                 17960960         0
+    NEW:     1.837454   0x600000a31370       1 ModuleSpec          <frozen importlib._bootstrap>                   688 spec_from_loader           17960960         0
+    DEL:     1.837475   0x600001871710       0 _ImportLockContext  <frozen importlib._bootstrap>                  1256 _find_spec                 17960960         0
+    DEL:     1.837488   0x600001d42d20       0 list_iterator       <frozen importlib._bootstrap>                  1280 _find_spec                 17960960         0
+    DEL:     1.837602   0x60000166d4c0       0 _ModuleLockManager  <frozen importlib._bootstrap>                  1357 _find_and_load             17965056      4096
+    DEL:     1.837620   0x600000f35860       0 _ModuleLock         <frozen importlib._bootstrap>                  1357 _find_and_load             17965056         0
+    DEL:     1.837636   0x6000018715e0       0 _thread.RLock       <frozen importlib._bootstrap>                  1357 _find_and_load             17965056         0
+    DEL:     1.837648   0x600001d42d80       0 _thread.lock        <frozen importlib._bootstrap>                  1357 _find_and_load             17965056         0
     EOF
 
 .. raw:: latex
@@ -396,50 +432,6 @@ This performs the following analysis:
 
 For example the output will be something like:
 
-..
-
-    .. raw:: latex
-
-        [Continued on the next page]
-
-        \pagebreak
-
-.. raw:: latex
-
-    \begin{landscape}
-
-First warnings:
-
-.. code-block:: text
-
-    2026-03-18 11:51:12,278 - ref_trace_analyse.py#107 - WARNING  - DEL: on untracked object of type "builtin_function_or_method" at 0x60000670f980 on line 3
-
-Then live objects once the log has completed:
-
-.. code-block:: text
-
-    Live Objects [4]:
-        0x600001694c90    1 int                                      make_bytes_wrappers              test_cpymemtrace.py#295
-        0x6000025fde70    1 list                                     make_bytes_wrappers              test_cpymemtrace.py#293
-        0x600003236b30    1 str                                      make_bytes_wrappers              test_cpymemtrace.py#304
-        0x6000067033e0    1 tuple                                    make_bytes_wrappers              test_cpymemtrace.py#292
-
-Then previous objects that were created and destroyed during the log lifetime:
-
-.. code-block:: text
-
-    Previous Objects [26]:
-        0x60000168b0d0 int                                      NEW: random.py#340 DEL: random.py#340
-        0x60000168b190 int                                      NEW: random.py#322 DEL: test_cpymemtrace.py#295
-    8<---- Snip ---->8
-        0x6000025ec6a0 range                                    NEW: test_cpymemtrace.py#294 DEL: test_cpymemtrace.py#294
-        0x6000067035c0 builtin_function_or_method               NEW: random.py#248 DEL: random.py#322
-    8<---- Snip ---->8
-        0x7fa81e7aa280 BytesWrapper                             NEW: test_cpymemtrace.py#296 DEL: test_cpymemtrace.py#300
-        0x7fa81fafbe60 BytesWrapper                             NEW: test_cpymemtrace.py#296 DEL: test_cpymemtrace.py#300
-        0x7fa81fbf2a00 BytesWrapper                             NEW: test_cpymemtrace.py#296 DEL: test_cpymemtrace.py#300
-        0x7fa82347c940 BytesWrapper                             NEW: test_cpymemtrace.py#296 DEL: test_cpymemtrace.py#300
-        0x7fa823600010 bytes                                    NEW: test_cpymemtrace.py#288 DEL: test_cpymemtrace.py#300
 
 .. raw:: latex
 
@@ -447,21 +439,81 @@ Then previous objects that were created and destroyed during the log lifetime:
 
     \pagebreak
 
+.. raw:: latex
+
+    \begin{landscape}
+
+First running the script:
+
+.. code-block:: text
+
+    python pymemtrace/util/ref_trace_analyse.py --include-historical pymemtrace/examples/20260518_114412_0_85511_O_0_PY3.13.2.log
+    File path: pymemtrace/examples/20260518_114412_0_85511_O_0_PY3.13.2.log
+    2026-05-18 13:04:41,604 - ref_trace_analyse.py#399 - INFO     - Starting log file: pymemtrace/examples/20260518_114412_0_85511_O_0_PY3.13.2.log
+    2026-05-18 13:04:41,606 - ref_trace_analyse.py#379 - INFO     - Lines: 49 NEW: 23 DEL: 22 NEW - DEL: 1 MSG: 0
+    2026-05-18 13:04:41,607 - ref_trace_analyse.py#401 - INFO     - Finished log file: pymemtrace/examples/20260518_114412_0_85511_O_0_PY3.13.2.log
+
+Then live objects once the log has completed:
+
+.. code-block:: text
+
+    With include_builtins=False
+    Live Objects [1]:
+        0x600000a31370 1.837454    1 ModuleSpec                               spec_from_loader                 <frozen_importlib._bootstrap>#688
+
+Then previous objects that were created and destroyed during the log lifetime:
+
+.. code-block:: text
+
+    Previous Objects, sorted by clock [21]:
+    0x60000281a1d0 range_iterator      NEW: t: 1.834382 ex_cPyMemTrace_RefTrace.py#23 DEL: dt: 0.002649 ex_cPyMemTrace_RefTrace.py#23
+    0x7ff3db813920 StringAndTime       NEW: t: 1.834498 ex_cPyMemTrace_RefTrace.py#25 DEL: dt: 0.002600 cpymemtrace_decs.py#45
+    0x6000028015d0 datetime.datetime   NEW: t: 1.834551 ex_cPyMemTrace_RefTrace.py#11 DEL: dt: 0.002557 cpymemtrace_decs.py#45
+    0x600001d23310 itertools.repeat    NEW: t: 1.834585 random.py#471 DEL: dt: 0.000342 random.py#471
+    0x7ff3db813a80 StringAndTime       NEW: t: 1.835052 ex_cPyMemTrace_RefTrace.py#25 DEL: dt: 0.002023 cpymemtrace_decs.py#45
+    0x600002801850 datetime.datetime   NEW: t: 1.835088 ex_cPyMemTrace_RefTrace.py#11 DEL: dt: 0.001997 cpymemtrace_decs.py#45
+    0x600001d58070 itertools.repeat    NEW: t: 1.835135 random.py#471 DEL: dt: 0.000366 random.py#471
+    0x7ff3d9608ba0 StringAndTime       NEW: t: 1.835592 ex_cPyMemTrace_RefTrace.py#25 DEL: dt: 0.001458 cpymemtrace_decs.py#45
+    0x60000281a390 datetime.datetime   NEW: t: 1.835613 ex_cPyMemTrace_RefTrace.py#11 DEL: dt: 0.001451 cpymemtrace_decs.py#45
+    0x600001d42e10 itertools.repeat    NEW: t: 1.835637 random.py#471 DEL: dt: 0.000534 random.py#471
+    0x7ff3d961a3c0 StringAndTime       NEW: t: 1.836285 ex_cPyMemTrace_RefTrace.py#25 DEL: dt: 0.000834 cpymemtrace_decs.py#45
+    0x60000281a550 datetime.datetime   NEW: t: 1.836310 ex_cPyMemTrace_RefTrace.py#11 DEL: dt: 0.000819 cpymemtrace_decs.py#45
+    0x600001d42e10 itertools.repeat    NEW: t: 1.836333 random.py#471 DEL: dt: 0.000587 random.py#471
+    0x60000166d4c0 _ModuleLockManager  NEW: t: 1.837155 <frozen_importlib._bootstrap>#1357 DEL: dt: 0.000447 <frozen_importlib._bootstrap>#1357
+    0x600000f35860 _ModuleLock         NEW: t: 1.837185 <frozen_importlib._bootstrap>#443 DEL: dt: 0.000435 <frozen_importlib._bootstrap>#1357
+    0x6000018715e0 _thread.RLock       NEW: t: 1.837200 <frozen_importlib._bootstrap>#253 DEL: dt: 0.000436 <frozen_importlib._bootstrap>#1357
+    0x600001d42d80 _thread.lock        NEW: t: 1.837213 <frozen_importlib._bootstrap>#254 DEL: dt: 0.000435 <frozen_importlib._bootstrap>#1357
+    0x6000013396b0 _BlockingOnManager  NEW: t: 1.837235 <frozen_importlib._bootstrap>#311 DEL: dt: 0.000047 <frozen_importlib._bootstrap>#311
+    0x600001d42d20 list_iterator       NEW: t: 1.837327 <frozen_importlib._bootstrap>#1255 DEL: dt: 0.000161 <frozen_importlib._bootstrap>#1280
+    0x600001871530 _ImportLockContext  NEW: t: 1.837343 <frozen_importlib._bootstrap>#1256 DEL: dt: 0.000066 <frozen_importlib._bootstrap>#1256
+    0x600001d42cd0 list_iterator       NEW: t: 1.837366 __init__.py#107 DEL: dt: 0.000015 __init__.py#107
+    0x600001871710 _ImportLockContext  NEW: t: 1.837424 <frozen_importlib._bootstrap>#1256 DEL: dt: 0.000051 <frozen_importlib._bootstrap>#1256
+
 Then a table of the count of creations and deletions by type:
 
 .. code-block:: text
 
-    Type count [10]:
+    Type count [12]:
     Type                                          New      Del  New - Del
-    BytesWrapper                                    4        4          0
-    builtin_function_or_method                      4        5         -1
-    bytes                                           4        4          0
-    int                                            19       18          1
-    8<---- Snip ---->8
-    list                                            1        0          1
-    str                                             1        0          1
-    tuple                                           2        1          1
-    Process time: 0.004 (s)
+    ModuleSpec                                      1        0          1
+    StringAndTime                                   4        4          0
+    _BlockingOnManager                              1        1          0
+    _ImportLockContext                              2        2          0
+    _ModuleLock                                     1        1          0
+    _ModuleLockManager                              1        1          0
+    _thread.RLock                                   1        1          0
+    _thread.lock                                    1        1          0
+    datetime.datetime                               4        4          0
+    itertools.repeat                                4        4          0
+    list_iterator                                   2        2          0
+    range_iterator                                  1        1          0
+    Process time: 0.003 (s)
+
+.. raw:: latex
+
+    [Continued on the next page]
+
+    \pagebreak
 
 .. raw:: latex
 

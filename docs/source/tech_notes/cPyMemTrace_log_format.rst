@@ -324,9 +324,8 @@ The lines that contain space seperated columns are described here:
      - Hexadecimal.
    * - LiveCnt
      - Count of the number of live objects of this type.
-       For ``NEW:`` this is the count of live objects after this one is allocated.
+     - For ``NEW:`` this is the count of live objects after this one is allocated.
        For ``DEL:`` this is the count of live objects after this one has been de-allocated.
-     -
    * - Type
      - The type of the object.
      -
@@ -365,13 +364,11 @@ Example
 
 Here is an example log file lightly edited:
 
-..
+.. raw:: latex
 
-    .. raw:: latex
+    [Continued on the next page]
 
-        [Continued on the next page]
-
-        \pagebreak
+    \pagebreak
 
 .. raw:: latex
 
@@ -380,28 +377,30 @@ Here is an example log file lightly edited:
 .. code-block:: text
 
     SOF
-    HDR:        Clock          Address RefCnt Type            File                           Line Function       RSS           dRSS
-    NEW:     0.764831   0x60000283e9b0      1 list            test_cpymemtrace.py             251 test_function  33738752         0
-    NEW:     0.764859   0x600002836db0      1 range           test_cpymemtrace.py             252 test_function  33738752         0
-    NEW:     0.764878   0x600001bb3390      1 range_iterator  test_cpymemtrace.py             252 test_function  33738752         0
-    DEL:     0.764892   0x600002836db0      0 range           test_cpymemtrace.py             252 test_function  33738752         0
+    HDR:        Clock          Address LiveCnt Type                File                                           Line Function                        RSS      dRSS
+    NEW:     1.834382   0x60000281a1d0       1 range_iterator      pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   23 example_reference_tracing  17911808  17911808
+    NEW:     1.834498   0x7ff3db813920       1 StringAndTime       pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   25 example_reference_tracing  17920000      8192
+    NEW:     1.834551   0x6000028015d0       1 datetime.datetime   pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   11 __init__                   17936384     16384
+    NEW:     1.834585   0x600001d23310       1 itertools.repeat    Python-3.13.2/Lib/random.py                     471 choices                    17940480      4096
+    DEL:     1.834927   0x600001d23310       0 itertools.repeat    Python-3.13.2/Lib/random.py                     471 choices                    17940480         0
+    NEW:     1.835052   0x7ff3db813a80       2 StringAndTime       pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   25 example_reference_tracing  17944576      4096
+    NEW:     1.835088   0x600002801850       2 datetime.datetime   pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   11 __init__                   17944576         0
+    NEW:     1.835135   0x600001d58070       1 itertools.repeat    Python-3.13.2/Lib/random.py                     471 choices                    17944576         0
+    DEL:     1.835501   0x600001d58070       0 itertools.repeat    Python-3.13.2/Lib/random.py                     471 choices                    17956864     12288
     8<---- Snip ---->8
-    NEW:     0.765234   0x7f890a500010      1 bytes           test_cpymemtrace.py             243 create_bytes   33742848         0
-    DEL:     0.765293   0x600001bb3510      0 int             test_cpymemtrace.py             253 test_function  33742848         0
-    NEW:     0.765362   0x600001bd6290      1 int             Python-3.13.2/Lib/random.py     340 randint        26435584  -7307264
-    NEW:     0.765427   0x600001bd5c50      1 int             Python-3.13.2/Lib/random.py     317 randrange      26435584         0
+    NEW:     1.836333   0x600001d42e10       1 itertools.repeat    Python-3.13.2/Lib/random.py                     471 choices                    17956864         0
+    DEL:     1.836920   0x600001d42e10       0 itertools.repeat    Python-3.13.2/Lib/random.py                     471 choices                    17960960      4096
+    DEL:     1.837031   0x60000281a1d0       0 range_iterator      pymemtrace/examples/ex_cPyMemTrace_RefTrace.py   23 example_reference_tracing  17960960         0
     8<---- Snip ---->8
-    NEW:     0.766302   0x7f890a601010      1 bytes           test_cpymemtrace.py             243 create_bytes   27488256   1052672
-    DEL:     0.766443   0x600001bd5c50      0 int             test_cpymemtrace.py             253 test_function  27488256         0
+    DEL:     1.837098   0x7ff3db813920       1 StringAndTime       pymemtrace/cpymemtrace_decs.py                   45 reference_tracingwrapper   17960960         0
+    DEL:     1.837108   0x6000028015d0       1 datetime.datetime   pymemtrace/cpymemtrace_decs.py                   45 reference_tracingwrapper   17960960         0
+    DEL:     1.837119   0x7ff3d961a3c0       0 StringAndTime       pymemtrace/cpymemtrace_decs.py                   45 reference_tracingwrapper   17960960         0
+    DEL:     1.837129   0x60000281a550       0 datetime.datetime   pymemtrace/cpymemtrace_decs.py                   45 reference_tracingwrapper   17960960         0
+    NEW:     1.837155   0x60000166d4c0       1 _ModuleLockManager  <frozen importlib._bootstrap>                  1357 _find_and_load             17960960         0
+    NEW:     1.837185   0x600000f35860       1 _ModuleLock         <frozen importlib._bootstrap>                   443 _get_module_lock           17960960         0
+    NEW:     1.837200   0x6000018715e0       1 _thread.RLock       <frozen importlib._bootstrap>                   253 __init__                   17960960         0
+    NEW:     1.837213   0x600001d42d80       1 _thread.lock        <frozen importlib._bootstrap>                   254 __init__                   17960960         0
     8<---- Snip ---->8
-    NEW:     0.768496   0x7f890a803010      1 bytes           test_cpymemtrace.py             243 create_bytes   29593600   1052672
-    DEL:     0.768540   0x600001bb7650      0 int             test_cpymemtrace.py             253 test_function  29593600         0
-    DEL:     0.768586   0x600001bb3390      0 range_iterator  test_cpymemtrace.py             252 test_function  29593600         0
-    DEL:     0.768727   0x7f890a702010      0 bytes           test_cpymemtrace.py             258 test_function  29593600         0
-    DEL:     0.768916   0x7f890a601010      0 bytes           test_cpymemtrace.py             258 test_function  29593600         0
-    DEL:     0.769104   0x7f890a500010      0 bytes           test_cpymemtrace.py             258 test_function  29593600         0
-    NEW:     0.769310   0x600002677500      1 str             test_cpymemtrace.py             259 test_function  29593600         0
-    NEW:     0.769354   0x6000024b47a0      1 tuple           test_cpymemtrace.py             250 test_function  29593600         0
     EOF
 
 .. raw:: latex

@@ -2782,9 +2782,9 @@ typedef struct {
 
 
 /**
- * Deallocate the cpyReferenceTracing.
+ * Deallocate the cpyReferenceTracing object freeing all internal data structures.
  *
- * @param self The cpyReferenceTracing.
+ * @param self The cpyReferenceTracing object.
  */
 static void
 cpyReferenceTracing_dealloc(cpyReferenceTracing *self) {
@@ -3354,6 +3354,59 @@ cpyReferenceTracing_count_del(void) {
 }
 
 /**
+ * Create a Python dictionary of live types of to form <tt>{type_name: count, ...}</tt>.
+ *
+ * @param data The <tt>struct reference_tracing_data</tt>
+ * @return The Python dictionary.
+ */
+static PyObject *
+cpyReferenceTracing_dict_of_live_objects_private(struct reference_tracing_data *data) {
+    assert(data);
+    PyObject *ret = PyDict_New();
+    if (!ret) {
+        PyErr_Format(
+                PyExc_MemoryError,
+                "%s(): Can not create a dictionary.",
+                __FUNCTION__
+        );
+        return NULL;
+    }
+    /* Iterate through the hash table. */
+    hti iterator = ht_iterator(data->types_live_count);
+    PyObject *val = NULL;
+    while (ht_next(&iterator)) {
+        val = PyLong_FromLong(*(long *)iterator.value);
+        if (PyDict_SetItemString(ret, iterator.key, val)) {
+            PyErr_Format(
+                    PyExc_MemoryError,
+                    "%s(): Can not set a dictionary key/value.",
+                    __FUNCTION__
+            );
+            Py_DECREF(val);
+            return NULL;
+        }
+    }
+    return ret;
+}
+
+static PyObject *
+cpyReferenceTracing_dict_of_live_objects(void) {
+    assert(!PyErr_Occurred());
+    /* Get the current latest tracer. */
+    struct reference_tracing_data *data = reference_tracing_ll_get_data();
+    if (data) {
+        return cpyReferenceTracing_dict_of_live_objects_private(data);
+    }
+    PyErr_Format(
+            PyExc_RuntimeError,
+            "%s(): No reference tracing data is on the stack.",
+            __FUNCTION__
+    );
+    return NULL;
+}
+
+
+/**
  * \c cpyReferenceTracing methods.
  */
 static PyMethodDef cpyReferenceTracing_methods[] = {
@@ -3398,6 +3451,12 @@ static PyMethodDef cpyReferenceTracing_methods[] = {
         {
                 "count_del",
                             (PyCFunction) cpyReferenceTracing_count_del,
+                                                                    METH_NOARGS,
+                "Return the count of deleted allocations."
+        },
+        {
+                "live_object_counts",
+                            (PyCFunction) cpyReferenceTracing_dict_of_live_objects,
                                                                     METH_NOARGS,
                 "Return the count of deleted allocations."
         },
@@ -3655,6 +3714,22 @@ reference_tracing_write_message_to_log(PyObject *Py_UNUSED(module), PyObject *py
     Py_RETURN_NONE;
 }
 
+static PyObject *
+reference_tracing_dict_of_live_objects(PyObject *Py_UNUSED(module)) {
+    assert(!PyErr_Occurred());
+    /* Get the current latest tracer. */
+    struct reference_tracing_data *data = reference_tracing_ll_get_data();
+    if (data) {
+        return cpyReferenceTracing_dict_of_live_objects_private(data);
+    }
+    PyErr_Format(
+            PyExc_RuntimeError,
+            "%s(): No reference tracing data is on the stack.",
+            __FUNCTION__
+    );
+    return NULL;
+}
+
 #endif // #if REFERENCE_TRACING_AVAILABLE
 
 /**
@@ -3733,6 +3808,12 @@ static PyMethodDef cPyMemTraceMethods[] = {
                 (PyCFunction) reference_tracing_write_message_to_log,
                 METH_O,
                 "Write a message to the log of the current reference tracer.",
+        },
+        {
+                "reference_tracing_live_object_counts",
+                (PyCFunction) reference_tracing_dict_of_live_objects,
+                METH_NOARGS,
+                "Return a dictionary of the count of live objects by their type name.",
         },
 #endif // #if REFERENCE_TRACING_AVAILABLE
         {NULL, NULL, 0, NULL}        /* Sentinel */
