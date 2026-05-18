@@ -65,6 +65,7 @@ def test_module_dir_post_313():
         'profile_log_path',
         'profile_wrapper_depth',
         'profile_write_message_to_log',
+        'reference_tracing_live_object_counts',
         'reference_tracing_log_path',
         'reference_tracing_simple_wrapper_depth',
         'reference_tracing_wrapper_depth',
@@ -398,6 +399,7 @@ def test_trace_basic_dir_gt_313():
                                 '__subclasshook__',
                                 'count_del',
                                 'count_new',
+                                'live_object_counts',
                                 'log_file_path',
                                 'resume',
                                 'suspend',
@@ -407,21 +409,6 @@ def test_trace_basic_dir_gt_313():
                                 # 'not_present_at_all',
                                 ]
         assert os.path.isfile(profiler.log_file_path())
-    assert dir_profiler == ['__class__', '__delattr__', '__dir__', '__doc__', '__enter__', '__eq__', '__exit__',
-                            '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__',
-                            '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
-                            '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__',
-                            '__subclasshook__',
-                            'count_del',
-                            'count_new',
-                            'log_file_path',
-                            'resume',
-                            'suspend',
-                            'write_message_to_log',
-                            # TODO: Why does un-commenting this **not** cause an abort with debug Python?
-                            # The abort is in Python/frame.c#48 assert(frame->frame_obj == NULL);
-                            # 'not_present_at_all',
-                            ]
 
 
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
@@ -460,6 +447,7 @@ def test_trace_basic_dir_suspend_resume_gt_313():
                             '__subclasshook__',
                             'count_del',
                             'count_new',
+                            'live_object_counts',
                             'log_file_path',
                             'resume',
                             'suspend',
