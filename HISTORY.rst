@@ -1,9 +1,17 @@
 History
 =======
 
-0.5.1rc0 (TODO)
+0.6.0 (2026-05-19)
 ------------------
 
+* Add a hash table of live type counts to Reference Tracing. This can be accessed from Python as a dictionary.
+* Fix Reference tracing example for ``build_all.sh``.
+* Add module level functions to write to the Profile/Trace/Reference Trace log files.
+* Add some asserts and clean up ``test_cpyreftraceexample.py``.
+* Add Reference Tracing minimal example in C, a Python module and tests.
+* Add Doxygen documentation.
+* Reorganise debug code.
+* Add basic example of Reference Tracing in C to debug code.
 * Supported Python versions are: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
 * Development Status :: 5 - Production/Stable
 
