@@ -1626,7 +1626,10 @@ reference_tracing_simple_ll_length(void) {
  * @param _unused_obj The Python object being created or destroyed.
  * @param event The event type
  * @param data The opaque data structure that is a <tt>struct reference_tracing_data</tt>.
- * @return 0 on success, non-zero on failure.
+ * @return 0.
+ *  It is not clear from the Python documentation whether this return value is used.
+ *  A cursory look at <tt>#define _PyReftracerTrack(obj, operation)</tt> in
+ *  <tt>Include/internal/pycore_object.h</tt> shows the return value is ignored.
  */
 static int
 reference_tracing_simple_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data) {
@@ -1634,6 +1637,14 @@ reference_tracing_simple_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent eve
     assert(data);
     struct reference_tracing_simple_data *data_alias = (struct reference_tracing_simple_data *) data;
 
+    /* This is a safety test to see if the
+     * data structure matches what we expect.
+     * We can't set an exception
+     * (see: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer)
+     * and we can't return some kind of error
+     * code as it appears to be ignored (see above).
+     * So we limit ourselves to an assert.
+     * Alternatives would be to call abort() or exit(). */
     assert(data_alias->magic_number = REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
 
     /* Write the event type. */
@@ -2577,7 +2588,10 @@ increment_types_live_count(struct reference_tracing_data *data, PyObject *obj, i
  * @param obj The Python object being created or destroyed.
  * @param event The event type
  * @param data The opaque data structure that is a <tt>struct reference_tracing_data</tt>.
- * @return 0 on success, non-zero on failure.
+ * @return 0.
+ *  It is not clear from the Python documentation whether this return value is used.
+ *  A cursory look at <tt>#define _PyReftracerTrack(obj, operation)</tt> in
+ *  <tt>Include/internal/pycore_object.h</tt> shows the return value is ignored.
  */
 static int
 reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void *data) {
@@ -2602,6 +2616,14 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     assert(obj);
     assert(data);
     struct reference_tracing_data *data_alias = (struct reference_tracing_data *) data;
+    /* This is a safety test to see if the
+     * data structure matches what we expect.
+     * We can't set an exception
+     * (see: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer)
+     * and we can't return some kind of error
+     * code as it appears to be ignored (see above).
+     * So we limit ourselves to an assert.
+     * Alternatives would be to call abort() or exit(). */
     assert(data_alias->magic_number == REF_TRACE_DATA_LOG_ALLOCS_MAGIC_NUMBER);
     assert(data_alias->log_file);
     assert(event >= 0 && event <= 3);
@@ -3962,7 +3984,10 @@ struct simpletracer_data {
  * @param _unused_obj
  * @param event
  * @param data
- * @return
+ * @return 0.
+ *  It is not clear from the Python documentation whether this return value is used.
+ *  A cursory look at <tt>#define _PyReftracerTrack(obj, operation)</tt> in
+ *  <tt>Include/internal/pycore_object.h</tt> shows the return value is ignored.
  */
 static int simpletracer_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data) {
     struct simpletracer_data *the_data = (struct simpletracer_data *) data;
