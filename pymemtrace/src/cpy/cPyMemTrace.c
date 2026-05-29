@@ -1494,6 +1494,16 @@ py_frame_get_python_function_name(PyFrameObject *frame) {
 }
 
 /**
+ * Ref Trace Log Allocations Magic Number -> 'RTLA'
+ *
+ * @code
+ *  [hex(ord(v)) for v in 'RTSI']
+ *  ['0x52', '0x54', '0x53', '0x49']
+ * @endcode
+ */
+static const int REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER = 0x52545349;
+
+/**
  * This will be the opaque <tt>void *data</tt> structure registered with
  * PyRefTracer_SetTracer function:
  * https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer
@@ -1506,8 +1516,12 @@ py_frame_get_python_function_name(PyFrameObject *frame) {
  * The callback function writes to the head of the linked list.
  */
 struct reference_tracing_simple_data {
-    /* These counters give an overall state of the allocations and de-allocations. */
+    /** A magic number as a sanity check.
+     * Should be \c REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER */
+    int magic_number;
+    /** Count of allocations. */
     size_t count_new;
+    /** Count of de-allocations. */
     size_t count_del;
 };
 
@@ -1620,6 +1634,8 @@ reference_tracing_simple_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent eve
     assert(data);
     struct reference_tracing_simple_data *data_alias = (struct reference_tracing_simple_data *) data;
 
+    assert(data_alias->magic_number = REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
+
     /* Write the event type. */
     if (event == PyRefTracer_CREATE) {
         // Write the creation of an object.
@@ -1677,6 +1693,7 @@ cpyReferenceTracingSimple_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyO
             PyErr_SetString(PyExc_MemoryError, "Can not malloc struct reference_tracing_simple_data");
             return NULL;
         }
+        self->data->magic_number = REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER;
         self->data->count_new = 0;
         self->data->count_del = 0;
     }
@@ -1778,6 +1795,7 @@ cpyReferenceTracingSimple_exit(cpyReferenceTracingSimple *self, PyObject *Py_UNU
         /* Pops the node off the linked list. */
         struct reference_tracing_simple_data *data = reference_tracing_simple_ll_pop();
         assert(data == self->data);
+        assert(data->magic_number = REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
         if (!data) {
             PyErr_SetString(PyExc_RuntimeError, "__exit__ when nothing is on the linked list.");
             return NULL;
@@ -1851,6 +1869,7 @@ cpyReferenceTracingSimple_resume(void) {
     /* Get the current latest tracer. */
     struct reference_tracing_simple_data *data = reference_tracing_simple_ll_get_data();
     if (data) {
+        assert(data->magic_number = REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
         /* Restore the Reference Tracer. */
         if (PyRefTracer_SetTracer(&reference_tracing_simple_callback, data)) {
             PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(tracer, data) failed.");
@@ -1872,6 +1891,7 @@ cpyReferenceTracingSimple_count_new(void) {
     /* Get the current latest tracer. */
     struct reference_tracing_simple_data *data = reference_tracing_simple_ll_get_data();
     if (data) {
+        assert(data->magic_number = REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
         return PyLong_FromLong(data->count_new);
     }
     PyErr_Format(
@@ -1891,6 +1911,7 @@ cpyReferenceTracingSimple_count_del(void) {
     /* Get the current latest tracer. */
     struct reference_tracing_simple_data *data = reference_tracing_simple_ll_get_data();
     if (data) {
+        assert(data->magic_number = REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
         return PyLong_FromLong(data->count_del);
     }
     PyErr_Format(
@@ -1966,6 +1987,16 @@ static PyTypeObject cpyReferenceTracingSimpleType = {
 #if REFERENCE_TRACING_AVAILABLE
 
 /**
+ * Ref Trace Log Allocations Magic Number -> 'RTLA'
+ *
+ * @code
+ *  [hex(ord(v)) for v in 'RTLA']
+ *  ['0x52', '0x54', '0x4c', '0x41']
+ * @endcode
+ */
+static const int REF_TRACE_DATA_LOG_ALLOCS_MAGIC_NUMBER = 0x52544c41;
+
+/**
  *
  * Created by Paul Ross on 2026-03-11.
  * This contains the Python interface to the C reference tracer for Python 3.13+.
@@ -1996,6 +2027,7 @@ static PyTypeObject cpyReferenceTracingSimpleType = {
  * The callback function writes to the head of the linked list.
  */
 struct reference_tracing_data {
+    int magic_number;
     /** The log file.
      * The file name will be <tt>const char *create_filename('O', int reference_tracing_data_depth)</tt> */
     FILE *log_file;
@@ -2570,6 +2602,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     assert(obj);
     assert(data);
     struct reference_tracing_data *data_alias = (struct reference_tracing_data *) data;
+    assert(data_alias->magic_number == REF_TRACE_DATA_LOG_ALLOCS_MAGIC_NUMBER);
     assert(data_alias->log_file);
     assert(event >= 0 && event <= 3);
 
@@ -2834,6 +2867,11 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
     self = (cpyReferenceTracing *) type->tp_alloc(type, 0);
     if (self != NULL) {
         self->data = malloc(sizeof(struct reference_tracing_data));
+        if (self->data == NULL) {
+            Py_DECREF(self);
+            return NULL;
+        }
+        self->data->magic_number = REF_TRACE_DATA_LOG_ALLOCS_MAGIC_NUMBER;
         self->data->log_file = NULL;
         self->data->count_new = 0;
         self->data->count_del = 0;
@@ -4010,15 +4048,31 @@ test_reftracer(void) {
 
 #if REFERENCE_TRACING_AVAILABLE
 
+/**
+ * Ref Trace Count Allocations Magic Number -> 'RTCA'
+ * @code
+ *  [hex(ord(v)) for v in 'RTCA']
+ *  ['0x52', '0x54', '0x43', '0x41']
+ * @endcode
+ */
+static const int REF_TRACE_DATA_COUNT_ALLOCS_MAGIC_NUMBER = 0x52544341;
+
+/**
+ * Simple struct that counts allocations and de-allocations.
+ */
 struct ref_trace_data {
+    int magic_number;
     size_t count_new;
     size_t count_del;
 };
 
+#if 0
 static int
 ref_trace_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data) {
     assert(data);
     struct ref_trace_data *data_alias = (struct ref_trace_data *) data;
+
+    assert(data_alias->magic_number == REF_TRACE_DATA_MAGIC_NUMBER);
 
     if (event == PyRefTracer_CREATE) {
         data_alias->count_new++;
@@ -4026,6 +4080,47 @@ ref_trace_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data)
         data_alias->count_del++;
     } else {
         // Ignore unknown events.
+    }
+    return 0;
+}
+#endif
+
+/**
+ * A callback function for simple reference tracing.
+ *
+ * @param _unused_obj Not used as we are not interested in the actual object.
+ * @param event The event type.
+ * @param data The opaque pointer to a data structure.
+ * @return 0.
+ *  It is not clear from the Python documentation whether this return value is used.
+ *  A cursory look at <tt>#define _PyReftracerTrack(obj, operation)</tt> in
+ *  <tt>Include/internal/pycore_object.h</tt> shows the return value is ignored.
+ */
+static int
+ref_trace_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data) {
+    assert(data);
+    struct ref_trace_data *data_alias = (struct ref_trace_data *) data;
+
+    /* This is a safety test to see if the
+     * data structure matches what we expect.
+     * We can't set an exception
+     * (see: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer)
+     * and we can't return some kind of error
+     * code as it appears to be ignored (see above).
+     * So we limit ourselves to an assert.
+     * Alternatives would be to call abort() or exit(). */
+    assert(data_alias->magic_number == REF_TRACE_DATA_COUNT_ALLOCS_MAGIC_NUMBER);
+
+    switch (event) {
+        case PyRefTracer_CREATE:
+            data_alias->count_new++;
+            break;
+        case PyRefTracer_DESTROY:
+            data_alias->count_del++;
+            break;
+        default:
+            /* Ignore unknown events. */
+            break;
     }
     return 0;
 }
@@ -4037,6 +4132,7 @@ ref_trace_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data)
  */
 int important_function(void) {
     static struct ref_trace_data data;
+    data.magic_number = REF_TRACE_DATA_COUNT_ALLOCS_MAGIC_NUMBER;
     data.count_new = 0;
     data.count_del = 0;
     if (PyRefTracer_SetTracer(&ref_trace_callback, (void *) &data)) {
