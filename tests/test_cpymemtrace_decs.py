@@ -152,9 +152,25 @@ if sys.version_info >= (3, 13):
 
 
     @cpymemtrace_decs.reference_tracing(
-        message='example_ref_trace_msg()',
+        message='test_example_ref_trace()',
     )
-    def example_ref_trace_msg():
+    def test_example_ref_trace():
+        list_of_str_and_time = []
+        for i in range(2):
+            str_len = random.randint(1024, 2048)
+            v = StringAndTime(str_len)
+            list_of_str_and_time.append(v)
+        while len(list_of_str_and_time):
+            list_of_str_and_time.pop()
+        assert os.path.isfile(cPyMemTrace.reference_tracing_log_path())
+        with open(cPyMemTrace.reference_tracing_log_path()) as f:
+            print(f.read())
+
+
+    @cpymemtrace_decs.reference_tracing(
+        message='test_example_ref_trace_msg()',
+    )
+    def test_example_ref_trace_msg():
         list_of_str_and_time = []
         for i in range(2):
             str_len = random.randint(1024, 2048)
@@ -223,7 +239,8 @@ def main():
         # _reference_tracing_decorators_B()
         # test_reference_tracing_decorator_write_messages()
         # test_reference_tracing_decorator_write_message_example()
-        example_ref_trace_msg()
+        test_example_ref_trace()
+        # test_example_ref_trace_msg()
     # test_trace_decorator_outer_function_kwargs()
 
 
