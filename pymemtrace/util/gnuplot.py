@@ -55,18 +55,26 @@ def create_gnuplot_dat(table: typing.Sequence[typing.Sequence[typing.Any]]) -> s
     return '\n'.join(result)
 
 
-def invoke_gnuplot(path: str, name: str, table: typing.Sequence[typing.Sequence[typing.Any]], plt: str) -> int:
+def invoke_gnuplot(
+        path: str,
+        name: str,
+        dat_prefix_lines: typing.List[str],
+        table: typing.Sequence[typing.Sequence[typing.Any]],
+        plt: str) -> int:
     """
     Create the plot for name.
     path - the directory to write the data and plot files to.
     name - the name of those files.
     table - the table of values to write to the data file.
+    plt - The gnuplot plt configuration file contents.
 
     Returns the gnuplot error code.
     """
     logger.info('Writing gnuplot data "{}" in path {}'.format(name, path))
     os.makedirs(path, exist_ok=True)
     with open(os.path.join(path, f'{name}.dat'), 'w') as outfile:
+        for line in dat_prefix_lines:
+            outfile.write(f'{line}\n')
         outfile.write(create_gnuplot_dat(table))
     with open(os.path.join(path, f'{name}.plt'), 'w') as outfile:
         outfile.write(plt)

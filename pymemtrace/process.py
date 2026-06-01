@@ -227,7 +227,7 @@ def invoke_gnuplot(log_path: str, gnuplot_dir: str) -> int:
                 f' left font ",10" rotate by 90 noenhanced front'
             )
         ret = gnuplot.invoke_gnuplot(
-            gnuplot_dir, log_name, table[pid],
+            gnuplot_dir, log_name, [], table[pid],
             GNUPLOT_PLT.format(name=log_name, extension='png', labels='\n'.join(label_lines))
         )
         if ret:
