@@ -7,6 +7,20 @@ import pytest
 from pymemtrace import cPyMemTrace
 from pymemtrace.util import ref_trace_analyse
 
+@pytest.mark.parametrize(
+    'string_in, expected',
+    (
+            (
+                    'MSG:    16.723673 # list_of_str_and_time.pop() Length 2869519',
+                    ('16.723673', 'list_of_str_and_time.pop() Length 2869519')
+            ),
+    ),
+)
+def test_regex_message(string_in, expected):
+    m = ref_trace_analyse.RE_COMPILE_LOG_FILE_MSG.match(string_in)
+    assert m is not None
+    assert m.groups() == expected
+
 
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_reference_tracing():
@@ -33,7 +47,7 @@ def test_reference_tracing():
 
             f.seek(0)
             analysis = ref_trace_analyse.process_file(
-                f, log_file_id=file_0.name, include_untracked=False, recurse_files=False,
+                f, log_file_id=file_0.name, include_untracked=False, recurse_log_files=False,
             )
             print(' analysis '.center(75, '-'))
             print('\n'.join(analysis.long_str_list(show_full_path=False, include_historical=True)))

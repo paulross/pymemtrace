@@ -255,15 +255,13 @@ class LogFileResult:
 
             MSG:    16.723673 # list_of_str_and_time.pop() Length 2869519
         """
-        fields = [v.strip() for v in line.split()]
-        if fields[0] != 'MSG:':
-            raise ValueError(f'First field of message is not "MSG:" but "{fields[0]}"')
-        if fields[2] != '#':
-            raise ValueError(f'Third field of message is not "#" but "{fields[2]}"')
-        clock_time = float(fields[1])
+        m = RE_COMPILE_LOG_FILE_MSG.match(line)
+        if m is None:
+            raise ValueError(f'Line {line_num} "{line}" does not match MSG format')
+        clock_time = float(m.group(1))
         if clock_time not in self.clock_message_dict:
             self.clock_message_dict[clock_time] = []
-        self.clock_message_dict[clock_time].append(fields[3])
+        self.clock_message_dict[clock_time].append(m.group(2))
         self.count_msg += 1
 
     def add_err(self, line_num: int, line: str) -> None:
@@ -352,17 +350,26 @@ RE_COMPILE_LOG_FILE_PUSH = re.compile(r'MSG: .+ # Detaching this Reference Traci
 # Matches:
 # MSG:     3.298763 # Re-attaching this Reference Tracing file wrapper.
 RE_COMPILE_LOG_FILE_POP = re.compile(r'MSG: .+ Re-attaching this Reference Tracing file wrapper.')
+# Matches 'MSG:    16.723673 # list_of_str_and_time.pop() Length 2869519'
+# Two groups: clock and message text.
+RE_COMPILE_LOG_FILE_MSG = re.compile(r'MSG:\s+([0-9.]+) # (.+)')
 
 
-def process_file_to_log_result(file: typing.TextIO, recurse_files: bool, result: LogFileResult):
+def process_file_to_log_result(file: typing.TextIO, file_size: int, recurse_log_files: bool, result: LogFileResult):
     has_sof = False
     line_num = 0
+    bytes_read = 0
     for l, line in enumerate(file):
         line_num = l + 1
+        bytes_read += len(line)
         # Hack for '<frozen importlib.' etc. column breaks
         line = line.replace('<frozen ', '<frozen_')
         if line_num % 10000 == 0:
-            logger.info(f'Reading line {line_num:16,d}')
+            if file_size:
+                fraction_read = bytes_read / file_size
+                logger.info(f'Reading line {line_num:16,d} [{fraction_read:6.2%}]')
+            else:
+                logger.info(f'Reading line {line_num:16,d}')
         assert line.endswith('\n')
         if line == 'SOF\n':
             has_sof = True
@@ -387,14 +394,16 @@ def process_file_to_log_result(file: typing.TextIO, recurse_files: bool, result:
                 elif line.startswith('MSG:'):
                     result.add_msg(line_num, line)
                     # Handle this and include sub-file if requested.
-                    if recurse_files:
+                    if recurse_log_files:
                         # MSG:     3.289042 # Detaching this Reference Tracing file wrapper. New file: /Users/paulross/Documents/workspace/pymemtrace/20260420_091558_50_53552_O_1_PY3.13.0.log
                         m = RE_COMPILE_LOG_FILE_PUSH.match(line)
                         if m is not None:
                             # recurse
                             logger.info(f'Recusing into log file: {m.group(1)}')
                             with open(m.group(1)) as sub_file:
-                                process_file_to_log_result(sub_file, recurse_files, result)
+                                process_file_to_log_result(
+                                    sub_file, os.path.getsize(m.group(1)), recurse_log_files, result
+                                )
                             logger.info(f'Finished log file: {m.group(1)}')
                     # MSG:     3.298763 # Re-attaching this Reference Tracing file wrapper.
                     # m = RE_COMPILE_LOG_FILE_POP.match(line)
@@ -414,11 +423,16 @@ def process_file_to_log_result(file: typing.TextIO, recurse_files: bool, result:
     )
 
 
-def process_file(file: typing.TextIO, log_file_id: str, include_untracked: bool, recurse_files: bool) -> LogFileResult:
+def process_file(
+        file: typing.TextIO,
+        log_file_id: str,
+        file_size: int,
+        include_untracked: bool,
+        recurse_log_files: bool) -> LogFileResult:
     """Process the file into a LogFileResult and return that.
     If include_untracked is True then de-allocations without the respective allocation are ignored."""
     result = LogFileResult(log_file_id=log_file_id, include_untracked=include_untracked)
-    process_file_to_log_result(file, recurse_files, result)
+    process_file_to_log_result(file, file_size, recurse_log_files, result)
     return result
 
 
@@ -426,7 +440,9 @@ def process_file_path(file_path: str, include_untracked: bool, recurse_files: bo
     """Process the file path into a LogFileResult and return that."""
     with open(file_path) as file:
         logger.info(f'Starting log file: {file_path}')
-        result = process_file(file, file_path, include_untracked, recurse_files)
+        result = process_file(
+            file, file_path, os.path.getsize(file_path), include_untracked, recurse_files
+        )
         logger.info(f'Finished log file: {file_path}')
         return result
 
@@ -452,13 +468,14 @@ set yrange [0:]
 #set logscale y2
 set y2label "Live Object Count"
 # set y2range [0:200]
+set y2range [0:]
 set y2tics
 
 set pointsize 1
 set datafile separator whitespace#"	"
 set datafile missing "NaN"
 
-set terminal {extension} size 1000,700 # choose the file format
+set terminal {extension} size 1200,800 # choose the file format
 set output "{name}.{extension}" # choose the output device
 
 # set key off
@@ -500,13 +517,22 @@ def invoke_gnuplot(
 
     # Make the list of labels from the MSG: lines.
     label_lines = []
-    y_value = (0.5 * (log_result.rss_max - log_result.rss_min)) / 1024 ** 2
+    # y_value = (0.5 * (log_result.rss_max - log_result.rss_min)) / 1024 ** 2
+    y_value = 5.0
     for clock_t in sorted(log_result.clock_message_dict.keys()):
-        label_lines.append(f'set arrow from {clock_t},{y_value} to {clock_t},0 lt -1 lw 1')
-        label_lines.append(
-            f'set label "{log_result.clock_message_dict[clock_t]}" at {clock_t},{y_value * 1.025}'
-            f' left font ",10" rotate by 90 noenhanced front'
-        )
+        for msg in log_result.clock_message_dict[clock_t]:
+            msg = msg.replace('"', '')
+            if len(msg) > 20:
+                msg = msg[:20] + '...'
+            label_lines.append(f'set arrow from {clock_t},{y_value} to {clock_t},0 lt -1 lw 1')
+            # label_lines.append(
+            #     f'set label "{msg}" at {clock_t},{y_value * 1.025}'
+            #     f' left font ",9" rotate by 90 noenhanced front'
+            # )
+            label_lines.append(
+                f'set label "{msg}" at {clock_t},{y_value + 1}'
+                f' left font ",9" rotate by 90 noenhanced front'
+            )
     file_name = os.path.basename(log_result.log_file_id)
     prefix_lines = [
         f'# File ID {log_result.log_file_id}',
@@ -520,7 +546,7 @@ def invoke_gnuplot(
     ]
     for i, tp_name in enumerate(tp_names):
         plot_lines.append(
-            f'"{file_name}.dat" using 1:{2 + i} axes x1y2 title "{tp_name}, right axis" with lines lt 2 lw 1',
+            f'"{file_name}.dat" using 1:{2 + i} axes x1y2 title "{tp_name}, right axis" with lines lt {2 + i} lw 2',
         )
 
     ret = gnuplot.invoke_gnuplot(
