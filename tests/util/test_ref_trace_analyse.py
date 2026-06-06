@@ -47,7 +47,7 @@ def test_reference_tracing():
 
             f.seek(0)
             analysis = ref_trace_analyse.process_file(
-                f, log_file_id=file_0.name, include_untracked=False, recurse_log_files=False,
+                f, log_file_id=file_0.name, file_size=1, include_untracked=False, recurse_log_files=False,
             )
             print(' analysis '.center(75, '-'))
             print('\n'.join(analysis.long_str_list(show_full_path=False, include_historical=True)))
