@@ -208,7 +208,6 @@ class LogFileResult:
                 f' Line: {line_num}'
             )
         if obj_repr.address in self.live_objects:
-            # raise ValueError(
             logger.error(
                 f'NEW address 0x{obj_repr.address:012x}'
                 f' type: "{obj_repr.type}"'
@@ -522,8 +521,8 @@ def invoke_gnuplot(
     for clock_t in sorted(log_result.clock_message_dict.keys()):
         for msg in log_result.clock_message_dict[clock_t]:
             msg = msg.replace('"', '')
-            if len(msg) > 20:
-                msg = msg[:20] + '...'
+            # if len(msg) > 40:
+            #     msg = msg[:40] + '...'
             label_lines.append(f'set arrow from {clock_t},{y_value} to {clock_t},0 lt -1 lw 1')
             # label_lines.append(
             #     f'set label "{msg}" at {clock_t},{y_value * 1.025}'
@@ -531,7 +530,7 @@ def invoke_gnuplot(
             # )
             label_lines.append(
                 f'set label "{msg}" at {clock_t},{y_value + 1}'
-                f' left font ",9" rotate by 90 noenhanced front'
+                f' left font ",6" rotate by 90 noenhanced front'
             )
     file_name = os.path.basename(log_result.log_file_id)
     prefix_lines = [

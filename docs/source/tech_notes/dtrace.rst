@@ -64,7 +64,7 @@ Python 3.9 Release with DTrace support, no Tracing
 Python 3.9 (release) with DTrace support but *not* tracing with DTrace:
 
 
- .. image:: images/LASToHTML.log_76753.png
+.. image:: images/LASToHTML.log_76753.png
     :alt: Python 3.9 (release) with DTrace capability.
     :width: 800
     :align: center

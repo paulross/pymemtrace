@@ -546,10 +546,20 @@ Then a table of the count of creations and deletions by type:
                             correctly. [default: False]
       --recurse-files       If True then recurse into child log files. [default:
                             False]
+      --gnuplot-path GNUPLOT_PATH
+                            Output path for the gnuplot results.
+      --gnuplot-types GNUPLOT_TYPES
+                            Comma seperated list of types to monitor for the
+                            gnuplot results. [default: ]
       -l, --log_level LOG_LEVEL
                             Log Level (debug=10, info=20, warning=30, error=40,
                             critical=50) [default: 20]
 
+The ``--gnuplot...`` options allow you to create plots of the memory
+usage and the corresponding number of live objects during program
+execution.
+See :ref:`tech_notes-cpymemtrace_reference_tracing_memory_leaks_plotting`
+for an example.
 
 Reference Tracing and Garbage Collection
 -----------------------------------------

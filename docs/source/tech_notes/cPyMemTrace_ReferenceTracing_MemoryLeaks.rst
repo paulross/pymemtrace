@@ -127,10 +127,10 @@ And this log file analysed with :py:mod:`pymemtrace.util.ref_trace_analyse` give
     Untracked Objects [0]:
     Type                                        Count
     Live Objects [4]:
-        0x6000034c4090    1 cMemLeak.CMallocObject                   create_tmp_list_of_memory_objects test_cpymemtrace.py#818
-        0x6000034c4110    1 cMemLeak.CMallocObject                   create_tmp_list_of_memory_objects test_cpymemtrace.py#818
-        0x6000034c4290    1 cMemLeak.CMallocObject                   create_tmp_list_of_memory_objects test_cpymemtrace.py#818
-        0x6000034c4390    1 cMemLeak.CMallocObject                   create_tmp_list_of_memory_objects test_cpymemtrace.py#818
+        0x6000034c4090    4 cMemLeak.CMallocObject                   create_tmp_list_of_memory_objects test_cpymemtrace.py#818
+        0x6000034c4110    4 cMemLeak.CMallocObject                   create_tmp_list_of_memory_objects test_cpymemtrace.py#818
+        0x6000034c4290    4 cMemLeak.CMallocObject                   create_tmp_list_of_memory_objects test_cpymemtrace.py#818
+        0x6000034c4390    4 cMemLeak.CMallocObject                   create_tmp_list_of_memory_objects test_cpymemtrace.py#818
     Previous Objects [0]:
     Type count [1]:
     Type                                          New      Del  New - Del
@@ -146,3 +146,89 @@ And that shows that the four objects are still 'alive'.
 
 Whilst Reference Tracing can not pinpoint where a missing de-allocation should be it can certainly narrow down
 what types are not being de-allocated correctly.
+
+.. _tech_notes-cpymemtrace_reference_tracing_memory_leaks_plotting:
+
+Plotting Memory Usage
+---------------------
+
+..
+    This was done by running TotalDepth: time tdlastohtml -kvr --log-process=0.5 tmp/pymemtrace/W005862_test_data/S1R2_FMI-PPC-MSIP-PPC tmp/pymemtrace/H/S1R2_FMI-PPC-MSIP-PPC > tmp/pymemtrace/H/W005862_test_data_LWD.log
+    $ mv 20260604_115452_0_21132_O_0_PY3.13.13.log tmp/pymemtrace/H
+    Then with pymemtrace: time python pymemtrace/util/ref_trace_analyse.py ~/PycharmProjects/TotalDepth/tmp/pymemtrace/H/20260604_115452_0_21132_O_0_PY3.13.13.log --gnuplot-path=/Users/paulross/PycharmProjects/TotalDepth/tmp/pymemtrace/H/gnuplot_ref_trace --gnuplot-types=LASSection,LASSectionArray,LogRecord,XhtmlStream
+    The the .plt file was hand edited to create nice looking scales.
+
+
+:py:mod:`pymemtrace.util.ref_trace_analyse` has an option to plot with
+``gnuplot`` the RSS usage and the object count.
+This uses the ``--gnuplot-path`` for identifying the path to the
+gnuplot output and ``--gnuplot-types`` to provide a comma seperated
+list of types of interest.
+
+Here is an example of a Python program reading ten geophysical data
+files and writing a HTML summary file for each.
+A ``MSG`` is inserted into the log file for every read and write with
+the filename.
+The Python code is instrumented with pymemtrace thus:
+
+.. code-block:: python
+
+    from pymemtrace import cPyMemTrace
+    from pymemtrace import cpymemtrace_decs
+
+    @cpymemtrace_decs.reference_tracing(
+        message="LASToHTML include_builtins=False",
+        include_builtins=False
+    )
+    def las_file_to_html(
+        # Arguments here.
+    ) -> None:
+        cPyMemTrace.reference_tracing_write_message_to_log(
+            f'Read LAS File "{os.path.basename(las_file_path)}'
+        )
+        las_file = LASRead.LASRead(
+            las_file_path, las_file_path, raise_on_error=not keep_going
+        )
+        cPyMemTrace.reference_tracing_write_message_to_log(
+            f'Write HTML "{os.path.basename(html_file_path)}'
+        )
+        with open(html_file_path, 'w') as html_file:
+            # Write the HTML from las_file
+            pass
+
+As well as the :py:func:`pymemtrace.cpymemtrace_decs.reference_tracing`
+decorator for each file we write a message to the log when reading the
+input and another when writing the output.
+
+This produces a 2.2G log file with nearly 10m lines.
+:py:mod:`pymemtrace.util.ref_trace_analyse` is invoked like this
+giving a ``gnuplot`` output directory and a list of types of interest:
+
+.. code-block:: bash
+
+    pymemtrace_ref_trace_analyse <log_file>.log --gnuplot-path=gnuplot_ref_trace --gnuplot-types=LASRead,LASSection,XhtmlStream
+
+:py:mod:`pymemtrace.util.ref_trace_analyse` takes around 70s to
+analyse this and produce this plot:
+
+.. image:: plots/20260606_105231_0_23826_O_0_PY3.13.13.log.png
+    :alt: RSS Usage and Live Counts.
+    :width: 800
+    :align: center
+
+This shows the behaviour of the code, it looks pretty healthy,
+the RSS is reclaimed and the live object count is moderate.
+
+If however we deliberately introduce a memory leak in the ``LASRead``
+object (and thus all the objects it contains) the plot looks quite
+different:
+
+.. image:: plots/20260606_105539_0_23879_O_0_PY3.13.13.log.png
+    :alt: RSS Usage and Live Counts (with leak).
+    :width: 800
+    :align: center
+
+So if you have a plot like the second one you definitely have a leak
+and you know the type that is leaking.
+This is very useful in tracking down objects that are not being
+de-allocated.
