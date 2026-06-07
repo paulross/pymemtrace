@@ -581,29 +581,37 @@ def invoke_gnuplot(
 def main() -> int:
     """Main entry point. Options:
 
-    usage: ref_trace_analyse.py
-           [-h] [--full-path] [--include-untracked] [--include-historical]
-           [--recurse-files] [-l LOG_LEVEL]
-           log_path
+    .. code-block:: text
 
-    Reads an Reference Tracing log of a process and analyses it.
+        usage: ref_trace_analyse.py
+               [-h] [--full-path] [--include-untracked] [--include-historical]
+               [--recurse-files] [--gnuplot-path GNUPLOT_PATH]
+               [--gnuplot-types GNUPLOT_TYPES] [-l LOG_LEVEL]
+               log_path
 
-    positional arguments:
-      log_path              Input path to the log.
+        Reads an Reference Tracing log of a process and analyses it.
 
-    options:
-      -h, --help            show this help message and exit
-      --full-path           Show the full Python file path. [default: False]
-      --include-untracked   Include untracked objects. These are objects that are
-                            de-allocated with no corresponding allocation.
-                            [default: False]
-      --include-historical  Ignore objects that were allocated and de-allocated
-                            correctly. [default: False]
-      --recurse-files       If True then recurse into child log files. [default:
-                            False]
-      -l, --log_level LOG_LEVEL
-                            Log Level (debug=10, info=20, warning=30, error=40,
-                            critical=50) [default: 20]
+        positional arguments:
+          log_path              Input path to the log.
+
+        options:
+          -h, --help            show this help message and exit
+          --full-path           Show the full Python file path. [default: False]
+          --include-untracked   Include untracked objects. These are objects that are
+                                de-allocated with no corresponding allocation.
+                                [default: False]
+          --include-historical  Ignore objects that were allocated and de-allocated
+                                correctly. [default: False]
+          --recurse-files       If True then recurse into child log files. [default:
+                                False]
+          --gnuplot-path GNUPLOT_PATH
+                                Output path for the gnuplot results.
+          --gnuplot-types GNUPLOT_TYPES
+                                Comma seperated list of types to monitor for the
+                                gnuplot results. [default: ]
+          -l, --log_level LOG_LEVEL
+                                Log Level (debug=10, info=20, warning=30, error=40,
+                                critical=50) [default: 20]
     """
     parser = argparse.ArgumentParser(
         prog=__file__,

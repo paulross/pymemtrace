@@ -117,9 +117,9 @@ And this log file analysed with :py:mod:`pymemtrace.util.ref_trace_analyse` give
 
     \begin{landscape}
 
-.. code-block:: text
+.. code-block:: shell
 
-    python pymemtrace/util/ref_trace_analyse.py 20260419_120519_1_71199_O_0_PY3.13.2.log
+    $ python pymemtrace/util/ref_trace_analyse.py 20260419_120519_1_71199_O_0_PY3.13.2.log
     File path: 20260419_120519_1_71199_O_0_PY3.13.2.log
     2026-04-19 13:05:55,774 - ref_trace_analyse.py#338 - INFO     - Lines: 8 NEW: 4 DEL: 0 NEW - DEL: 4 MSG: 0
     Initial Message:
@@ -149,18 +149,18 @@ what types are not being de-allocated correctly.
 
 .. _tech_notes-cpymemtrace_reference_tracing_memory_leaks_plotting:
 
-Plotting Memory Usage
----------------------
+Plotting Memory and Live Count
+------------------------------
 
 ..
     This was done by running TotalDepth: time tdlastohtml -kvr --log-process=0.5 tmp/pymemtrace/W005862_test_data/S1R2_FMI-PPC-MSIP-PPC tmp/pymemtrace/H/S1R2_FMI-PPC-MSIP-PPC > tmp/pymemtrace/H/W005862_test_data_LWD.log
     $ mv 20260604_115452_0_21132_O_0_PY3.13.13.log tmp/pymemtrace/H
-    Then with pymemtrace: time python pymemtrace/util/ref_trace_analyse.py ~/PycharmProjects/TotalDepth/tmp/pymemtrace/H/20260604_115452_0_21132_O_0_PY3.13.13.log --gnuplot-path=/Users/paulross/PycharmProjects/TotalDepth/tmp/pymemtrace/H/gnuplot_ref_trace --gnuplot-types=LASSection,LASSectionArray,LogRecord,XhtmlStream
+    Then with pymemtrace: time python pymemtrace/util/ref_trace_analyse.py ~/PycharmProjects/TotalDepth/tmp/pymemtrace/H/20260604_115452_0_21132_O_0_PY3.13.13.log --gnuplot-path=/Users/paulross/PycharmProjects/TotalDepth/tmp/pymemtrace/H/gnuplot_ref_trace --gnuplot-types=LASSection,LASSectionArray,XhtmlStream
     The the .plt file was hand edited to create nice looking scales.
 
 
-:py:mod:`pymemtrace.util.ref_trace_analyse` has an option to plot with
-``gnuplot`` the RSS usage and the object count.
+The script :py:mod:`pymemtrace.util.ref_trace_analyse` has an option to plot with
+``gnuplot`` the RSS usage and the object count over time.
 This uses the ``--gnuplot-path`` for specifying the path for the
 gnuplot output and ``--gnuplot-types`` to provide a comma seperated
 list of types of interest.
@@ -172,6 +172,8 @@ A message (``MSG:``) containing the file name is inserted into the log file for 
 The Python code is instrumented with pymemtrace thus:
 
 .. code-block:: python
+
+    # Various imports here...
 
     from pymemtrace import cPyMemTrace
     from pymemtrace import cpymemtrace_decs
@@ -208,12 +210,28 @@ by which the HTML output is created:
 
 .. code-block:: bash
 
-    pymemtrace_ref_trace_analyse <log_file> \
+    $ python pymemtrace/util/ref_trace_analyse.py 20260606_105231_0_23826_O_0_PY3.13.13.log \
         --gnuplot-path=gnuplot_ref_trace \
         --gnuplot-types=LASRead,LASSection,XhtmlStream
 
 :py:mod:`pymemtrace.util.ref_trace_analyse` takes around 70s to
-analyse this log file and produce this plot:
+analyse this log file and write the following files to
+the ``gnuplot`` output directory:
+
+.. code-block:: text
+
+    20260606_105231_0_23826_O_0_PY3.13.13.log.dat
+    20260606_105231_0_23826_O_0_PY3.13.13.log.plt
+    20260606_105231_0_23826_O_0_PY3.13.13.log.png
+
+The ``.dat`` file contains the time series data with
+one column for each type and the RSS.
+The ``.plt`` file contains a best effort of the ``gnuplot``
+configuration file.
+This can be hand edited to improve the plot which can be rebuilt
+with ``gnuplot -p <.plt file>``.
+
+The plot looks like this:
 
 .. image:: plots/20260606_105231_0_23826_O_0_PY3.13.13.log.png
     :alt: RSS Usage and Live Counts.
@@ -223,14 +241,17 @@ analyse this log file and produce this plot:
 This shows the behaviour of the code, it looks pretty healthy,
 the RSS is (mostly) reclaimed.
 Because of the way that Python's small object memory allocator works it is quite usual to see
-the RSS slowly creep up during the lifetime of the process.
+the RSS slowly creep up during the lifetime of the process so this looks quite normal.
 
 Importantly the live object count is moderate and as we would expect, ten ``LASRead``
 objects have been created and all are de-allocated by the end of the log.
 
+With a Memory Leak
+^^^^^^^^^^^^^^^^^^
+
 Now we deliberately introduce a memory leak in the ``LASRead`` object.
-This is done by increasing the reference count so that the object, and all the objects it contains,
-are never de-allocated.
+This is done by increasing the reference count so that the object,
+and all the objects it contains, are never de-allocated.
 
 .. code-block:: python
 
@@ -249,9 +270,10 @@ Now the the plot looks distinctly different:
     :width: 800
     :align: center
 
-The RSS increases as usual so it is hard to see the memory leak.
-However the live object count of ``LASRead`` and ``LASSection``, which are ever increasing, makes it clear that
-those objects are *not* being de-allocated.
-So there is the memory leak.
+The RSS increases as usual so it is hard to see that there is the memory leak.
+However the live object count of ``LASRead`` and ``LASSection``,
+which are ever increasing, makes it clear that those objects are
+*not* being de-allocated.
+So that is where the memory leak is which makes it easier to track down.
 
 Instrumenting your code like this gives you a forensic view of its memory behaviour.
