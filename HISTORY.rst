@@ -1,6 +1,15 @@
 History
 =======
 
+0.7.0rc0 (TODO)
+------------------
+
+* Added magic numbers to opaque data structures.
+* Add gnuplot output of live object count.
+* Documentation improvements.
+* Supported Python versions are: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
+* Development Status :: 5 - Production/Stable
+
 0.6.0 (2026-05-19)
 ------------------
 
