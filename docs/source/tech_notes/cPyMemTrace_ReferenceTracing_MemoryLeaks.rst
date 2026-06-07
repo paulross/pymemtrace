@@ -161,14 +161,14 @@ Plotting Memory Usage
 
 :py:mod:`pymemtrace.util.ref_trace_analyse` has an option to plot with
 ``gnuplot`` the RSS usage and the object count.
-This uses the ``--gnuplot-path`` for identifying the path to the
+This uses the ``--gnuplot-path`` for specifying the path for the
 gnuplot output and ``--gnuplot-types`` to provide a comma seperated
 list of types of interest.
 
 Here is an example of a Python program reading ten geophysical data
 files and writing a HTML summary file for each.
-A ``MSG`` is inserted into the log file for every read and write with
-the filename.
+A message (``MSG:``) containing the file name is inserted into the log file for every read and write.
+
 The Python code is instrumented with pymemtrace thus:
 
 .. code-block:: python
@@ -176,40 +176,44 @@ The Python code is instrumented with pymemtrace thus:
     from pymemtrace import cPyMemTrace
     from pymemtrace import cpymemtrace_decs
 
-    @cpymemtrace_decs.reference_tracing(
-        message="LASToHTML include_builtins=False",
-        include_builtins=False
-    )
-    def las_file_to_html(
-        # Arguments here.
-    ) -> None:
+    @cpymemtrace_decs.reference_tracing(message="LASToHTML",)
+    def las_file_to_html(las_file_path: str, html_file_path: str) -> None:
+        """Reads and parses a LAS file and writes a summary to a HTML file."""
+        # Mark the log file with a message to say we are starting the read.
+        # This will be rendered as a label on the plot.
         cPyMemTrace.reference_tracing_write_message_to_log(
             f'Read LAS File "{os.path.basename(las_file_path)}'
         )
-        las_file = LASRead.LASRead(
-            las_file_path, las_file_path, raise_on_error=not keep_going
-        )
+        # Read and parse the LAS file.
+        las_file = LASRead.LASRead(las_file_path)
+        # Mark the log file with a message to say we are starting the write.
+        # This also will be rendered as a label on the plot.
         cPyMemTrace.reference_tracing_write_message_to_log(
             f'Write HTML "{os.path.basename(html_file_path)}'
         )
-        with open(html_file_path, 'w') as html_file:
-            # Write the HTML from las_file
-            pass
+        # Write the HTML summary of las_file.
+        write_html(las_file: LASRead.LASRead, html_file_path: str)
 
-As well as the :py:func:`pymemtrace.cpymemtrace_decs.reference_tracing`
+As well as using the :py:func:`pymemtrace.cpymemtrace_decs.reference_tracing`
 decorator for each file we write a message to the log when reading the
 input and another when writing the output.
+These messages will be converted to labels on the resulting plot of memory usage.
 
-This produces a 2.2G log file with nearly 10m lines.
-:py:mod:`pymemtrace.util.ref_trace_analyse` is invoked like this
-giving a ``gnuplot`` output directory and a list of types of interest:
+The decorator produces a 2.2GB log file with nearly 10m lines.
+The script :py:mod:`pymemtrace.util.ref_trace_analyse` can be used to analyse this log file.
+It is invoked by giving a ``gnuplot`` output directory and a list of types of interest.
+These types are ``LASRead`` which is the internal representation of the parsed file,
+this contains a list of ``LASSection`` objects and ``XhtmlStream`` is the means
+by which the HTML output is created:
 
 .. code-block:: bash
 
-    pymemtrace_ref_trace_analyse <log_file>.log --gnuplot-path=gnuplot_ref_trace --gnuplot-types=LASRead,LASSection,XhtmlStream
+    pymemtrace_ref_trace_analyse <log_file> \
+        --gnuplot-path=gnuplot_ref_trace \
+        --gnuplot-types=LASRead,LASSection,XhtmlStream
 
 :py:mod:`pymemtrace.util.ref_trace_analyse` takes around 70s to
-analyse this and produce this plot:
+analyse this log file and produce this plot:
 
 .. image:: plots/20260606_105231_0_23826_O_0_PY3.13.13.log.png
     :alt: RSS Usage and Live Counts.
@@ -217,18 +221,37 @@ analyse this and produce this plot:
     :align: center
 
 This shows the behaviour of the code, it looks pretty healthy,
-the RSS is reclaimed and the live object count is moderate.
+the RSS is (mostly) reclaimed.
+Because of the way that Python's small object memory allocator works it is quite usual to see
+the RSS slowly creep up during the lifetime of the process.
 
-If however we deliberately introduce a memory leak in the ``LASRead``
-object (and thus all the objects it contains) the plot looks quite
-different:
+Importantly the live object count is moderate and as we would expect, ten ``LASRead``
+objects have been created and all are de-allocated by the end of the log.
+
+Now we deliberately introduce a memory leak in the ``LASRead`` object.
+This is done by increasing the reference count so that the object, and all the objects it contains,
+are never de-allocated.
+
+.. code-block:: python
+
+    from pymemtrace import cMemLeak
+
+    # Code as above...
+    las_file = LASRead.LASRead(las_file_path)
+    # Increment the reference count so that las_file is never deallocated.
+    cMemLeak.py_incref(las_file)
+    # Continue the code as above...
+
+Now the the plot looks distinctly different:
 
 .. image:: plots/20260606_105539_0_23879_O_0_PY3.13.13.log.png
     :alt: RSS Usage and Live Counts (with leak).
     :width: 800
     :align: center
 
-So if you have a plot like the second one you definitely have a leak
-and you know the type that is leaking.
-This is very useful in tracking down objects that are not being
-de-allocated.
+The RSS increases as usual so it is hard to see the memory leak.
+However the live object count of ``LASRead`` and ``LASSection``, which are ever increasing, makes it clear that
+those objects are *not* being de-allocated.
+So there is the memory leak.
+
+Instrumenting your code like this gives you a forensic view of its memory behaviour.
