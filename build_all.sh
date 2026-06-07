@@ -13,8 +13,8 @@ set -o pipefail # don't hide errors within pipes
 
 # For current versions see https://devguide.python.org/versions/
 # Takes around 100s per version of Python.
-#PYTHON_VERSIONS=('3.8' '3.9' '3.10' '3.11' '3.12' '3.13' '3.14' '3.15')
-PYTHON_VERSIONS=('3.9' '3.10' '3.11' '3.12' '3.13')
+PYTHON_VERSIONS=('3.8' '3.9' '3.10' '3.11' '3.12' '3.13' '3.14' '3.15')
+#PYTHON_VERSIONS=('3.9' '3.10' '3.11' '3.12' '3.13')
 PYTHON_VENV_ROOT="${HOME}/pyenvs"
 # Used for venvs
 PROJECT_NAME="pymemtrace"
