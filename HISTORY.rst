@@ -1,7 +1,7 @@
 History
 =======
 
-0.7.0rc0 (TODO)
+0.6.1rc0 (TODO)
 ------------------
 
 * Added magic numbers to opaque data structures.
