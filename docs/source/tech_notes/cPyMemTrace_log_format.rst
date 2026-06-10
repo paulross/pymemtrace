@@ -245,8 +245,7 @@ takes place and back:
 
 .. code-block:: text
 
-    MSG:  3  +1  9.869994  # Detaching this profile file wrapper. New file:
-    MSG:  3  +1  9.869996  # pymemtrace/20260325_121938_22_95352_P_1_PY3.13.2.log
+    MSG:  3  +1  9.869994  # Detaching this profile file wrapper. New file: pymemtrace/20260325_121938_22_95352_P_1_PY3.13.2.log
     MSG:  3  +1  9.870580  # Re-attaching this profile file wrapper.
 
 The middle file, ``20260325_121938_22_95352_P_1_PY3.13.2.log``, will have this content when the context switch
@@ -254,8 +253,7 @@ takes place and back:
 
 .. code-block:: text
 
-    MSG:  3  +1  9.870162  # Detaching this profile file wrapper. New file:
-    MSG:  3  +1  9.870163  # pymemtrace/20260325_121938_23_95352_P_2_PY3.13.2.log
+    MSG:  3  +1  9.870162  # Detaching this profile file wrapper. New file: pymemtrace/20260325_121938_23_95352_P_2_PY3.13.2.log
     MSG:  3  +1  9.870437  # Re-attaching this profile file wrapper.
 
 The inner file has no context switches.
