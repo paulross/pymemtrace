@@ -98,3 +98,8 @@ def test_reftracecount_object_example_1024_1032_post_313():
     print(f'New: {counter.count_new()} DEL: {counter.count_del()}')
     # assert counter.count_new() == 12
     # assert counter.count_del() == 9
+
+if __name__ == '__main__':
+    print('START')
+    test_reftracecount_object_example_1024_1032_post_313()
+    print('FINISH')

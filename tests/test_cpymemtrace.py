@@ -1320,7 +1320,7 @@ def test_write_message_to_log_file():
         print(f'ref_trace_a is logging to {log_file_path}')
         list_of_str_and_time = []
         for i in range(3):
-            str_len = random.randint(1024**2, 2048**2)
+            str_len = random.randint(1024 ** 2, 2048 ** 2)
             cPyMemTrace.reference_tracing_write_message_to_log(
                 f'Creating StringAndTime_A({str_len})'
             )
@@ -1337,8 +1337,31 @@ def test_write_message_to_log_file():
         print(f.read())
 
 
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reftracecount_object_example_1024_1032_for_blog_post_313():
+    message = 'test_reftracecount_object_example_1024_1032_for_blog_post_313():'
+    exclude_tp_names = []#'HookImpl', 'HookSpec', 'HookCaller', 'HookRelay', 'Argument', ]
+    with tempfile.NamedTemporaryFile() as file:
+        with cPyMemTrace.ReferenceTracing(
+                message=message, filepath=file.name, exclude_tp_names=exclude_tp_names, include_builtins=True
+        ) as profiler:
+            l = []
+            for i in range(1024, 1024 + 8, 1):
+                l.append(i)
+            assert profiler.log_file_path() == file.name
+        file.flush()
+        file_data = file.read()
+        print()
+        print(' file_0_data '.center(75, '-'))
+        for line in file_data.split(b'\n'):
+            print(line)
+        print(' file_0_data DONE '.center(75, '-'))
+        assert file_data.startswith(bytes(message, 'ascii'))
+
+
 if __name__ == '__main__':
     print('START')
     # test_profile_basic_gt_310()
-    test_write_message_to_log_file()
+    # test_write_message_to_log_file()
+    test_reftracecount_object_example_1024_1032_for_blog_post_313()
     print('FINISH')
