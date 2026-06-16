@@ -36,6 +36,7 @@ Lets create a function that creates a number of these objects and, optionally, l
         l = []
         for i in range(4):
             obj = cMemLeak.CMalloc(1024)
+            # Choose to leak or not.
             if cause_leak:
                 obj.inc_refcnt(1)
             l.append(obj)
@@ -55,7 +56,7 @@ Firstly with no leak:
     with cPyMemTrace.ReferenceTracing(
             include_tp_names=['cMemLeak.CMalloc',],
     ) as profiler:
-        create_tmp_list_of_memory_objects(False)
+        create_tmp_list_of_memory_objects(cause_leak=False)
 
 This creates a log file that we can analyse with :py:mod:`pymemtrace.util.ref_trace_analyse`:
 
@@ -103,7 +104,7 @@ Now with a leak:
     with cPyMemTrace.ReferenceTracing(
             include_tp_names=['cMemLeak.CMalloc',],
     ) as profiler:
-        create_tmp_list_of_memory_objects(True)
+        create_tmp_list_of_memory_objects(cause_leak=True)
 
 And this log file analysed with :py:mod:`pymemtrace.util.ref_trace_analyse` gives:
 
@@ -161,6 +162,7 @@ Plotting Memory and Live Count
 
 The script :py:mod:`pymemtrace.util.ref_trace_analyse` has an option to plot with
 ``gnuplot`` the RSS usage and the object count over time.
+This gives a visual view of memory usage and object allocation over time.
 This uses the ``--gnuplot-path`` for specifying the path for the
 gnuplot output and ``--gnuplot-types`` to provide a comma seperated
 list of types of interest.
@@ -201,7 +203,7 @@ decorator for each file we write a message to the log when reading the
 input and another when writing the output.
 These messages will be converted to labels on the resulting plot of memory usage.
 
-The decorator produces a 2.2GB log file with nearly 10m lines.
+The decorator produces a 2GB log file with nearly 10m lines.
 The script :py:mod:`pymemtrace.util.ref_trace_analyse` can be used to analyse this log file.
 It is invoked by giving a ``gnuplot`` output directory and a list of types of interest.
 These types are ``LASRead`` which is the internal representation of the parsed file,
@@ -210,7 +212,8 @@ by which the HTML output is created:
 
 .. code-block:: bash
 
-    $ python pymemtrace/util/ref_trace_analyse.py 20260606_105231_0_23826_O_0_PY3.13.13.log \
+    $ python pymemtrace/util/ref_trace_analyse.py \
+        20260606_105231_0_23826_O_0_PY3.13.13.log \
         --gnuplot-path=gnuplot_ref_trace \
         --gnuplot-types=LASRead,LASSection,XhtmlStream
 
@@ -270,10 +273,10 @@ Now the the plot looks distinctly different:
     :width: 800
     :align: center
 
-The RSS increases as usual so it is hard to see that there is the memory leak.
+The RSS increases as usual so it is hard to see that there is a memory leak.
 However the live object count of ``LASRead`` and ``LASSection``,
 which are ever increasing, makes it clear that those objects are
 *not* being de-allocated.
-So that is where the memory leak is which makes it easier to track down.
+This makes it far easier to track down that memory leak.
 
 Instrumenting your code like this gives you a forensic view of its memory behaviour.
