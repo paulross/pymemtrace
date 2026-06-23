@@ -1462,7 +1462,6 @@ static PyTypeObject cpyTraceObjectType = {
  */
 static const char *
 py_frame_get_python_function_name(PyFrameObject *frame) {
-    assert(PyFrame_Check(frame));
     static char func_name[PYMEMTRACE_FUNCTION_NAME_MAX_LENGTH];
 //    func_name[0] = '\0';
     strcpy(func_name, "<UNKNOWN_FUNCTION_NAME>");
@@ -4155,10 +4154,11 @@ ref_trace_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data)
 
 /**
  * An illustration of using a reference tracer from C.
+ * This contains a memory leak which is hidden as eternal integers are used.
  *
  * @return 0 on success, Non-zero on failure.
  */
-int important_function(void) {
+int important_function_A(void) {
     static struct ref_trace_data data;
     data.magic_number = REF_TRACE_DATA_COUNT_ALLOCS_MAGIC_NUMBER;
     data.count_new = 0;
@@ -4169,26 +4169,80 @@ int important_function(void) {
 
     /* Do some important stuff here... */
     PyObject *p_list = PyList_New(0);
-#if 0
     /* This apparently looks OK but only as we are using eternal objects. */
     for (long i = 0; i < 8; ++i) {
         PyList_Append(p_list, PyLong_FromLong(i));
     }
-#endif
-#if 0
+    Py_DECREF(p_list);
+
+    /* Switch the tracer off. */
+    if (PyRefTracer_SetTracer(NULL, NULL)) {
+        return -1;
+    }
+    /* Now write out the results. */
+    fprintf(stdout, "%s(): New: %zu Del: %zu\n",
+            __FUNCTION__, data.count_new, data.count_del
+    );
+    return 0;
+}
+
+/**
+ * An illustration of using a reference tracer from C.
+ * This contains a memory leak which is revealed as non-eternal integers are used.
+ *
+ * @return 0 on success, Non-zero on failure.
+ */
+int important_function_B(void) {
+    static struct ref_trace_data data;
+    data.magic_number = REF_TRACE_DATA_COUNT_ALLOCS_MAGIC_NUMBER;
+    data.count_new = 0;
+    data.count_del = 0;
+    if (PyRefTracer_SetTracer(&ref_trace_callback, (void *) &data)) {
+        return -1;
+    }
+
+    /* Do some important stuff here... */
+    PyObject *p_list = PyList_New(0);
     /* This does not look OK because append() does not steal. */
     for (long i = 1024; i < 1024 + 8; ++i) {
         PyList_Append(p_list, PyLong_FromLong(i));
     }
-#endif
-#if 1
+    Py_DECREF(p_list);
+
+    /* Switch the tracer off. */
+    if (PyRefTracer_SetTracer(NULL, NULL)) {
+        return -1;
+    }
+    /* Now write out the results. */
+    fprintf(stdout, "%s(): New: %zu Del: %zu\n",
+            __FUNCTION__, data.count_new, data.count_del
+    );
+    return 0;
+}
+
+/**
+ * An illustration of using a reference tracer from C.
+ * This fixes the memory leak.
+ *
+ * @return 0 on success, Non-zero on failure.
+ */
+int important_function_C(void) {
+    static struct ref_trace_data data;
+    data.magic_number = REF_TRACE_DATA_COUNT_ALLOCS_MAGIC_NUMBER;
+    data.count_new = 0;
+    data.count_del = 0;
+    if (PyRefTracer_SetTracer(&ref_trace_callback, (void *) &data)) {
+        return -1;
+    }
+
+    /* Do some important stuff here... */
+    PyObject *p_list = PyList_New(0);
     /* This works as we correctly decref the value.. */
     for (long i = 1024; i < 1024 + 8; ++i) {
         PyObject *value = PyLong_FromLong(i);
         PyList_Append(p_list, value);
         Py_DECREF(value);
     }
-#endif
     Py_DECREF(p_list);
 
     /* Switch the tracer off. */
@@ -4309,22 +4363,29 @@ int debug_cPyMemtrace_profile_wrapper(void) {
 #if REFERENCE_TRACING_AVAILABLE
 /** Debug Reference Tracing wrapper. */
 int debug_cPyMemtrace_reference_tracing(void) {
-    PyObject *datetime_module = PyImport_ImportModule("datetime");
-    if (!datetime_module) {
-        fprintf(stderr, "Can not import the \"datetime\" module.");
-        return -32;
-    }
+    fprintf(stdout, "Start: %s\n", __FUNCTION__);
+    // PyObject *datetime_module = PyImport_ImportModule("datetime");
+    // if (!datetime_module) {
+    //     fprintf(stderr, "Can not import the \"datetime\" module.");
+    //     return -32;
+    // }
     if (PyType_Ready(&cpyReferenceTracingType) < 0) {
         return -64;
     }
     Py_INCREF(&cpyReferenceTracingType);
+
+    if (PyDateTimeAPI == NULL) {
+        PyDateTime_IMPORT;
+    }
+    assert(PyDateTimeAPI != NULL);
 
     cpyReferenceTracing *ref_tracing_object = (cpyReferenceTracing *) cpyReferenceTracing_new(
             &cpyReferenceTracingType, NULL, NULL
     );
     {
         PyObject *py_args = Py_BuildValue("()");
-        PyObject *py_kwargs = Py_BuildValue("{ss}", "filepath", "foo_bar_baz.log");
+        /* Creates a log file in cmake-build-debug/debug_cPyMemtrace_reference_tracing.log */
+        PyObject *py_kwargs = Py_BuildValue("{ss}", "filepath", "debug_cPyMemtrace_reference_tracing.log");
         PyObject_Print((PyObject *) py_kwargs, stdout, Py_PRINT_RAW);
         fputc('\n', stdout);
         int init = cpyReferenceTracing_init(ref_tracing_object, py_args, py_kwargs);
@@ -4335,9 +4396,31 @@ int debug_cPyMemtrace_reference_tracing(void) {
         fprintf(stdout, "\n");
 
         PyObject *result_enter = cpyReferenceTracing_enter(ref_tracing_object);
-        fprintf(stdout, "result_enter:\n");
+        fprintf(stdout, "result_enter: ");
         PyObject_Print(result_enter, stdout, Py_PRINT_RAW);
         fprintf(stdout, "\n");
+
+        /* Create and destroy some data and datetime objects. */
+        PyObject *obj_date = PyDate_FromDate(2026, 6, 1);
+        fprintf(stdout, "PyDate_FromDate(2026, 6, 1): ");
+        PyObject_Print(obj_date, stdout, Py_PRINT_RAW);
+        fprintf(stdout, "\n");
+        Py_DECREF(obj_date);
+        obj_date = NULL;
+
+        PyObject *obj_time = PyTime_FromTime(1, 2, 3, 4);
+        fprintf(stdout, "PyTime_FromTime(1, 2, 3, 4): ");
+        PyObject_Print(obj_time, stdout, Py_PRINT_RAW);
+        fprintf(stdout, "\n");
+        Py_DECREF(obj_time);
+        obj_time = NULL;
+
+        PyObject *obj_datetime = PyDateTime_FromDateAndTime(2026, 6, 1, 2, 3, 4, 5);
+        fprintf(stdout, "PyDateTime_FromDateAndTime(2026, 6, 1, 2, 3, 4, 5): ");
+        PyObject_Print(obj_datetime, stdout, Py_PRINT_RAW);
+        fprintf(stdout, "\n");
+        Py_DECREF(obj_datetime);
+        obj_datetime = NULL;
 
         /* This detaches the profiler from the Python runtime. */
         PyObject *result_exit = cpyReferenceTracing_exit(ref_tracing_object, NULL);
@@ -4351,6 +4434,7 @@ int debug_cPyMemtrace_reference_tracing(void) {
         Py_DECREF(result_enter);
     }
     Py_DECREF(ref_tracing_object);
+    fprintf(stdout, "End: %s\n", __FUNCTION__);
     return 0;
 }
 #endif // REFERENCE_TRACING_AVAILABLE
@@ -4422,9 +4506,25 @@ debug_cPyMemtrace(int argc, char **argv) {
     }
     test_reftracer();
     {
-        fprintf(stdout, "\nimportant_function() starting\n");
-        err = important_function();
-        fprintf(stdout, "important_function() returns %d\n\n", err);
+        fprintf(stdout, "\nimportant_function_A() starting\n");
+        err = important_function_A();
+        fprintf(stdout, "important_function_A() returns %d\n", err);
+        if (err) {
+            return err;
+        }
+    }
+    {
+        fprintf(stdout, "\nimportant_function_B() starting\n");
+        err = important_function_B();
+        fprintf(stdout, "important_function_B() returns %d\n", err);
+        if (err) {
+            return err;
+        }
+    }
+    {
+        fprintf(stdout, "\nimportant_function_C() starting\n");
+        err = important_function_C();
+        fprintf(stdout, "important_function_C() returns %d\n", err);
         if (err) {
             return err;
         }
