@@ -39,15 +39,29 @@
  * Reference Tracing (Python 3.13+)
  * --------------------------------
  *
- * Created by Paul Ross on 08/03/2026.
- * This contains the Python interface to the C reference tracer.
+ * Created by Paul Ross on 2026-03-08.
+ * This contains the Python interface to the C reference tracer for Python 3.13+.
  * See https://docs.python.org/3/c-api/profiling.html#reference-tracing
  *
+ * If available the macro \c REFERENCE_TRACING_AVAILABLE will be true.
+ *
  * Monitored events are:
- * - \c PyRefTracer_CREATE https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_CREATE
- * - \c PyRefTracer_DESTROY https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_DESTROY
- * - Possibly: \c PyRefTracer_TRACKER_REMOVED https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED
+ *
+ * \c PyRefTracer_CREATE https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_CREATE
+ * \c PyRefTracer_DESTROY https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_DESTROY
+ *
+ * Possibly, with Python 3.15+: \c PyRefTracer_TRACKER_REMOVED https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED
+ * In that case the macro \c REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE will be true.
+ *
+ * This is for Python 3.13+
+ * Example: https://github.com/python/cpython/pull/115945/changes
+ *
+ * This writes every new/delete to a log file.
+ *
+ * Following the pattern for profile/trace objects this is implemented as context managers
+ * with a linked list of loggers.
  */
+
 #define PY_SSIZE_T_CLEAN
 
 #include <Python.h>
@@ -191,8 +205,8 @@ py_frame_get_python_file_name(PyFrameObject *Py_UNUSED(frame)) {
 /**
  * Extracts a pointer to the Python file name within the frame.
  *
- * @param frame The Python frame.
- * @return A pointer to the Python file name or an empty string on failure.
+ * @param frame The Python frame. If NULL then "<UNKNOWN_FILE_NAME>" is set.
+ * @return A pointer to a static buffer containing the the Python file name or "<UNKNOWN_FILE_NAME>" on failure.
  */
 static const char *
 py_frame_get_python_file_name(PyFrameObject *frame) {
@@ -200,6 +214,7 @@ py_frame_get_python_file_name(PyFrameObject *frame) {
 //    file_name[0] = '\0';
     strcpy(file_name, "<UNKNOWN_FILE_NAME>");
     if (frame) {
+        assert(PyFrame_Check(frame));
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
         /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding
          * Note: PyFrame_GetCode returns a strong reference.
@@ -224,7 +239,7 @@ py_frame_get_python_file_name(PyFrameObject *frame) {
  * @param frame The Python frame.
  * @param what The \c PyTrace_... event ID.
  * @param arg The Python event, see "Meaning of arg" in https://docs.python.org/3/c-api/profiling.html#c.Py_tracefunc
- * @return A pointer to the Python function name or an empty string on failure.
+ * @return A pointer to a static buffer containing the Python function name or "<UNKNOWN_FUNCTION_NAME>" on failure.
  */
 static const char *
 py_frame_get_python_function_name_with_profile_trace_args(PyFrameObject *frame, int what, PyObject *arg) {
@@ -1438,38 +1453,16 @@ static PyTypeObject cpyTraceObjectType = {
 #if REFERENCE_TRACING_AVAILABLE
 
 /**
- *
- * Created by Paul Ross on 2026-03-11.
- * This contains the Python interface to the C reference tracer for Python 3.13+.
- * See https://docs.python.org/3/c-api/profiling.html#reference-tracing
- *
- * Monitored events are:
- * PyRefTracer_CREATE https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_CREATE
- * PyRefTracer_DESTROY https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_DESTROY
- * Possibly: PyRefTracer_TRACKER_REMOVED https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_TRACKER_REMOVED
- *
- */
-
-/**
- * Documentation https://docs.python.org/3/c-api/profiling.html#reference-tracing
- * This is for Python 3.13+
- * Example: https://github.com/python/cpython/pull/115945/changes
- *
- * This writes every new/delete to a log file.
- *
- * Following the pattern above this is implemented as context managers with a linked list of logger.
- */
-
-// This is only used by Reference Tracing as Profile/Trace use
-// py_frame_get_python_function_name_with_profile_trace_args()
-/**
  * Returns the function name in a static C buffer.
+ * This is only used by Reference Tracing as Profile/Trace use
+ * \c py_frame_get_python_function_name_with_profile_trace_args()
  *
  * @param frame The Python frame. Can be NULL.
  * @return A pointer to the static string.
  */
 static const char *
 py_frame_get_python_function_name(PyFrameObject *frame) {
+    assert(PyFrame_Check(frame));
     static char func_name[PYMEMTRACE_FUNCTION_NAME_MAX_LENGTH];
 //    func_name[0] = '\0';
     strcpy(func_name, "<UNKNOWN_FUNCTION_NAME>");
@@ -2498,6 +2491,29 @@ reference_trace_is_builtin_post_suspend(PyObject *Py_UNUSED(op)) {
 #endif /* PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN */
 
 /**
+ * Returns 1 if the \c sequence contains the object type name, 0 otherwise.
+ *
+ * @param obj The object being traced.
+ * @param p_sequence The sequence of tp_names to search in.
+ * @return 1 if the object type is in the \c exclude_tp_names zero otherwise.
+ */
+static int
+reference_trace_type_matches(PyObject *obj, PyObject *p_sequence) {
+    assert(!reference_tracing_call_back_is_active);
+    assert(obj);
+    assert(p_sequence);
+    assert(PySequence_Check(p_sequence));
+
+    int ret = 0;
+    PyObject *obj_tp_name = Py_BuildValue("s", Py_TYPE(obj)->tp_name);
+    if (PySequence_Contains(p_sequence, obj_tp_name) == 1) {
+        ret = 1;
+    }
+    Py_DECREF(obj_tp_name);
+    return ret;
+}
+
+/**
  * Returns 1 if the \c exclude_tp_names sequence contains the object type name, 0 otherwise.
  *
  * @param data_alias The <tt>struct reference_tracing_data</tt>
@@ -2508,17 +2524,7 @@ static int
 reference_trace_type_exclude_matches(struct reference_tracing_data *data_alias, PyObject *obj) {
     assert(data_alias);
     assert(data_alias->exclude_tp_names);
-    assert(PySequence_Check(data_alias->exclude_tp_names));
-    assert(obj);
-    assert(!reference_tracing_call_back_is_active);
-
-    int ret = 0;
-    PyObject *obj_tp_name = Py_BuildValue("s", Py_TYPE(obj)->tp_name);
-    if (PySequence_Contains(data_alias->exclude_tp_names, obj_tp_name) == 1) {
-        ret = 1;
-    }
-    Py_DECREF(obj_tp_name);
-    return ret;
+    return reference_trace_type_matches(obj, data_alias->exclude_tp_names);
 }
 
 /**
@@ -2532,17 +2538,7 @@ static int
 reference_trace_type_include_matches(struct reference_tracing_data *data_alias, PyObject *obj) {
     assert(data_alias);
     assert(data_alias->include_tp_names);
-    assert(PySequence_Check(data_alias->include_tp_names));
-    assert(obj);
-    assert(!reference_tracing_call_back_is_active);
-
-    int ret = 0;
-    PyObject *obj_tp_name = Py_BuildValue("s", Py_TYPE(obj)->tp_name);
-    if (PySequence_Contains(data_alias->include_tp_names, obj_tp_name) == 1) {
-        ret = 1;
-    }
-    Py_DECREF(obj_tp_name);
-    return ret;
+    return reference_trace_type_matches(obj, data_alias->include_tp_names);
 }
 
 /**
@@ -2754,8 +2750,11 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     /* Now we can call into Python code. */
     PyFrameObject *frame = PyEval_GetFrame();
     Py_XINCREF(frame);
-    /* Get the function name. This does not use get_python_function_name()
-     * as that needs a profile/trace event "what" and a PyObject *argument. */
+    /* Get the function name. This does not use
+     * py_frame_get_python_function_name_with_profile_trace_args()
+     * as that needs a profile/trace event "what" and a PyObject *argument.
+     * This uses py_frame_get_python_function_name instead.
+     */
 #if REFERENCE_TRACING_GET_SIZEOF
     long object_size = sys_getsizeof(obj);
     // Should match:
@@ -2914,25 +2913,29 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
 /**
  * Initialise the Reference Tracer.
  *
- * @param self
- * @param args
- * @param kwds
- * @return
+ * @param self The \c cpyReferenceTracing object created by \c cpyReferenceTracing_new
+ * @param args Constructor arguments.
+ * @param kwds Constructor keyword arguments.
+ * @return Zero on success, non-zero on failure.
  */
 static int
 cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kwds) {
+    assert(self);
+    assert(self->data);
     assert(!PyErr_Occurred());
+
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     static char *kwlist[] = {
             "message", "filepath",
-            "include_builtins", "exclude_tp_names", "include_tp_names",
-            "gc_collect_on_exit",
+            "include_builtins", "exclude_tp_names",
+            "include_tp_names", "gc_collect_on_exit",
             NULL
     };
     char *message = NULL;
 
     /* Note the defaults are set in cpyReferenceTracing_new() */
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sO&pOOi", kwlist, &message, PyUnicode_FSConverter,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sO&pOOi", kwlist,
+                                     &message, PyUnicode_FSConverter,
                                      &self->py_specific_filename,
                                      &(self->data->include_builtins),
                                      &(self->data->exclude_tp_names),
@@ -2974,7 +2977,7 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
                     "cpyReferenceTracing_init() include_tp_names must be a sequence, not type %s.",
                     Py_TYPE(self->data->include_tp_names)->tp_name
             );
-            return -3;
+            return -4;
         }
         /* PyArg_ParseTupleAndKeywords returns a borrowed reference with "O" format. */
         Py_INCREF(self->data->include_tp_names);
@@ -2989,12 +2992,12 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
                 "cpyReferenceTracing_init() gc_collect_on_exit must be -1, 0, 1, 2 not %i.",
                 self->gc_collect_on_exit
         );
-        return -4;
+        return -5;
     }
     self->data->types_live_count = ht_create();
     if (self->data->types_live_count == NULL) {
         PyErr_SetString(PyExc_MemoryError, "Can not allocate hash table of types count.");
-        return -5;
+        return -6;
     }
     assert(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
