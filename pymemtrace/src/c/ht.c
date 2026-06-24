@@ -27,8 +27,19 @@ SOFTWARE.
  * Notable changes:
  *
  * - Change the counter type from int to long.
+ * - Add macro definitions to allow strdup()
  *
  */
+
+/**
+ * Need  macros to instantiate strdup().
+ * See: https://en.cppreference.com/c/experimental/dynamic/strdup
+ */
+#ifdef __STDC_ALLOC_LIB__
+#define __STDC_WANT_LIB_EXT2__ 1
+#else
+#define _POSIX_C_SOURCE 200809L
+#endif
 
 // Simple hash table implemented in C.
 
