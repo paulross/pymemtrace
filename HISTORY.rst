@@ -1,9 +1,11 @@
 History
 =======
 
-0.6.1rc0 (TODO)
+0.6.1 (2026-06-24)
 ------------------
 
+* Fixes: #5 (macros setting for strdup()).
+* Some debug improvements.
 * Added magic numbers to opaque data structures.
 * Add gnuplot output of live object count.
 * Documentation improvements.
