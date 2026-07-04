@@ -444,6 +444,9 @@ cpyTraceFileWrapper_close_file(cpyTraceFileWrapper *self) {
         fprintf(self->file, "%s\n", MARKER_LOG_FILE_END);
         fclose(self->file);
         self->file = NULL;
+#if DEBUG
+        fprintf(stdout, "DEBUG: Profile/Trace closed log file \"%s\"\n", self->log_file_path);
+#endif
     }
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
 }
@@ -460,6 +463,7 @@ cpyTraceFileWrapper_dealloc(cpyTraceFileWrapper *self) {
         cpyTraceFileWrapper_close_file(self);
     }
     free(self->log_file_path);
+    self->log_file_path = NULL;
     PyObject_Del((PyObject *) self);
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
 }
@@ -2443,7 +2447,7 @@ reference_trace_is_builtin_pre_suspend(PyObject *op) {
  *  This is Python version specific as some code, such as
  *  the \c datetime API change in Python 3.15.
  *  With Python 3.15+ the PyDateTimeAPI import now triggers arbitrary object
- *  creation so the Reference Tracing must be suspended otherwise the callback\
+ *  creation so the Reference Tracing must be suspended otherwise the callback
  *  will be re-entrant.
  *  See also \c reference_trace_is_builtin_pre_suspend()
  *
@@ -2484,6 +2488,7 @@ reference_trace_is_builtin_post_suspend(PyObject *op) {
 
 static int
 reference_trace_is_builtin_post_suspend(PyObject *Py_UNUSED(op)) {
+    assert(reference_tracing_call_back_is_active == 0);
     return 0;
 }
 
@@ -2523,6 +2528,8 @@ static int
 reference_trace_type_exclude_matches(struct reference_tracing_data *data_alias, PyObject *obj) {
     assert(data_alias);
     assert(data_alias->exclude_tp_names);
+    assert(obj);
+    assert(reference_tracing_call_back_is_active == 0);
     return reference_trace_type_matches(obj, data_alias->exclude_tp_names);
 }
 
@@ -2537,6 +2544,8 @@ static int
 reference_trace_type_include_matches(struct reference_tracing_data *data_alias, PyObject *obj) {
     assert(data_alias);
     assert(data_alias->include_tp_names);
+    assert(obj);
+    assert(reference_tracing_call_back_is_active == 0);
     return reference_trace_type_matches(obj, data_alias->include_tp_names);
 }
 
@@ -2551,6 +2560,8 @@ reference_trace_type_include_matches(struct reference_tracing_data *data_alias, 
  */
 static int
 increment_types_live_count(struct reference_tracing_data *data, PyObject *obj, int delta) {
+    assert(data);
+    assert(obj);
     const int ERROR_CODE = -1;
     void *current_types_live_count = ht_get(data->types_live_count, Py_TYPE(obj)->tp_name);
     if (current_types_live_count != NULL) {
@@ -2910,12 +2921,49 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
 }
 
 /**
- * Initialise the Reference Tracer.
+ * Clean up any dynamically allocated data structures that are created in \c cpyReferenceTracing_init()
  *
- * @param self The \c cpyReferenceTracing object created by \c cpyReferenceTracing_new
+ * @param self The \c cpyReferenceTracing object created by \c cpyReferenceTracing_new()
+ */
+static void
+cpyReferenceTracing_init_cleanup(cpyReferenceTracing *self) {
+    if (self->data) {
+        Py_XDECREF(self->data->exclude_tp_names);
+        self->data->exclude_tp_names = NULL;
+        Py_XDECREF(self->data->include_tp_names);
+        self->data->include_tp_names = NULL;
+        if (self->data->types_live_count) {
+            ht_destroy(self->data->types_live_count);
+            self->data->types_live_count = NULL;
+        }
+        free(self->data->log_file_name);
+        self->data->log_file_name = NULL;
+        free(self->data);
+        self->data = NULL;
+    }
+    free(self->message);
+    self->message = NULL;
+    Py_XDECREF(self->py_specific_filename);
+    self->py_specific_filename = NULL;
+}
+
+/**
+ * Initialise the Reference Tracer.
+ * If there are any allocation errors then \c cpyReferenceTracing_init_cleanup() will be called to clean up.
+ *
+ * Constructor arguments are, all are optional:
+ *
+ * - "message" - The initial message, as a Python string, to write to the log file.
+ * - "filepath" - The specific log file path, as a Python string. If absent a specific file will be created in the CWD.
+ * - "include_builtins" - Flag to include builtins in the log. Default is False.
+ * - "exclude_tp_names" - List of type names to exclude. Default is an empty list.
+ * - "include_tp_names" - List of type names to include. Default is an empty list.
+ * - "gc_collect_on_exit" - Integer to pass to \c gc.collect(). -1 is no GC. Default is 2.
+ *
+ * @param self The \c cpyReferenceTracing object created by \c cpyReferenceTracing_new()
  * @param args Constructor arguments.
  * @param kwds Constructor keyword arguments.
- * @return Zero on success, non-zero on failure.
+ * @return Zero on success, a negative number on failure.
  */
 static int
 cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kwds) {
@@ -2963,6 +3011,7 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
                     "cpyReferenceTracing_init() exclude_tp_names must be a sequence, not type %s.",
                     Py_TYPE(self->data->exclude_tp_names)->tp_name
             );
+            cpyReferenceTracing_init_cleanup(self);
             return -3;
         }
         /* PyArg_ParseTupleAndKeywords returns a borrowed reference with "O" format. */
@@ -2976,6 +3025,7 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
                     "cpyReferenceTracing_init() include_tp_names must be a sequence, not type %s.",
                     Py_TYPE(self->data->include_tp_names)->tp_name
             );
+            cpyReferenceTracing_init_cleanup(self);
             return -4;
         }
         /* PyArg_ParseTupleAndKeywords returns a borrowed reference with "O" format. */
@@ -2991,11 +3041,13 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
                 "cpyReferenceTracing_init() gc_collect_on_exit must be -1, 0, 1, 2 not %i.",
                 self->gc_collect_on_exit
         );
+        cpyReferenceTracing_init_cleanup(self);
         return -5;
     }
     self->data->types_live_count = ht_create();
     if (self->data->types_live_count == NULL) {
         PyErr_SetString(PyExc_MemoryError, "Can not allocate hash table of types count.");
+        cpyReferenceTracing_init_cleanup(self);
         return -6;
     }
     assert(!PyErr_Occurred());
@@ -3244,6 +3296,9 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
         /* Close the file. */
         fclose(self->data->log_file);
         self->data->log_file = NULL;
+#if DEBUG
+        fprintf(stdout, "DEBUG: Reference Tracing closed log file \"%s\"\n", self->data->log_file_name);
+#endif
         /* Register the previous tracer from the linked list. */
         data = reference_tracing_ll_get_data();
         if (data) {
