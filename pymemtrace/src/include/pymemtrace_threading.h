@@ -48,9 +48,9 @@
         #define PYMEMTRACE_LOCK_DECLARE_LOCK PyThread_type_lock _mutex_lock;
 
         #define PYMEMTRACE_LOCK_ACQUIRE_LOCK do {       \
-        if (!PyThread_acquire_lock(_mutex_lock, 0)) {   \
+        if (!PyThread_acquire_lock(&_mutex_lock, 0)) {   \
             Py_BEGIN_ALLOW_THREADS                      \
-            PyThread_acquire_lock(_mutex_lock, 1);      \
+            PyThread_acquire_lock(&_mutex_lock, 1);      \
             Py_END_ALLOW_THREADS                        \
         } } while (0)
 
@@ -69,8 +69,8 @@
          * See: https://docs.python.org/3/c-api/synchronization.html
          */
         #define PYMEMTRACE_LOCK_DECLARE_LOCK PyMutex _mutex_lock;
-        #define PYMEMTRACE_LOCK_ACQUIRE_LOCK PyMutex_Lock(_mutex_lock)
-        #define PYMEMTRACE_LOCK_RELEASE_LOCK PyMutex_Unlock(_mutex_lock)
+        #define PYMEMTRACE_LOCK_ACQUIRE_LOCK PyMutex_Lock(&_mutex_lock)
+        #define PYMEMTRACE_LOCK_RELEASE_LOCK PyMutex_Unlock(&_mutex_lock)
         #define PYMEMTRACE_LOCK_ACQUIRE_LOCK_IN_PYOBJECT(obj) PyMutex_Lock(obj->_mutex_lock)
         #define PYMEMTRACE_LOCK_RELEASE_LOCK_IN_PYOBJECT(obj) PyMutex_Unlock((obj)->_mutex_lock)
     #endif

@@ -30,15 +30,18 @@ The components are seperated by '_':
      - HHMMSS
      -
    * - Ordinal
-     - Integer
+     - Unsigned integer
      - This is used to discriminate between log files that are created at the same second as
        ``struct tm`` does not have fractions of a second.
        Starting from 0 for each PID.
        Not Zero padded.
    * - Process ID
-     - Integer
+     - Unsigned integer
      - Not Zero padded.
-   * - Profilere Type
+   * - Thread ID
+     - Unsigned integer
+     - Not Zero padded.
+   * - Profiler Type
      - ``'O'``, ``'P'`` or ``'T'``
      - These letters refer, respectively, to (object) Reference Tracing, Profiling and Tracing.
    * - Trace Stack Depth
