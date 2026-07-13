@@ -54,7 +54,7 @@ The components are seperated by '_':
 
 The file extension is ``'.log'``
 
-For example ``20260227_122119_14_50260_T_2_PY3.12.1.log``.
+For example ``20260227_122119_14_50260_292757_T_2_PY3.12.1.log``.
 
 See ``create_filename()`` in ``pymemtrace/src/c/pymemtrace_util.c``.
 
