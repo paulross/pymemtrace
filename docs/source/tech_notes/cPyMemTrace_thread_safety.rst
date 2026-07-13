@@ -264,8 +264,8 @@ https://docs.python.org/3/c-api/synchronization.html#python-critical-section-api
 Thread ID
 ^^^^^^^^^^
 
-- Use ``unsigned long thread_id = PyThread_get_thread_native_id();``
-- Add the thread ID to the log file name.
+- Use ``unsigned long thread_id = PyThread_get_thread_native_id();`` DONE.
+- Add the thread ID to the log file name. DONE.
 
 Linked List(s)
 ^^^^^^^^^^^^^^^
