@@ -1,7 +1,7 @@
 //
 // Created by PaulRoss on 13/07/2026.
 //
-#include "pymemtrace_threading.h"
+#include "../include/pymemtrace_threading.h"
 
 #ifdef WITH_THREAD
 /**

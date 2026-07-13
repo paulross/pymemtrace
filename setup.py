@@ -80,6 +80,7 @@ ext_modules = [
             'pymemtrace/src/c/get_rss.c',
             'pymemtrace/src/c/ht.c',
             'pymemtrace/src/c/pymemtrace_util.c',
+            'pymemtrace/src/c/pymemtrace_threading.c',
             'pymemtrace/src/cpy/cPyMemTrace.c',
         ],
         include_dirs=[
