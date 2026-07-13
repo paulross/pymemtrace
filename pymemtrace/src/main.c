@@ -215,7 +215,7 @@ main (int argc, char **argv) {
     printf("\n");
     int debug_result;
     debug_result = debug_cPyMemtrace(argc, argv);
-    printf("Debug result: %d", debug_result);
+    printf("debug_cPyMemtrace() debug result: %d", debug_result);
 
     return 0;
 }

@@ -64,7 +64,7 @@ For example:
 
     with cPyMemTrace.Profile():
         # Now writing to, say, "20241107_195847_11_62264_P_0_PY3.13.0b3.log"
-        # Note the "_0_" in the file name.
+        # Note the "_P_" in the file name.
         with cPyMemTrace.Profile():
             # Writing to "20241107_195847_12_62264_P_0_PY3.13.0b3.log" is suspended.
             # Now writing to, say, "20241107_195847_12_62264_P_1_PY3.13.0b3.log"

@@ -81,6 +81,7 @@
 #include "ht.h"
 #include "get_rss.h"
 #include "pymemtrace_util.h"
+#include "pymemtrace_threading.h"
 
 /// PYMEMTRACE_PATH_NAME_MAX_LENGTH is usually 4kB and that should be sufficient.
 #define PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH PYMEMTRACE_PATH_NAME_MAX_LENGTH
@@ -4604,6 +4605,9 @@ debug_cPyMemtrace(int argc, char **argv) {
         PyObject_Print((PyObject *) b, stdout, Py_PRINT_RAW);
     }
 #endif
+
+    unsigned long thread_id = get_current_thread_id();
+    printf("Python thread_id: %lu\n", thread_id);
 
     /* Cleanup. */
     PyConfig_Clear(&config);

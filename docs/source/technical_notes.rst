@@ -10,5 +10,6 @@ Technical Notes
     tech_notes/cPyMemTrace_ReferenceTracing
     tech_notes/cPyMemTrace_ReferenceTracing_MemoryLeaks
     tech_notes/cPyMemTrace_log_format
+    tech_notes/cPyMemTrace_thread_safety
     tech_notes/dtrace
     tech_notes/rss_cost
