@@ -45,31 +45,44 @@
 #ifdef WITH_THREAD
     #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 13
         /* Old style lock. */
-        #define PYMEMTRACE_LOCK_DECLARE_LOCK_IN_PYOBJECT PyThread_type_lock _mutex_lock;
+        #define PYMEMTRACE_LOCK_DECLARE_LOCK PyThread_type_lock _mutex_lock;
 
-        #define PYMEMTRACE_LOCK_ACQUIRE_LOCK(obj) do {              \
-            if (!PyThread_acquire_lock((obj)->_mutex_lock, 0)) {    \
-            Py_BEGIN_ALLOW_THREADS                                  \
-            PyThread_acquire_lock((obj)->_mutex_lock, 1);           \
-            Py_END_ALLOW_THREADS                                    \
+        #define PYMEMTRACE_LOCK_ACQUIRE_LOCK do {       \
+        if (!PyThread_acquire_lock(_mutex_lock, 0)) {   \
+            Py_BEGIN_ALLOW_THREADS                      \
+            PyThread_acquire_lock(_mutex_lock, 1);      \
+            Py_END_ALLOW_THREADS                        \
+        } } while (0)
+
+        #define PYMEMTRACE_LOCK_RELEASE_LOCK_IN_PYOBJECT PyThread_release_lock(_mutex_lock)
+
+        #define PYMEMTRACE_LOCK_ACQUIRE_LOCK_IN_PYOBJECT(obj) do {      \
+            if (!PyThread_acquire_lock((obj)->_mutex_lock, 0)) {        \
+                Py_BEGIN_ALLOW_THREADS                                  \
+                PyThread_acquire_lock((obj)->_mutex_lock, 1);           \
+                Py_END_ALLOW_THREADS                                    \
             } } while (0)
 
-        #define PYMEMTRACE_LOCK_RELEASE_LOCK(obj) PyThread_release_lock((obj)->_mutex_lock)
+        #define PYMEMTRACE_LOCK_RELEASE_LOCK_IN_PYOBJECT(obj) PyThread_release_lock((obj)->_mutex_lock)
     #else
         /* New style mutex lock.
          * See: https://docs.python.org/3/c-api/synchronization.html
          */
-        #define PYMEMTRACE_LOCK_DECLARE_LOCK_IN_PYOBJECT PyMutex _mutex_lock;
-        #define PYMEMTRACE_LOCK_ACQUIRE_LOCK(obj) PyMutex_Lock(obj->_mutex_lock)
-        #define PYMEMTRACE_LOCK_RELEASE_LOCK(obj) PyMutex_Unlock((obj)->_mutex_lock)
+        #define PYMEMTRACE_LOCK_DECLARE_LOCK PyMutex _mutex_lock;
+        #define PYMEMTRACE_LOCK_ACQUIRE_LOCK PyMutex_Lock(_mutex_lock)
+        #define PYMEMTRACE_LOCK_RELEASE_LOCK PyMutex_Unlock(_mutex_lock)
+        #define PYMEMTRACE_LOCK_ACQUIRE_LOCK_IN_PYOBJECT(obj) PyMutex_Lock(obj->_mutex_lock)
+        #define PYMEMTRACE_LOCK_RELEASE_LOCK_IN_PYOBJECT(obj) PyMutex_Unlock((obj)->_mutex_lock)
     #endif
 
 
 #else
     /* Non-threaded Python. */
-    #define PYMEMTRACE_LOCK_DECLARE_LOCK_IN_PYOBJECT
-    #define PYMEMTRACE_LOCK_ACQUIRE_LOCK(obj)
-    #define PYMEMTRACE_LOCK_RELEASE_LOCK(obj)
+    #define PYMEMTRACE_LOCK_DECLARE_LOCK
+    #define PYMEMTRACE_LOCK_ACQUIRE_LOCK
+    #define PYMEMTRACE_LOCK_RELEASE_LOCK
+    #define PYMEMTRACE_LOCK_ACQUIRE_LOCK_IN_PYOBJECT(obj)
+    #define PYMEMTRACE_LOCK_RELEASE_LOCK_IN_PYOBJECT(obj)
 #endif
 
 unsigned long get_current_thread_id(void);
