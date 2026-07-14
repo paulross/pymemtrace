@@ -54,7 +54,7 @@
             Py_END_ALLOW_THREADS                        \
         } } while (0)
 
-        #define PYMEMTRACE_LOCK_RELEASE_LOCK_IN_PYOBJECT PyThread_release_lock(_mutex_lock)
+        #define PYMEMTRACE_LOCK_RELEASE_LOCK PyThread_release_lock(_mutex_lock)
 
         #define PYMEMTRACE_LOCK_ACQUIRE_LOCK_IN_PYOBJECT(obj) do {      \
             if (!PyThread_acquire_lock((obj)->_mutex_lock, 0)) {        \

@@ -37,14 +37,14 @@ char *create_filename(char trace_type, size_t trace_stack_depth) {
     /* Not thread safe. */
     static char filename[PYMEMTRACE_FILE_NAME_MAX_LENGTH];
     static struct tm now;
-    PYMEMTRACE_LOCK_DECLARE_LOCK
-    PYMEMTRACE_LOCK_ACQUIRE_LOCK;
+//    PYMEMTRACE_LOCK_DECLARE_LOCK
+//    PYMEMTRACE_LOCK_ACQUIRE_LOCK;
     time_t t = time(NULL);
     gmtime_r(&t, &now);
     size_t len = strftime(filename, PYMEMTRACE_FILE_NAME_MAX_LENGTH, "%Y%m%d_%H%M%S", &now);
     if (len == 0) {
         fprintf(stderr, "create_filename(): strftime failed.");
-        PYMEMTRACE_LOCK_RELEASE_LOCK;
+//        PYMEMTRACE_LOCK_RELEASE_LOCK;
         return NULL;
     }
     pid_t pid = getpid();
@@ -57,10 +57,10 @@ char *create_filename(char trace_type, size_t trace_stack_depth) {
 
     if (byte_len == 0) {
         fprintf(stderr, "create_filename(): failed to add PID, stack depth and Python version.");
-        PYMEMTRACE_LOCK_RELEASE_LOCK;
+//        PYMEMTRACE_LOCK_RELEASE_LOCK;
         return NULL;
     }
-    PYMEMTRACE_LOCK_RELEASE_LOCK;
+//    PYMEMTRACE_LOCK_RELEASE_LOCK;
     return filename;
 }
 
