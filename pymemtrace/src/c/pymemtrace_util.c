@@ -74,6 +74,60 @@ const char *current_working_directory(void) {
 }
 
 /**
+ * Creates a log file name with the timestamp (to the second), the process ID and the Python version.
+ * For example "20241107_195847_17_62264_P_0_PY3.13.0b3.log".
+ * Not thread safe.
+ *
+ * @param trace_type 'T' for a trace function, 'P' for a profile function, 'O' for Reference Tracing of objects.
+ * @param trace_stack_depth The length of the linked list of trace functions starting from 0.
+ *  This discriminates log files when there is nested tracing.
+ * @return 0 on failure or number of bytes written to the buffer.
+ */
+static size_t
+write_filename_to_buffer(char trace_type, size_t trace_stack_depth, char *buffer) {
+    static struct tm now;
+    time_t t = time(NULL);
+    gmtime_r(&t, &now);
+    size_t ret = strftime(buffer, PYMEMTRACE_FILE_NAME_MAX_LENGTH, "%Y%m%d_%H%M%S", &now);
+    if (ret == 0) {
+        fprintf(stderr, "create_filename(): strftime failed.");
+        return ret;
+    }
+    pid_t pid = getpid();
+    int suffix_len = snprintf(
+        buffer + ret,
+        PYMEMTRACE_FILE_NAME_MAX_LENGTH - ret - 1,
+        "_%d_%d_%lu_%c_%zu_PY%s.log",
+        file_number++, pid, get_current_thread_id(), trace_type, trace_stack_depth, PY_VERSION
+    );
+    if (suffix_len == 0) {
+        fprintf(stderr, "create_filename(): failed to add PID, stack depth and Python version.");
+        return 0;
+    }
+    ret += suffix_len;
+    return ret;
+}
+
+/**
+ * Get the current working directory using \c getcwd().
+ * Not thread safe.
+ *
+ * See https://pubs.opengroup.org/onlinepubs/009696599/functions/getcwd.html
+ *
+ * @return The length written into the buffer.
+ */
+static size_t
+write_cwd_to_buffer(char *buffer, size_t buffer_size) {
+    char *result = getcwd(buffer, buffer_size);
+    if (result == NULL) {
+        fprintf(stderr, "Can not get current working directory.\n");
+        return 0;
+    }
+    assert(result == buffer);
+    return strlen(buffer);
+}
+
+/**
  * Create a file path within the current working directory.
  * The file name will be, for example, \c "20241107_195847_17_62264_P_0_PY3.13.0b3.log".
  * This is thread safe.
@@ -85,25 +139,19 @@ const char *current_working_directory(void) {
  * @param bufsz The size of the buffer.
  * @return The number of bytes written to the buffer. A negative number on failure.
  */
-int create_filename_within_cwd(char trace_type, size_t trace_stack_depth, char* restrict buffer, size_t bufsz) {
-//    pthread_mutex_t mutex;
-//    pthread_mutexattr_t attr
-//    if (pthread_mutex_init(&mutex, &attr)) {
-//        return -1;
-//    }
-//    int pthread_mutex_destroy(pthread_mutex_t *mutex);
+size_t
+create_filename_within_cwd(char trace_type, size_t trace_stack_depth, char* restrict buffer, size_t buffer_size) {
     pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
     if (pthread_mutex_lock(&mutex)) {
         return -1;
     }
-    const char *file_name = create_filename(trace_type, trace_stack_depth);
-    const char *cwd = current_working_directory();
+    size_t ret = write_cwd_to_buffer(buffer, buffer_size);
 #ifdef _WIN32
-    char sep = '\\';
+    buffer[ret++] = '\\';
 #else
-    char sep = '/';
+    buffer[ret++] = '/';
 #endif
-    int ret = snprintf(buffer, bufsz, "%s%c%s", cwd, sep, file_name);
+    ret += write_filename_to_buffer(trace_type, trace_stack_depth, buffer + ret);
     if (pthread_mutex_unlock(&mutex)) {
         return -2;
     }
