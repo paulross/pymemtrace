@@ -101,24 +101,31 @@
 #define PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
 //#undef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
 
+#if __STDC_VERSION__ < 199901L
+# if __GNUC__ >= 2
+#  define __func__ __FUNCTION__
+# else
+#  define __func__ "<unknown>"
+# endif
+#endif
 
 /* Tracing reference counts. */
 #if 0
 #define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(op)                                    \
-    fprintf(stdout, "TRACE: %50s() BEG REFCNT %12p %10zd\n", __FUNCTION__, (void *)op, Py_REFCNT(op))
+    fprintf(stdout, "TRACE: %50s() BEG REFCNT %12p %10zd\n", __func__, (void *)op, Py_REFCNT(op))
 
 #define TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(op)                                    \
-    fprintf(stdout, "TRACE: %50s() END REFCNT %12p %10zd\n", __FUNCTION__, (void *)op, Py_REFCNT(op))
+    fprintf(stdout, "TRACE: %50s() END REFCNT %12p %10zd\n", __func__, (void *)op, Py_REFCNT(op))
 
 #define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self)                         \
     fprintf(stdout, "TRACE: %50s() BEG REFCNT %12p %10zd trace_file_wrapper REFCNT %10zd\n",    \
-        __FUNCTION__, (void *)self, Py_REFCNT(self),                                            \
+        __func__, (void *)self, Py_REFCNT(self),                                            \
         self->trace_file_wrapper ? Py_REFCNT(self->trace_file_wrapper) : -1                     \
     )
 
 #define TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self)                         \
     fprintf(stdout, "TRACE: %50s() END REFCNT %12p %10zd trace_file_wrapper REFCNT %10zd\n",    \
-        __FUNCTION__, (void *)self, Py_REFCNT(self),                                            \
+        __func__, (void *)self, Py_REFCNT(self),                                            \
         self->trace_file_wrapper ? Py_REFCNT(self->trace_file_wrapper) : -1                     \
     )
 #else
@@ -1905,7 +1912,7 @@ cpyReferenceTracingSimple_count_new(void) {
     PyErr_Format(
             PyExc_RuntimeError,
             "%s(): No reference tracing data is on the stack.",
-            __FUNCTION__
+            __func__
     );
     return NULL;
 }
@@ -1925,7 +1932,7 @@ cpyReferenceTracingSimple_count_del(void) {
     PyErr_Format(
             PyExc_RuntimeError,
             "%s(): No reference tracing data is on the stack.",
-            __FUNCTION__
+            __func__
     );
     return NULL;
 }
@@ -2193,7 +2200,7 @@ sys_getsizeof(PyObject* Py_UNUSED(obj)) {
 #if REFERENCE_TRACING_GET_SIZEOF_TRACE
     printf(
         "TRACE: %s()#%d %p type: %s refcnt %zd\n",
-        __FUNCTION__, __LINE__, (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj)
+        __func__, __LINE__, (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj)
     );
 #endif // REFERENCE_TRACING_GET_SIZEOF_TRACE
     if (Py_REFCNT(obj) == 0) {
@@ -2203,7 +2210,7 @@ sys_getsizeof(PyObject* Py_UNUSED(obj)) {
 #if REFERENCE_TRACING_GET_SIZEOF_TRACE
     printf(
             "TRACE: %s()#%d %p type: %s refcnt %zd\n",
-            __FUNCTION__, __LINE__, (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj)
+            __func__, __LINE__, (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj)
     );
 #endif // REFERENCE_TRACING_GET_SIZEOF_TRACE
 //    if (strcmp(Py_TYPE(obj)->tp_name, "frame") == 0) {
@@ -2219,7 +2226,7 @@ sys_getsizeof(PyObject* Py_UNUSED(obj)) {
 #if REFERENCE_TRACING_GET_SIZEOF_TRACE
     printf(
             "TRACE: %s()#%d %p type: %s refcnt %zd\n",
-            __FUNCTION__, __LINE__, (void *)sys_module, Py_TYPE(sys_module)->tp_name, Py_REFCNT(sys_module)
+            __func__, __LINE__, (void *)sys_module, Py_TYPE(sys_module)->tp_name, Py_REFCNT(sys_module)
     );
 #endif // REFERENCE_TRACING_GET_SIZEOF_TRACE
     if (sys_module) {
@@ -2232,7 +2239,7 @@ sys_getsizeof(PyObject* Py_UNUSED(obj)) {
 #if REFERENCE_TRACING_GET_SIZEOF_TRACE
             printf(
                     "TRACE: %s()#%d %p ret: %ld\n",
-                    __FUNCTION__, __LINE__, (void *)result, ret
+                    __func__, __LINE__, (void *)result, ret
             );
 #endif // REFERENCE_TRACING_GET_SIZEOF_TRACE
             Py_DECREF(result);
@@ -2242,12 +2249,12 @@ sys_getsizeof(PyObject* Py_UNUSED(obj)) {
 #if REFERENCE_TRACING_GET_SIZEOF_TRACE
     printf(
             "TRACE: %s()#%d %p type: %s refcnt %zd\n",
-            __FUNCTION__, __LINE__, (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj)
+            __func__, __LINE__, (void *)obj, Py_TYPE(obj)->tp_name, Py_REFCNT(obj)
     );
 #endif // REFERENCE_TRACING_GET_SIZEOF_TRACE
     Py_DECREF(obj);
 #if REFERENCE_TRACING_GET_SIZEOF_TRACE
-    printf("TRACE: %s()#%d returns %ld\n", __FUNCTION__, __LINE__, ret);
+    printf("TRACE: %s()#%d returns %ld\n", __func__, __LINE__, ret);
 #endif // REFERENCE_TRACING_GET_SIZEOF_TRACE
 #endif // REFERENCE_TRACING_GET_SIZEOF
     return ret;
@@ -2641,7 +2648,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
 //    fprintf(
 //            data_alias->log_file,
 //            "%s()%d DEBUG TYPE @ %p is \"%s\"\n",
-//            __FUNCTION__, __LINE__, &(Py_TYPE(obj)), Py_TYPE(obj)->tp_name
+//            __func__, __LINE__, &(Py_TYPE(obj)), Py_TYPE(obj)->tp_name
 //            );
 
     /* Experience shows that frame and code objects are tricky to handle
@@ -3133,7 +3140,7 @@ cpyReferenceTracing_invoke_gc_collect(cpyReferenceTracing *self) {
             fprintf(
                 stdout,
                 "DEBUG: %s#%d gc.collect(%d) collected %ld objects.\n",
-                __FUNCTION__, __LINE__, self->gc_collect_on_exit, ret
+                __func__, __LINE__, self->gc_collect_on_exit, ret
             );
 #endif
             Py_DECREF(result);
@@ -3177,7 +3184,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
         int err_code = create_filename_within_cwd('O', ll_depth, file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH);
         if (err_code <= 0) {
             PyErr_Format(
-                    PyExc_RuntimeError, "%s#%d Can not print to buffer, error %d", __FUNCTION__, __LINE__, err_code
+                    PyExc_RuntimeError, "%s#%d Can not print to buffer, error %d", __func__, __LINE__, err_code
             );
             return NULL;
         }
@@ -3347,14 +3354,14 @@ cpyReferenceTracing_suspend(void) {
     if (!data) {
         PyErr_Format(
                 PyExc_RuntimeError,
-                "%s()#%d Head of list is NULL.", __FUNCTION__, __LINE__
+                "%s()#%d Head of list is NULL.", __func__, __LINE__
         );
         return NULL;
     }
     if (!data->log_file) {
         PyErr_Format(
                 PyExc_RuntimeError,
-                "%s()#%d Head of list, the file pointer is NULL.", __FUNCTION__, __LINE__
+                "%s()#%d Head of list, the file pointer is NULL.", __func__, __LINE__
         );
         return NULL;
     }
@@ -3368,7 +3375,7 @@ cpyReferenceTracing_suspend(void) {
     if (data_old != data) {
         PyErr_Format(
                 PyExc_RuntimeError,
-                "%s()#%d Head of list tracer does not match the registered one.", __FUNCTION__, __LINE__
+                "%s()#%d Head of list tracer does not match the registered one.", __func__, __LINE__
         );
         return NULL;
     }
@@ -3377,7 +3384,7 @@ cpyReferenceTracing_suspend(void) {
         PyErr_Format(
                 PyExc_RuntimeError,
                 "%s()#%d PyRefTracer_GetTracer() return value is not the expected callback function.",
-                __FUNCTION__, __LINE__
+                __func__, __LINE__
         );
         return NULL;
     }
@@ -3385,7 +3392,7 @@ cpyReferenceTracing_suspend(void) {
         PyErr_Format(
                 PyExc_RuntimeError,
                 "%s()#%d PyRefTracer_SetTracer(NULL, NULL) failed.",
-                __FUNCTION__, __LINE__
+                __func__, __LINE__
         );
         return NULL;
     }
@@ -3407,7 +3414,7 @@ cpyReferenceTracing_resume(void) {
         PyErr_Format(
                 PyExc_RuntimeError,
                 "%s()#%d PyRefTracer_SetTracer(NULL, NULL) failed.",
-                __FUNCTION__, __LINE__
+                __func__, __LINE__
         );
         return NULL;
     }
@@ -3421,7 +3428,7 @@ cpyReferenceTracing_resume(void) {
             PyErr_Format(
                     PyExc_RuntimeError,
                     "%s()#%d PyRefTracer_SetTracer(tracer, data) failed.",
-                    __FUNCTION__, __LINE__
+                    __func__, __LINE__
             );
             return NULL;
         }
@@ -3447,7 +3454,7 @@ cpyReferenceTracing_count_new(void) {
     PyErr_Format(
             PyExc_RuntimeError,
             "%s(): No reference tracing data is on the stack.",
-            __FUNCTION__
+            __func__
     );
     return NULL;
 }
@@ -3466,7 +3473,7 @@ cpyReferenceTracing_count_del(void) {
     PyErr_Format(
             PyExc_RuntimeError,
             "%s(): No reference tracing data is on the stack.",
-            __FUNCTION__
+            __func__
     );
     return NULL;
 }
@@ -3485,7 +3492,7 @@ cpyReferenceTracing_dict_of_live_objects_private(struct reference_tracing_data *
         PyErr_Format(
                 PyExc_MemoryError,
                 "%s(): Can not create a dictionary.",
-                __FUNCTION__
+                __func__
         );
         return NULL;
     }
@@ -3498,7 +3505,7 @@ cpyReferenceTracing_dict_of_live_objects_private(struct reference_tracing_data *
             PyErr_Format(
                     PyExc_MemoryError,
                     "%s(): Can not set a dictionary key/value.",
-                    __FUNCTION__
+                    __func__
             );
             Py_DECREF(val);
             return NULL;
@@ -3518,7 +3525,7 @@ cpyReferenceTracing_dict_of_live_objects(void) {
     PyErr_Format(
             PyExc_RuntimeError,
             "%s(): No reference tracing data is on the stack.",
-            __FUNCTION__
+            __func__
     );
     return NULL;
 }
@@ -3843,7 +3850,7 @@ reference_tracing_dict_of_live_objects(PyObject *Py_UNUSED(module)) {
     PyErr_Format(
             PyExc_RuntimeError,
             "%s(): No reference tracing data is on the stack.",
-            __FUNCTION__
+            __func__
     );
     return NULL;
 }
@@ -4063,7 +4070,7 @@ static int simpletracer_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent even
  */
 static int
 test_reftracer(void) {
-    printf("Starting %s() at %s#%d\n", __FUNCTION__, __FILE_NAME__, __LINE__);
+    printf("Starting %s() at %s#%d\n", __func__, __FILE_NAME__, __LINE__);
     // Save the current tracer and data to restore it later
     void *current_data;
     PyRefTracer current_tracer = PyRefTracer_GetTracer(&current_data);
@@ -4117,11 +4124,11 @@ test_reftracer(void) {
         goto failed;
     }
     PyRefTracer_SetTracer(current_tracer, current_data);
-    printf("DONE %s() at %s#%d\n", __FUNCTION__, __FILE_NAME__, __LINE__);
+    printf("DONE %s() at %s#%d\n", __func__, __FILE_NAME__, __LINE__);
     return 0;
     failed:
     PyRefTracer_SetTracer(current_tracer, current_data);
-    printf("FAILED %s() at %s#%d\n", __FUNCTION__, __FILE_NAME__, __LINE__);
+    printf("FAILED %s() at %s#%d\n", __func__, __FILE_NAME__, __LINE__);
     return -1;
 }
 
@@ -4237,7 +4244,7 @@ int important_function_A(void) {
     }
     /* Now write out the results. */
     fprintf(stdout, "%s(): New: %zu Del: %zu\n",
-            __FUNCTION__, data.count_new, data.count_del
+            __func__, data.count_new, data.count_del
     );
     return 0;
 }
@@ -4271,7 +4278,7 @@ int important_function_B(void) {
     }
     /* Now write out the results. */
     fprintf(stdout, "%s(): New: %zu Del: %zu\n",
-            __FUNCTION__, data.count_new, data.count_del
+            __func__, data.count_new, data.count_del
     );
     return 0;
 }
@@ -4307,7 +4314,7 @@ int important_function_C(void) {
     }
     /* Now write out the results. */
     fprintf(stdout, "%s(): New: %zu Del: %zu\n",
-            __FUNCTION__, data.count_new, data.count_del
+            __func__, data.count_new, data.count_del
     );
     return 0;
 }
@@ -4419,7 +4426,7 @@ int debug_cPyMemtrace_profile_wrapper(void) {
 #if REFERENCE_TRACING_AVAILABLE
 /** Debug Reference Tracing wrapper. */
 int debug_cPyMemtrace_reference_tracing(void) {
-    fprintf(stdout, "Start: %s\n", __FUNCTION__);
+    fprintf(stdout, "Start: %s\n", __func__);
     // PyObject *datetime_module = PyImport_ImportModule("datetime");
     // if (!datetime_module) {
     //     fprintf(stderr, "Can not import the \"datetime\" module.");
@@ -4490,7 +4497,7 @@ int debug_cPyMemtrace_reference_tracing(void) {
         Py_DECREF(result_enter);
     }
     Py_DECREF(ref_tracing_object);
-    fprintf(stdout, "End: %s\n", __FUNCTION__);
+    fprintf(stdout, "End: %s\n", __func__);
     return 0;
 }
 #endif // REFERENCE_TRACING_AVAILABLE
