@@ -6,9 +6,9 @@ History
 
 * Fixes issue #6
 * Initial support and design for adding thread safety. Not yet implemented.
-* Supported Python versions are: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
+* Remove support for Python 3.8 (it will probably still work though).
+* Supported Python versions are: 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
 * Development Status :: 5 - Production/Stable
-
 
 0.6.1 (2026-06-24)
 ------------------
