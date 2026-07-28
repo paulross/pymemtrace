@@ -4070,7 +4070,7 @@ static int simpletracer_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent even
  */
 static int
 test_reftracer(void) {
-    printf("Starting %s() at %s#%d\n", __func__, __FILE_NAME__, __LINE__);
+    printf("Starting %s() at %s#%d\n", __func__, __FILE__, __LINE__);
     // Save the current tracer and data to restore it later
     void *current_data;
     PyRefTracer current_tracer = PyRefTracer_GetTracer(&current_data);
@@ -4124,11 +4124,11 @@ test_reftracer(void) {
         goto failed;
     }
     PyRefTracer_SetTracer(current_tracer, current_data);
-    printf("DONE %s() at %s#%d\n", __func__, __FILE_NAME__, __LINE__);
+    printf("DONE %s() at %s#%d\n", __func__, __FILE__, __LINE__);
     return 0;
     failed:
     PyRefTracer_SetTracer(current_tracer, current_data);
-    printf("FAILED %s() at %s#%d\n", __func__, __FILE_NAME__, __LINE__);
+    printf("FAILED %s() at %s#%d\n", __func__, __FILE__, __LINE__);
     return -1;
 }
 
