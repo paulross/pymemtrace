@@ -1,6 +1,12 @@
 History
 =======
 
+0.6.4rc0 (TODO)
+------------------
+
+* Supported Python versions are: 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
+* Development Status :: 5 - Production/Stable
+
 0.6.3 (2026-07-27)
 ------------------
 
