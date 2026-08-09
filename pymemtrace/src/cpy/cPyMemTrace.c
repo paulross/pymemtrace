@@ -2154,6 +2154,37 @@ reference_tracing_ll_length(void) {
     return ret;
 }
 
+#ifndef REFERENCE_TRACING_LL_DUMP
+#define REFERENCE_TRACING_LL_DUMP 1
+#endif
+
+static size_t
+reference_tracing_ll_dump(const char *prefix, FILE *out) {
+#if DEBUG && REFERENCE_TRACING_LL_DUMP
+    size_t ret = 0;
+    int indent = 0;
+    struct cReferenceTracingLinkedListNode *p_linked_list = reference_tracing_ll;
+    fputs("DEBUG: ", out);
+    if (prefix) {
+        fprintf(out, "%s(): %s\n", __func__, prefix);
+    }
+    while (p_linked_list) {
+        for (int i = 0; i < indent; i++) {
+            fprintf(out, "  ");
+        }
+        fprintf(out, "[%2zd] @%p %s\n", ret, (void *)p_linked_list, p_linked_list->data->log_file_name);
+        ret++;
+        p_linked_list = p_linked_list->next;
+    }
+    if (prefix) {
+        fprintf(out, "%s(): %s DONE\n", __func__, prefix);
+    }
+    return ret;
+#else
+    return 0;
+#endif // DEBUG && REFERENCE_TRACING_LL_DUMP
+}
+
 // MARK: cpyReferenceTracing object
 
 #if 0
@@ -3167,6 +3198,9 @@ static PyObject *
 cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     assert(!PyErr_Occurred());
+
+    reference_tracing_ll_dump("cpyReferenceTracing_enter()", stdout);
+
     static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH + 1];
     /* Clear the existing tracer. */
     if (PyRefTracer_SetTracer(NULL, NULL)) {
@@ -3252,6 +3286,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     Py_INCREF(self);
     assert(!PyErr_Occurred());
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
+    reference_tracing_ll_dump("cpyReferenceTracing_enter() DONE", stdout);
     return (PyObject *) self;
 }
 
@@ -3271,6 +3306,8 @@ static PyObject *
 cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     /* NOTE: No assert(!PyErr_Occurred()); as an exception might have been set by the users code. */
+
+    reference_tracing_ll_dump("cpyReferenceTracing_exit()", stdout);
 
     /* Invoke gc.collect() if required, and we DO want to trace de-allocations so,
      * we do this before de-registering the tracer. */
@@ -3320,6 +3357,7 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
         Py_RETURN_FALSE;
     }
     PyErr_Format(PyExc_RuntimeError, "ReferenceTracing.__exit__ has no cpyTraceFileWrapper");
+    reference_tracing_ll_dump("cpyReferenceTracing_exit() DONE", stdout);
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     return NULL;
 }
