@@ -1306,12 +1306,6 @@ def test_reference_tracing_nested_with_sig_log_files():
 
 
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
-def test_reference_tracing_nested_with_sig_log_files():
-    print()
-    create_string_and_time_a()
-
-
-@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_write_message_to_log_file():
     with cPyMemTrace.ReferenceTracing(
             message="create_string_and_time_write_message_to_log_file()",
