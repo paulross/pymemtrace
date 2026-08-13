@@ -2164,19 +2164,26 @@ reference_tracing_ll_dump(const char *prefix, FILE *out) {
     size_t ret = 0;
     int indent = 0;
     struct cReferenceTracingLinkedListNode *p_linked_list = reference_tracing_ll;
-    fputs("DEBUG: ", out);
     if (prefix) {
+        fputs("DEBUG: ", out);
         fprintf(out, "%s(): %s\n", __func__, prefix);
     }
-    while (p_linked_list) {
-        for (int i = 0; i < indent; i++) {
-            fprintf(out, "  ");
+    if (p_linked_list) {
+        while (p_linked_list) {
+            for (int i = 0; i < indent; i++) {
+                fprintf(out, "  ");
+            }
+            fputs("DEBUG: ", out);
+            fprintf(out, "[%2zd] @%p %s\n", ret, (void *)p_linked_list, p_linked_list->data->log_file_name);
+            ret++;
+            p_linked_list = p_linked_list->next;
         }
-        fprintf(out, "[%2zd] @%p %s\n", ret, (void *)p_linked_list, p_linked_list->data->log_file_name);
-        ret++;
-        p_linked_list = p_linked_list->next;
+    } else {
+        fputs("DEBUG: ", out);
+        fprintf(out, "Linked list empty\n");
     }
     if (prefix) {
+        fputs("DEBUG: ", out);
         fprintf(out, "%s(): %s DONE\n", __func__, prefix);
     }
     return ret;
