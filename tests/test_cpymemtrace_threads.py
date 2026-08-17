@@ -39,7 +39,7 @@ def test_simple_threading():
         ),
         threading.Thread(
             target=reference_tracing_simple_thread_worker,
-            args=('Thread-B', 1024**2, 1.125, 0.25, 0.25,),
+            args=('Thread-B', 1024**2, 0.125, 0.25, 0.25,),
         ),
     ]
     # Start each thread
