@@ -43,6 +43,7 @@ add_executable(
     pymemtrace/src/c/ht.c
     pymemtrace/src/include/pymemtrace_threading.h
     pymemtrace/src/c/pymemtrace_threading.c
+        pymemtrace/src/include/pymemtrace_macros.h
 )
 
 include_directories(

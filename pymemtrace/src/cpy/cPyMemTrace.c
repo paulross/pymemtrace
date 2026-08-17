@@ -80,8 +80,9 @@
 
 #include "ht.h"
 #include "get_rss.h"
-#include "pymemtrace_util.h"
+#include "pymemtrace_macros.h"
 #include "pymemtrace_threading.h"
+#include "pymemtrace_util.h"
 
 /// PYMEMTRACE_PATH_NAME_MAX_LENGTH is usually 4kB and that should be sufficient.
 #define PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH PYMEMTRACE_PATH_NAME_MAX_LENGTH
@@ -222,7 +223,7 @@ py_frame_get_python_file_name(PyFrameObject *frame) {
 //    file_name[0] = '\0';
     strcpy(file_name, "<UNKNOWN_FILE_NAME>");
     if (frame) {
-        assert(PyFrame_Check(frame));
+        PYMEMTRACE_DASSERT(PyFrame_Check(frame));
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
         /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding
          * Note: PyFrame_GetCode returns a strong reference.
@@ -255,7 +256,7 @@ py_frame_get_python_function_name_with_profile_trace_args(PyFrameObject *frame, 
 //    func_name[0] = '\0';
     strcpy(func_name, "<UNKNOWN_FUNCTION_NAME>");
     if (frame) {
-        assert(PyFrame_Check(frame));
+        PYMEMTRACE_DASSERT(PyFrame_Check(frame));
         if (what == PyTrace_C_CALL || what == PyTrace_C_EXCEPTION || what == PyTrace_C_RETURN) {
             strcpy(func_name, PyEval_GetFuncName(arg));
         } else {
@@ -288,7 +289,7 @@ py_frame_get_python_function_name_with_profile_trace_args(PyFrameObject *frame, 
 static int
 py_frame_get_line_number(PyFrameObject *frame) {
     if (frame) {
-        assert(PyFrame_Check(frame));
+        PYMEMTRACE_DASSERT(PyFrame_Check(frame));
         return PyFrame_GetLineNumber(frame);
     }
     return 0;
@@ -420,7 +421,7 @@ trace_wrapper_write_message_to_log_file(
         int newline
 ) {
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT
-    assert(trace_wrapper->file);
+    PYMEMTRACE_DASSERT(trace_wrapper->file);
     if (include_prefix) {
         fputs("MSG:  ", trace_wrapper->file);
         trace_wrapper_write_event_time_to_event_text(trace_wrapper);
@@ -486,7 +487,7 @@ cpyTraceFileWrapper_dealloc(cpyTraceFileWrapper *self) {
  */
 static PyObject *
 cpyTraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     cpyTraceFileWrapper *self;
     self = (cpyTraceFileWrapper *) type->tp_alloc(type, 0);
     if (self != NULL) {
@@ -559,7 +560,7 @@ static PyMemberDef cpyTraceFileWrapper_members[] = {
  */
 static PyObject *
 cpyTraceFileWrapper_write_to_log(cpyTraceFileWrapper *self, PyObject *op) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     if (!self->file) {
         PyErr_SetString(PyExc_IOError, "Log file is closed.");
         return NULL;
@@ -589,7 +590,7 @@ cpyTraceFileWrapper_write_to_log(cpyTraceFileWrapper *self, PyObject *op) {
  */
 static PyObject *
 cpyTraceFileWrapper_write_message_to_log(cpyTraceFileWrapper *self, PyObject *op) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     if (!self->file) {
         PyErr_SetString(PyExc_IOError, "Log file is closed.");
         return NULL;
@@ -815,8 +816,8 @@ trace_or_profile_must_write_next(cpyTraceFileWrapper *trace_wrapper, long d_rss)
  */
 static int
 trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObject *arg) {
-    assert(!PyErr_Occurred());
-    assert(Py_TYPE(pobj) == &cpyTraceFileWrapperType && "trace_wrapper is not a cpyTraceFileWrapperType.");
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(Py_TYPE(pobj) == &cpyTraceFileWrapperType && "trace_wrapper is not a cpyTraceFileWrapperType.");
 
     cpyTraceFileWrapper *trace_wrapper = (cpyTraceFileWrapper *) pobj;
     size_t rss = getCurrentRSS_alternate();
@@ -833,7 +834,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
     if (trace_or_profile_must_write_next(trace_wrapper, d_rss_to_report)) {
         // NOTE: Ignore event number 0 as that is covered by "FRST:" below.
 #ifdef PY_MEM_TRACE_WRITE_OUTPUT_PREV_NEXT
-        assert(trace_wrapper->file);
+        PYMEMTRACE_DASSERT(trace_wrapper->file);
         fputs("NEXT: ", trace_wrapper->file);
 #endif
         trace_wrapper_write_frame_data_to_event_text(trace_wrapper, frame, what, arg);
@@ -845,7 +846,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 #endif // PY_MEM_TRACE_WRITE_OUTPUT
     trace_wrapper->event_number++;
     trace_wrapper->rss = rss;
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     return 0;
 }
 
@@ -871,7 +872,7 @@ trace_or_profile_function(PyObject *pobj, PyFrameObject *frame, int what, PyObje
 static cpyTraceFileWrapper *
 new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *specific_filename, int is_profile) {
     static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH + 1];
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     cpyTraceFileWrapper *trace_wrapper = NULL;
     if (specific_filename) {
         snprintf(file_path_buffer, PYMEMTRACE_PATH_NAME_MAX_LENGTH, "%s", specific_filename);
@@ -970,7 +971,7 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
     } else {
         fprintf(stderr, "Can not create cpyTraceFileWrapper.\n");
     }
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     return trace_wrapper;
 }
 
@@ -981,7 +982,7 @@ new_trace_file_wrapper(int d_rss_trigger, const char *message, const char *speci
  */
 static PyObject *
 get_log_file_path_profile(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     cpyTraceFileWrapper *wrapper = wrapper_ll_get(static_profile_ll);
     if (wrapper) {
         return Py_BuildValue("s", wrapper->log_file_path);
@@ -995,7 +996,7 @@ get_log_file_path_profile(void) {
  */
 static PyObject *
 get_log_file_path_trace(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     cpyTraceFileWrapper *wrapper = wrapper_ll_get(static_trace_ll);
     if (wrapper) {
         return Py_BuildValue("s", wrapper->log_file_path);
@@ -1042,7 +1043,7 @@ cpyProfileOrTraceObject_dealloc(cpyProfileOrTraceObject *self) {
  */
 static PyObject *
 cpyProfileOrTraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     cpyProfileOrTraceObject *self = (cpyProfileOrTraceObject *) type->tp_alloc(type, 0);
     if (self) {
         TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
@@ -1064,14 +1065,14 @@ cpyProfileOrTraceObject_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObj
  */
 static int
 cpyProfileOrTraceObject_init(cpyProfileOrTraceObject *self, PyObject *args, PyObject *kwds) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     static char *kwlist[] = {"d_rss_trigger", "message", "filepath", NULL};
     int d_rss_trigger = -1;
     char *message = NULL;
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|isO&", kwlist, &d_rss_trigger, &message, PyUnicode_FSConverter,
                                      &self->py_specific_filename)) {
-        assert(PyErr_Occurred());
+        PYMEMTRACE_DASSERT(PyErr_Occurred());
         return -1;
     }
     self->d_rss_trigger = d_rss_trigger;
@@ -1085,7 +1086,7 @@ cpyProfileOrTraceObject_init(cpyProfileOrTraceObject *self, PyObject *args, PyOb
             return -2;
         }
     }
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
     return 0;
 }
@@ -1114,7 +1115,7 @@ static PyMemberDef cpyProfileOrTraceObject_members[] = {
  */
 static cpyTraceFileWrapper *
 py_attach_profile_function(int d_rss_trigger, const char *message, const char *specific_filename) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     cpyTraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 1);
     if (wrapper) {
         wrapper_ll_push(&static_profile_ll, wrapper);
@@ -1122,7 +1123,7 @@ py_attach_profile_function(int d_rss_trigger, const char *message, const char *s
         PyEval_SetProfile(&trace_or_profile_function, (PyObject *) wrapper);
         // Write a marker, in this case it is the line number of the frame.
         trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
-        assert(!PyErr_Occurred());
+        PYMEMTRACE_DASSERT(!PyErr_Occurred());
         return wrapper;
     }
     PyErr_SetString(PyExc_RuntimeError, "py_attach_profile_function(): Could not attach profile function.");
@@ -1137,7 +1138,7 @@ py_attach_profile_function(int d_rss_trigger, const char *message, const char *s
 static PyObject *
 ProfileObject_enter(cpyProfileOrTraceObject *self) {
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     if (self->py_specific_filename) {
         self->trace_file_wrapper = py_attach_profile_function(
                 self->d_rss_trigger, self->message, PyBytes_AsString((PyObject *) self->py_specific_filename)
@@ -1146,11 +1147,11 @@ ProfileObject_enter(cpyProfileOrTraceObject *self) {
         self->trace_file_wrapper = py_attach_profile_function(self->d_rss_trigger, self->message, NULL);
     }
     if (self->trace_file_wrapper == NULL) {
-        assert(PyErr_Occurred());
+        PYMEMTRACE_DASSERT(PyErr_Occurred());
         return NULL;
     }
     Py_INCREF(self);
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
     return (PyObject *) self;
 }
@@ -1164,7 +1165,7 @@ ProfileObject_enter(cpyProfileOrTraceObject *self) {
 static PyObject *
 ProfileObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
-    // No assert(!PyErr_Occurred()); as an exception might have been set by the user.
+    // No PYMEMTRACE_DASSERT(!PyErr_Occurred()); as an exception might have been set by the user.
     if (self->trace_file_wrapper) {
         // PyEval_SetProfile() will decrement the reference count that incremented by
         // PyEval_SetProfile() on __enter__
@@ -1181,7 +1182,7 @@ ProfileObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
         if (trace_file_wrapper) {
             PyEval_SetProfile(&trace_or_profile_function, (PyObject *) trace_file_wrapper);
             /* Put a marker in the file. */
-            assert(trace_file_wrapper->file);
+            PYMEMTRACE_DASSERT(trace_file_wrapper->file);
             trace_wrapper_write_message_to_log_file(
                     trace_file_wrapper,
                     "Re-attaching this profile file wrapper.",
@@ -1301,7 +1302,7 @@ static PyTypeObject cpyProfileObjectType = {
  */
 static cpyTraceFileWrapper *
 py_attach_trace_function(int d_rss_trigger, const char *message, const char *specific_filename) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     cpyTraceFileWrapper *wrapper = new_trace_file_wrapper(d_rss_trigger, message, specific_filename, 0);
     if (wrapper) {
         wrapper_ll_push(&static_trace_ll, wrapper);
@@ -1309,7 +1310,7 @@ py_attach_trace_function(int d_rss_trigger, const char *message, const char *spe
         PyEval_SetTrace(&trace_or_profile_function, (PyObject *) wrapper);
         // Write a marker, in this case it is the line number of the frame.
         trace_or_profile_function((PyObject *) wrapper, PyEval_GetFrame(), PyTrace_LINE, Py_None);
-        assert(!PyErr_Occurred());
+        PYMEMTRACE_DASSERT(!PyErr_Occurred());
         return wrapper;
     }
     PyErr_SetString(PyExc_RuntimeError, "py_attach_trace_function(): Could not attach profile function.");
@@ -1323,7 +1324,7 @@ py_attach_trace_function(int d_rss_trigger, const char *message, const char *spe
  */
 static PyObject *
 TraceObject_enter(cpyProfileOrTraceObject *self) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     if (self->py_specific_filename) {
         self->trace_file_wrapper = py_attach_trace_function(
                 self->d_rss_trigger, self->message, PyBytes_AsString((PyObject *) self->py_specific_filename)
@@ -1332,11 +1333,11 @@ TraceObject_enter(cpyProfileOrTraceObject *self) {
         self->trace_file_wrapper = py_attach_trace_function(self->d_rss_trigger, self->message, NULL);
     }
     if (self->trace_file_wrapper == NULL) {
-        assert(PyErr_Occurred());
+        PYMEMTRACE_DASSERT(PyErr_Occurred());
         return NULL;
     }
     Py_INCREF(self);
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     return (PyObject *) self;
 }
 
@@ -1348,7 +1349,7 @@ TraceObject_enter(cpyProfileOrTraceObject *self) {
  */
 static PyObject *
 TraceObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
-    // No assert(!PyErr_Occurred()); as an exception might have been set by the users code.
+    // No PYMEMTRACE_DASSERT(!PyErr_Occurred()); as an exception might have been set by the users code.
 
     // PyEval_SetTrace() will decrement the reference count that incremented by
     // PyEval_SetTrace() on __enter__
@@ -1366,7 +1367,7 @@ TraceObject_exit(cpyProfileOrTraceObject *self, PyObject *Py_UNUSED(args)) {
         if (trace_file_wrapper) {
             PyEval_SetTrace(&trace_or_profile_function, (PyObject *) trace_file_wrapper);
             /* Put a marker in the file. */
-            assert(trace_file_wrapper->file);
+            PYMEMTRACE_DASSERT(trace_file_wrapper->file);
             trace_wrapper_write_message_to_log_file(
                     trace_file_wrapper,
                     "Re-attaching this trace file wrapper.",
@@ -1482,7 +1483,7 @@ py_frame_get_python_function_name(PyFrameObject *frame) {
 //    func_name[0] = '\0';
     strcpy(func_name, "<UNKNOWN_FUNCTION_NAME>");
     if (frame) {
-        assert(PyFrame_Check(frame));
+        PYMEMTRACE_DASSERT(PyFrame_Check(frame));
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
         /* See https://docs.python.org/3.11/whatsnew/3.11.html#pyframeobject-3-11-hiding
          * Note: PyFrame_GetCode returns a strong reference.
@@ -1599,7 +1600,7 @@ reference_tracing_simple_ll_push(struct reference_tracing_simple_data *data) {
  */
 static struct reference_tracing_simple_data *
 reference_tracing_simple_ll_pop(void) {
-    assert(reference_tracing_simple_ll);
+    PYMEMTRACE_DASSERT(reference_tracing_simple_ll);
     struct cReferenceTracingSimpleLinkedListNode *tmp = reference_tracing_simple_ll;
     reference_tracing_simple_ll = reference_tracing_simple_ll->next;
     struct reference_tracing_simple_data *ret = tmp->data;
@@ -1641,8 +1642,8 @@ reference_tracing_simple_ll_length(void) {
  */
 static int
 reference_tracing_simple_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data) {
-//    assert(obj);
-    assert(data);
+//    PYMEMTRACE_DASSERT(obj);
+    PYMEMTRACE_DASSERT(data);
     struct reference_tracing_simple_data *data_alias = (struct reference_tracing_simple_data *) data;
 
     /* This is a safety test to see if the
@@ -1653,7 +1654,7 @@ reference_tracing_simple_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent eve
      * code as it appears to be ignored (see above).
      * So we limit ourselves to an assert.
      * Alternatives would be to call abort() or exit(). */
-    assert(data_alias->magic_number = REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
+    PYMEMTRACE_DASSERT(data_alias->magic_number == REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
 
     /* Write the event type. */
     if (event == PyRefTracer_CREATE) {
@@ -1703,7 +1704,7 @@ cpyReferenceTracingSimple_dealloc(cpyReferenceTracingSimple *self) {
  */
 static PyObject *
 cpyReferenceTracingSimple_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     cpyReferenceTracingSimple *self;
     self = (cpyReferenceTracingSimple *) type->tp_alloc(type, 0);
     if (self != NULL) {
@@ -1730,12 +1731,12 @@ cpyReferenceTracingSimple_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyO
  */
 static int
 cpyReferenceTracingSimple_init(cpyReferenceTracingSimple *Py_UNUSED(self), PyObject *args, PyObject *kwds) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     static char *kwlist[] = {NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist)) {
-        assert(PyErr_Occurred());
+        PYMEMTRACE_DASSERT(PyErr_Occurred());
         return -1;
     }
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
@@ -1769,7 +1770,7 @@ static PyMemberDef cpyReferenceTracingSimple_members[] = {
 static PyObject *
 cpyReferenceTracingSimple_enter(cpyReferenceTracingSimple *self) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     /* Clear the existing tracer. */
     if (PyRefTracer_SetTracer(NULL, NULL)) {
         PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(NULL, NULL) failed.");
@@ -1783,7 +1784,7 @@ cpyReferenceTracingSimple_enter(cpyReferenceTracingSimple *self) {
         return NULL;
     }
     Py_INCREF(self);
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     return (PyObject *) self;
 }
@@ -1801,7 +1802,7 @@ cpyReferenceTracingSimple_enter(cpyReferenceTracingSimple *self) {
 static PyObject *
 cpyReferenceTracingSimple_exit(cpyReferenceTracingSimple *self, PyObject *Py_UNUSED(args)) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
-    // No assert(!PyErr_Occurred()); as an exception might have been set by the users code.
+    // No PYMEMTRACE_DASSERT(!PyErr_Occurred()); as an exception might have been set by the users code.
     /* De-registers the existing tracer. */
     if (PyRefTracer_SetTracer(NULL, NULL)) {
         PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(NULL, NULL) failed.");
@@ -1813,8 +1814,8 @@ cpyReferenceTracingSimple_exit(cpyReferenceTracingSimple *self, PyObject *Py_UNU
 
         /* Pops the node off the linked list. */
         struct reference_tracing_simple_data *data = reference_tracing_simple_ll_pop();
-        assert(data == self->data);
-        assert(data->magic_number = REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
+        PYMEMTRACE_DASSERT(data == self->data);
+        PYMEMTRACE_DASSERT(data->magic_number == REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
         if (!data) {
             PyErr_SetString(PyExc_RuntimeError, "__exit__ when nothing is on the linked list.");
             return NULL;
@@ -1843,19 +1844,19 @@ cpyReferenceTracingSimple_exit(cpyReferenceTracingSimple *self, PyObject *Py_UNU
  */
 static PyObject *
 cpyReferenceTracingSimple_suspend(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
 //    struct reference_tracing_simple_data *data = reference_tracing_simple_ll_get_data(
 //            reference_tracing_simple_ll
 //            );
-//    assert(data);
+//    PYMEMTRACE_DASSERT(data);
 
     void *data_old = NULL;
     /* Call PyRefTracer PyRefTracer_GetTracer(void **data) */
     PyRefTracer tracer_old = PyRefTracer_GetTracer(&data_old);
     /* Sanity check. */
-    assert(data_old);
-//    assert(data_old == data);
-    assert(tracer_old);
+    PYMEMTRACE_DASSERT(data_old);
+//    PYMEMTRACE_DASSERT(data_old == data);
+    PYMEMTRACE_DASSERT(tracer_old);
     if (tracer_old != &reference_tracing_simple_callback) {
         PyErr_SetString(
                 PyExc_RuntimeError,
@@ -1877,7 +1878,7 @@ cpyReferenceTracingSimple_suspend(void) {
  */
 static PyObject *
 cpyReferenceTracingSimple_resume(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     /* If this function is not paired with suspend() then there might be
      * a Reference Tracer still registered so this call should handle the
      * reference counts correctly. */
@@ -1888,7 +1889,7 @@ cpyReferenceTracingSimple_resume(void) {
     /* Get the current latest tracer. */
     struct reference_tracing_simple_data *data = reference_tracing_simple_ll_get_data();
     if (data) {
-        assert(data->magic_number = REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
+        PYMEMTRACE_DASSERT(data->magic_number == REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
         /* Restore the Reference Tracer. */
         if (PyRefTracer_SetTracer(&reference_tracing_simple_callback, data)) {
             PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(tracer, data) failed.");
@@ -1906,11 +1907,11 @@ cpyReferenceTracingSimple_resume(void) {
  */
 static PyObject *
 cpyReferenceTracingSimple_count_new(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     /* Get the current latest tracer. */
     struct reference_tracing_simple_data *data = reference_tracing_simple_ll_get_data();
     if (data) {
-        assert(data->magic_number = REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
+        PYMEMTRACE_DASSERT(data->magic_number == REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
         return PyLong_FromLong(data->count_new);
     }
     PyErr_Format(
@@ -1926,11 +1927,11 @@ cpyReferenceTracingSimple_count_new(void) {
  */
 static PyObject *
 cpyReferenceTracingSimple_count_del(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     /* Get the current latest tracer. */
     struct reference_tracing_simple_data *data = reference_tracing_simple_ll_get_data();
     if (data) {
-        assert(data->magic_number = REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
+        PYMEMTRACE_DASSERT(data->magic_number == REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER);
         return PyLong_FromLong(data->count_del);
     }
     PyErr_Format(
@@ -2134,7 +2135,7 @@ reference_tracing_ll_push(struct reference_tracing_data *data) {
  */
 static struct reference_tracing_data *
 reference_tracing_ll_pop(void) {
-    assert(reference_tracing_ll);
+    PYMEMTRACE_DASSERT(reference_tracing_ll);
     struct cReferenceTracingLinkedListNode *tmp = reference_tracing_ll;
     reference_tracing_ll = reference_tracing_ll->next;
     struct reference_tracing_data *ret = tmp->data;
@@ -2238,7 +2239,7 @@ static long
 sys_getsizeof(PyObject* Py_UNUSED(obj)) {
     long ret = -1;
 #if REFERENCE_TRACING_GET_SIZEOF
-    assert(obj);
+    PYMEMTRACE_DASSERT(obj);
 #if REFERENCE_TRACING_GET_SIZEOF_TRACE
     printf(
         "TRACE: %s()#%d %p type: %s refcnt %zd\n",
@@ -2321,10 +2322,10 @@ static char reference_tracing_event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
 static int
 cpyReferenceTracing_write_c_prefix_and_message_to_log(struct reference_tracing_data *data, char *prefix,
                                                       char *message, int newline) {
-    assert(data);
-    assert(data->log_file);
+    PYMEMTRACE_DASSERT(data);
+    PYMEMTRACE_DASSERT(data->log_file);
     /* I suspect that this is undefined if the write buffer is the read buffer. */
-    assert(message != reference_tracing_event_text);
+    PYMEMTRACE_DASSERT(message != reference_tracing_event_text);
 
 #if REFERENCE_TRACING_TRACE_FILE_OPS
     fprintf(
@@ -2414,8 +2415,8 @@ static int reference_tracing_call_back_is_active = 0;
  */
 static int
 reference_trace_is_builtin_pre_suspend(PyObject *op) {
-    assert(op);
-    assert(reference_tracing_call_back_is_active);
+    PYMEMTRACE_DASSERT(op);
+    PYMEMTRACE_DASSERT(reference_tracing_call_back_is_active);
     if (
             0
             /* Numeric */
@@ -2514,8 +2515,8 @@ reference_trace_is_builtin_pre_suspend(PyObject *op) {
 #if PY_MEM_TRACE_TREAT_DATETIME_AS_BUILTIN
 static int
 reference_trace_is_builtin_post_suspend(PyObject *op) {
-    assert(op);
-    assert(!reference_tracing_call_back_is_active);
+    PYMEMTRACE_DASSERT(op);
+    PYMEMTRACE_DASSERT(!reference_tracing_call_back_is_active);
     /* Python 3.15 change this datetime import API so that the
      * PyDateTimeAPI == NULL
      * test is invalid and PyDateTime_IMPORT might allocate/deallocate Python objects
@@ -2527,7 +2528,7 @@ reference_trace_is_builtin_post_suspend(PyObject *op) {
     if (PyDateTimeAPI == NULL) {
         PyDateTime_IMPORT;
     }
-    assert(PyDateTimeAPI != NULL);
+    PYMEMTRACE_DASSERT(PyDateTimeAPI != NULL);
     if (
             0
             /* Datetime stuff. This needs #include "datetime.h" */
@@ -2545,7 +2546,7 @@ reference_trace_is_builtin_post_suspend(PyObject *op) {
 
 static int
 reference_trace_is_builtin_post_suspend(PyObject *Py_UNUSED(op)) {
-    assert(reference_tracing_call_back_is_active == 0);
+    PYMEMTRACE_DASSERT(reference_tracing_call_back_is_active == 0);
     return 0;
 }
 
@@ -2560,10 +2561,10 @@ reference_trace_is_builtin_post_suspend(PyObject *Py_UNUSED(op)) {
  */
 static int
 reference_trace_type_matches(PyObject *obj, PyObject *p_sequence) {
-    assert(!reference_tracing_call_back_is_active);
-    assert(obj);
-    assert(p_sequence);
-    assert(PySequence_Check(p_sequence));
+    PYMEMTRACE_DASSERT(!reference_tracing_call_back_is_active);
+    PYMEMTRACE_DASSERT(obj);
+    PYMEMTRACE_DASSERT(p_sequence);
+    PYMEMTRACE_DASSERT(PySequence_Check(p_sequence));
 
     int ret = 0;
     PyObject *obj_tp_name = Py_BuildValue("s", Py_TYPE(obj)->tp_name);
@@ -2583,10 +2584,10 @@ reference_trace_type_matches(PyObject *obj, PyObject *p_sequence) {
  */
 static int
 reference_trace_type_exclude_matches(struct reference_tracing_data *data_alias, PyObject *obj) {
-    assert(data_alias);
-    assert(data_alias->exclude_tp_names);
-    assert(obj);
-    assert(reference_tracing_call_back_is_active == 0);
+    PYMEMTRACE_DASSERT(data_alias);
+    PYMEMTRACE_DASSERT(data_alias->exclude_tp_names);
+    PYMEMTRACE_DASSERT(obj);
+    PYMEMTRACE_DASSERT(reference_tracing_call_back_is_active == 0);
     return reference_trace_type_matches(obj, data_alias->exclude_tp_names);
 }
 
@@ -2599,10 +2600,10 @@ reference_trace_type_exclude_matches(struct reference_tracing_data *data_alias, 
  */
 static int
 reference_trace_type_include_matches(struct reference_tracing_data *data_alias, PyObject *obj) {
-    assert(data_alias);
-    assert(data_alias->include_tp_names);
-    assert(obj);
-    assert(reference_tracing_call_back_is_active == 0);
+    PYMEMTRACE_DASSERT(data_alias);
+    PYMEMTRACE_DASSERT(data_alias->include_tp_names);
+    PYMEMTRACE_DASSERT(obj);
+    PYMEMTRACE_DASSERT(reference_tracing_call_back_is_active == 0);
     return reference_trace_type_matches(obj, data_alias->include_tp_names);
 }
 
@@ -2617,8 +2618,8 @@ reference_trace_type_include_matches(struct reference_tracing_data *data_alias, 
  */
 static int
 increment_types_live_count(struct reference_tracing_data *data, PyObject *obj, int delta) {
-    assert(data);
-    assert(obj);
+    PYMEMTRACE_DASSERT(data);
+    PYMEMTRACE_DASSERT(obj);
     const int ERROR_CODE = -1;
     void *current_types_live_count = ht_get(data->types_live_count, Py_TYPE(obj)->tp_name);
     if (current_types_live_count != NULL) {
@@ -2659,11 +2660,11 @@ increment_types_live_count(struct reference_tracing_data *data, PyObject *obj, i
 static int
 reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void *data) {
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13 && PY_MINOR_VERSION < 15
-    assert(event == PyRefTracer_CREATE || event == PyRefTracer_DESTROY);
+    PYMEMTRACE_DASSERT(event == PyRefTracer_CREATE || event == PyRefTracer_DESTROY);
 #endif
 
 #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
-    assert(event == PyRefTracer_CREATE || event == PyRefTracer_DESTROY || event == PyRefTracer_TRACKER_REMOVED);
+    PYMEMTRACE_DASSERT(event == PyRefTracer_CREATE || event == PyRefTracer_DESTROY || event == PyRefTracer_TRACKER_REMOVED);
     if (event == PyRefTracer_TRACKER_REMOVED) {
         /* Here we must do nothing as the PyRefTracer_SetTracer(NULL, NULL)
          * call (below) will trigger a call to this callback function.
@@ -2676,8 +2677,8 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     }
 #endif // #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
 
-    assert(obj);
-    assert(data);
+    PYMEMTRACE_DASSERT(obj);
+    PYMEMTRACE_DASSERT(data);
     struct reference_tracing_data *data_alias = (struct reference_tracing_data *) data;
     /* This is a safety test to see if the
      * data structure matches what we expect.
@@ -2687,9 +2688,9 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
      * code as it appears to be ignored (see above).
      * So we limit ourselves to an assert.
      * Alternatives would be to call abort() or exit(). */
-    assert(data_alias->magic_number == REF_TRACE_DATA_LOG_ALLOCS_MAGIC_NUMBER);
-    assert(data_alias->log_file);
-    assert(event >= 0 && event <= 3);
+    PYMEMTRACE_DASSERT(data_alias->magic_number == REF_TRACE_DATA_LOG_ALLOCS_MAGIC_NUMBER);
+    PYMEMTRACE_DASSERT(data_alias->log_file);
+    PYMEMTRACE_DASSERT(event >= 0 && event <= 3);
 
     reference_tracing_call_back_is_active = 1;
 
@@ -2721,10 +2722,10 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     /* Call PyRefTracer PyRefTracer_GetTracer(void **data) */
     PyRefTracer tracer_old = PyRefTracer_GetTracer(&data_old);
     /* Sanity check. */
-    assert(data_old);
-    assert(data_old == data_alias);
-    assert(tracer_old);
-    assert(tracer_old == &reference_trace_allocations_callback);
+    PYMEMTRACE_DASSERT(data_old);
+    PYMEMTRACE_DASSERT(data_old == data_alias);
+    PYMEMTRACE_DASSERT(tracer_old);
+    PYMEMTRACE_DASSERT(tracer_old == &reference_trace_allocations_callback);
     if (PyRefTracer_SetTracer(NULL, NULL)) {
         /* Do not set an exception.
          * See: https://docs.python.org/3/c-api/profiling.html#c.PyRefTracer_SetTracer
@@ -2851,7 +2852,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
 #else
     /* Get the count of live types. */
     void *count_of_current_type = ht_get(data_alias->types_live_count, Py_TYPE(obj)->tp_name);
-    assert(count_of_current_type);
+    PYMEMTRACE_DASSERT(count_of_current_type);
 
     // Should match:
     //     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
@@ -2872,8 +2873,8 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     );
 #endif // REFERENCE_TRACING_GET_SIZEOF
     Py_XDECREF(frame);
-    assert(data_alias);
-    assert(data_alias->log_file);
+    PYMEMTRACE_DASSERT(data_alias);
+    PYMEMTRACE_DASSERT(data_alias->log_file);
     fputs(reference_tracing_event_text, data_alias->log_file);
     fputc('\n', data_alias->log_file);
     fflush(data_alias->log_file);
@@ -2964,7 +2965,7 @@ cpyReferenceTracing_dealloc(cpyReferenceTracing *self) {
  */
 static PyObject *
 cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds)) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     cpyReferenceTracing *self;
     self = (cpyReferenceTracing *) type->tp_alloc(type, 0);
     if (self != NULL) {
@@ -3038,9 +3039,9 @@ cpyReferenceTracing_init_cleanup(cpyReferenceTracing *self) {
  */
 static int
 cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kwds) {
-    assert(self);
-    assert(self->data);
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(self);
+    PYMEMTRACE_DASSERT(self->data);
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
 
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_BEG(self);
     static char *kwlist[] = {
@@ -3061,7 +3062,7 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
                                      &(self->gc_collect_on_exit)
     )
             ) {
-        assert(PyErr_Occurred());
+        PYMEMTRACE_DASSERT(PyErr_Occurred());
         return -1;
     }
     if (message) {
@@ -3121,7 +3122,7 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
         cpyReferenceTracing_init_cleanup(self);
         return -6;
     }
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     TRACE_PROFILE_OR_TRACE_REFCNT_SELF_TRACE_FILE_WRAPPER_END(self);
     return 0;
 }
@@ -3154,7 +3155,7 @@ static PyMemberDef cpyReferenceTracing_members[] = {
  */
 static PyObject *
 cpyReferenceTracing_write_python_message_to_log(cpyReferenceTracing *self, PyObject *op) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     if (!self->data->log_file) {
         PyErr_SetString(PyExc_IOError, "Log file is closed.");
         return NULL;
@@ -3183,10 +3184,10 @@ cpyReferenceTracing_write_python_message_to_log(cpyReferenceTracing *self, PyObj
  */
 static long
 cpyReferenceTracing_invoke_gc_collect(cpyReferenceTracing *self) {
-    /* NOTE: No assert(!PyErr_Occurred()); as on __exit__
+    /* NOTE: No PYMEMTRACE_DASSERT(!PyErr_Occurred()); as on __exit__
      * an exception might have been set by the users code. */
-//    assert(!PyErr_Occurred());
-    assert(self->gc_collect_on_exit >= 0 && self->gc_collect_on_exit <= 2);
+//    PYMEMTRACE_DASSERT(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(self->gc_collect_on_exit >= 0 && self->gc_collect_on_exit <= 2);
     PyObject *gc_module = PyImport_ImportModule("gc");
     long ret = 0;
     if (!gc_module) {
@@ -3229,7 +3230,7 @@ cpyReferenceTracing_invoke_gc_collect(cpyReferenceTracing *self) {
 static PyObject *
 cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
 
     reference_tracing_ll_dump("cpyReferenceTracing_enter()", stdout);
 
@@ -3323,7 +3324,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
         return NULL;
     }
     Py_INCREF(self);
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     reference_tracing_ll_dump("cpyReferenceTracing_enter() DONE", stdout);
     return (PyObject *) self;
@@ -3344,7 +3345,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
 static PyObject *
 cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
-    /* NOTE: No assert(!PyErr_Occurred()); as an exception might have been set by the users code. */
+    /* NOTE: No PYMEMTRACE_DASSERT(!PyErr_Occurred()); as an exception might have been set by the users code. */
 
     reference_tracing_ll_dump("cpyReferenceTracing_exit()", stdout);
 
@@ -3353,7 +3354,7 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
     if (self->gc_collect_on_exit >= 0) {
         if (cpyReferenceTracing_invoke_gc_collect(self) < 0) {
             /* gc.collect() failure. */
-            assert(PyErr_Occurred());
+            PYMEMTRACE_DASSERT(PyErr_Occurred());
             Py_RETURN_TRUE;
         }
     }
@@ -3369,7 +3370,7 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
     if (self->data) {
         /* Pops the node off the linked list. */
         struct reference_tracing_data *data = reference_tracing_ll_pop();
-        assert(data == self->data);
+        PYMEMTRACE_DASSERT(data == self->data);
         if (!data) {
             PyErr_SetString(PyExc_RuntimeError, "__exit__ when nothing is on the linked list.");
             return NULL;
@@ -3416,7 +3417,7 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
  */
 static PyObject *
 cpyReferenceTracing_get_log_file_path(cpyReferenceTracing *self, PyObject *Py_UNUSED(arg)) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     if (self->py_specific_filename) {
         return Py_BuildValue("s", PyBytes_AS_STRING(self->py_specific_filename));
     } else {
@@ -3433,7 +3434,7 @@ cpyReferenceTracing_get_log_file_path(cpyReferenceTracing *self, PyObject *Py_UN
  */
 static PyObject *
 cpyReferenceTracing_suspend(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     struct reference_tracing_data *data = reference_tracing_ll_get_data();
     if (!data) {
         PyErr_Format(
@@ -3455,7 +3456,7 @@ cpyReferenceTracing_suspend(void) {
     /* Call PyRefTracer PyRefTracer_GetTracer(void **data) */
     PyRefTracer tracer_old = PyRefTracer_GetTracer(&data_old);
     /* Sanity check. */
-    assert(data_old);
+    PYMEMTRACE_DASSERT(data_old);
     if (data_old != data) {
         PyErr_Format(
                 PyExc_RuntimeError,
@@ -3463,7 +3464,7 @@ cpyReferenceTracing_suspend(void) {
         );
         return NULL;
     }
-    assert(tracer_old);
+    PYMEMTRACE_DASSERT(tracer_old);
     if (tracer_old != &reference_trace_allocations_callback) {
         PyErr_Format(
                 PyExc_RuntimeError,
@@ -3529,7 +3530,7 @@ cpyReferenceTracing_resume(void) {
  */
 static PyObject *
 cpyReferenceTracing_count_new(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     /* Get the current latest tracer. */
     struct reference_tracing_data *data = reference_tracing_ll_get_data();
     if (data) {
@@ -3548,7 +3549,7 @@ cpyReferenceTracing_count_new(void) {
  */
 static PyObject *
 cpyReferenceTracing_count_del(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     /* Get the current latest tracer. */
     struct reference_tracing_data *data = reference_tracing_ll_get_data();
     if (data) {
@@ -3570,7 +3571,7 @@ cpyReferenceTracing_count_del(void) {
  */
 static PyObject *
 cpyReferenceTracing_dict_of_live_objects_private(struct reference_tracing_data *data) {
-    assert(data);
+    PYMEMTRACE_DASSERT(data);
     PyObject *ret = PyDict_New();
     if (!ret) {
         PyErr_Format(
@@ -3600,7 +3601,7 @@ cpyReferenceTracing_dict_of_live_objects_private(struct reference_tracing_data *
 
 static PyObject *
 cpyReferenceTracing_dict_of_live_objects(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     /* Get the current latest tracer. */
     struct reference_tracing_data *data = reference_tracing_ll_get_data();
     if (data) {
@@ -3717,7 +3718,7 @@ static PyTypeObject cpyReferenceTracingType = {
  */
 static PyObject *
 py_rss(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     return PyLong_FromSize_t(getCurrentRSS_alternate());
 }
 
@@ -3726,7 +3727,7 @@ py_rss(void) {
  */
 static PyObject *
 py_rss_peak(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     return PyLong_FromSize_t(getPeakRSS());
 }
 
@@ -3735,7 +3736,7 @@ py_rss_peak(void) {
  */
 static PyObject *
 profile_wrapper_depth(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     return Py_BuildValue("n", wrapper_ll_length(static_profile_ll));
 }
 
@@ -3765,7 +3766,7 @@ profile_wrapper_log_path(void) {
  */
 static int
 profile_trace_wrapper_write_message_to_log(cpyTraceFileWrapper *profile_wrapper, PyObject *py_message) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
 
     if (profile_wrapper) {
         if (!profile_wrapper->file) {
@@ -3795,7 +3796,7 @@ profile_trace_wrapper_write_message_to_log(cpyTraceFileWrapper *profile_wrapper,
  */
 static PyObject *
 profile_wrapper_write_message_to_log(PyObject *Py_UNUSED(module), PyObject *py_message) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     cpyTraceFileWrapper *profile_wrapper = wrapper_ll_get(static_profile_ll);
     if (!profile_wrapper) {
         PyErr_SetString(
@@ -3805,7 +3806,7 @@ profile_wrapper_write_message_to_log(PyObject *Py_UNUSED(module), PyObject *py_m
         return NULL;
     }
     if (profile_trace_wrapper_write_message_to_log(profile_wrapper, py_message)) {
-        assert(PyErr_Occurred());
+        PYMEMTRACE_DASSERT(PyErr_Occurred());
         return NULL;
     }
     Py_RETURN_NONE;
@@ -3816,7 +3817,7 @@ profile_wrapper_write_message_to_log(PyObject *Py_UNUSED(module), PyObject *py_m
  */
 static PyObject *
 trace_wrapper_depth(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     return Py_BuildValue("n", wrapper_ll_length(static_trace_ll));
 }
 
@@ -3846,7 +3847,7 @@ trace_wrapper_log_path(void) {
  */
 static PyObject *
 trace_wrapper_write_message_to_log(PyObject *Py_UNUSED(module), PyObject *py_message) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     cpyTraceFileWrapper *trace_wrapper = wrapper_ll_get(static_trace_ll);
     if (!trace_wrapper) {
         PyErr_SetString(
@@ -3856,7 +3857,7 @@ trace_wrapper_write_message_to_log(PyObject *Py_UNUSED(module), PyObject *py_mes
         return NULL;
     }
     if (profile_trace_wrapper_write_message_to_log(trace_wrapper, py_message)) {
-        assert(PyErr_Occurred());
+        PYMEMTRACE_DASSERT(PyErr_Occurred());
         return NULL;
     }
     Py_RETURN_NONE;
@@ -3869,7 +3870,7 @@ trace_wrapper_write_message_to_log(PyObject *Py_UNUSED(module), PyObject *py_mes
  */
 static PyObject *
 reference_tracing_simple_wrapper_depth(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     return Py_BuildValue("n", reference_tracing_simple_ll_length());
 }
 
@@ -3878,7 +3879,7 @@ reference_tracing_simple_wrapper_depth(void) {
  */
 static PyObject *
 reference_tracing_wrapper_depth(void) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     return Py_BuildValue("n", reference_tracing_ll_length());
 }
 
@@ -3908,7 +3909,7 @@ reference_tracing_log_path(void) {
  */
 static PyObject *
 reference_tracing_write_message_to_log(PyObject *Py_UNUSED(module), PyObject *py_message) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     struct reference_tracing_data *ref_trace_data = reference_tracing_ll_get_data();
     if (!ref_trace_data) {
         PyErr_SetString(
@@ -3925,7 +3926,7 @@ reference_tracing_write_message_to_log(PyObject *Py_UNUSED(module), PyObject *py
 
 static PyObject *
 reference_tracing_dict_of_live_objects(PyObject *Py_UNUSED(module)) {
-    assert(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
     /* Get the current latest tracer. */
     struct reference_tracing_data *data = reference_tracing_ll_get_data();
     if (data) {
@@ -4243,10 +4244,10 @@ struct ref_trace_data {
 #if 0
 static int
 ref_trace_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data) {
-    assert(data);
+    PYMEMTRACE_DASSERT(data);
     struct ref_trace_data *data_alias = (struct ref_trace_data *) data;
 
-    assert(data_alias->magic_number == REF_TRACE_DATA_MAGIC_NUMBER);
+    PYMEMTRACE_DASSERT(data_alias->magic_number == REF_TRACE_DATA_MAGIC_NUMBER);
 
     if (event == PyRefTracer_CREATE) {
         data_alias->count_new++;
@@ -4272,7 +4273,7 @@ ref_trace_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data)
  */
 static int
 ref_trace_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data) {
-    assert(data);
+    PYMEMTRACE_DASSERT(data);
     struct ref_trace_data *data_alias = (struct ref_trace_data *) data;
 
     /* This is a safety test to see if the
@@ -4283,7 +4284,7 @@ ref_trace_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent event, void *data)
      * code as it appears to be ignored (see above).
      * So we limit ourselves to an assert.
      * Alternatives would be to call abort() or exit(). */
-    assert(data_alias->magic_number == REF_TRACE_DATA_COUNT_ALLOCS_MAGIC_NUMBER);
+    PYMEMTRACE_DASSERT(data_alias->magic_number == REF_TRACE_DATA_COUNT_ALLOCS_MAGIC_NUMBER);
 
     switch (event) {
         case PyRefTracer_CREATE:
@@ -4524,7 +4525,7 @@ int debug_cPyMemtrace_reference_tracing(void) {
     if (PyDateTimeAPI == NULL) {
         PyDateTime_IMPORT;
     }
-    assert(PyDateTimeAPI != NULL);
+    PYMEMTRACE_DASSERT(PyDateTimeAPI != NULL);
 
     cpyReferenceTracing *ref_tracing_object = (cpyReferenceTracing *) cpyReferenceTracing_new(
             &cpyReferenceTracingType, NULL, NULL
