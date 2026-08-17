@@ -1464,6 +1464,10 @@ static PyTypeObject cpyTraceObjectType = {
 
 #if REFERENCE_TRACING_AVAILABLE
 
+#ifndef REFERENCE_TRACING_TRACE_FILE_OPS
+#define REFERENCE_TRACING_TRACE_FILE_OPS 1
+#endif // REFERENCE_TRACING_TRACE_FILE_OPS
+
 /**
  * Returns the function name in a static C buffer.
  * This is only used by Reference Tracing as Profile/Trace use
@@ -2322,6 +2326,13 @@ cpyReferenceTracing_write_c_prefix_and_message_to_log(struct reference_tracing_d
     /* I suspect that this is undefined if the write buffer is the read buffer. */
     assert(message != reference_tracing_event_text);
 
+#if REFERENCE_TRACING_TRACE_FILE_OPS
+    fprintf(
+        stdout,
+        "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS Writing message to log file at %p %s#%d\n",
+        (void *)data->log_file, __func__, __LINE__
+    );
+#endif
     int ret = 0;
     if (prefix) {
         double clock_time = (double) clock() / CLOCKS_PER_SEC;
@@ -2784,6 +2795,13 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     data_alias->rss = rss;
 
     /* Write the event type and update the hash table of types -> count. */
+#if REFERENCE_TRACING_TRACE_FILE_OPS
+    fprintf(
+        stdout,
+        "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS Writing %d event to log file at %p %s#%d\n",
+        event, (void *)data_alias->log_file, __func__, __LINE__
+    );
+#endif
     if (event == PyRefTracer_CREATE) {
         // Write the creation of an object.
         fputs("NEW:", data_alias->log_file);
@@ -2904,6 +2922,13 @@ cpyReferenceTracing_dealloc(cpyReferenceTracing *self) {
             // Write a final line
             fputs(MARKER_LOG_FILE_END, self->data->log_file);
             fputc('\n', self->data->log_file);
+#if REFERENCE_TRACING_TRACE_FILE_OPS
+            fprintf(
+                stdout,
+                "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS Closing log file at %p %s#%d\n",
+                (void *)self->data->log_file, __func__, __LINE__
+            );
+#endif
             fclose(self->data->log_file);
             self->data->log_file = NULL;
         }
@@ -3251,6 +3276,13 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
         PyErr_Format(PyExc_IOError, "Can not open log file %s", new_log_filename);
         return NULL;
     }
+#if REFERENCE_TRACING_TRACE_FILE_OPS
+    fprintf(
+        stdout,
+        "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS Opened log file at %p %s#%d\n",
+        (void *)self->data->log_file, __func__, __LINE__
+    );
+#endif
     /* Write suspension message in the old file. */
     struct reference_tracing_data *data_old = reference_tracing_ll_get_data();
     if (data_old) {
@@ -3343,6 +3375,13 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
             return NULL;
         }
         /* Finish up the file. */
+#if REFERENCE_TRACING_TRACE_FILE_OPS
+        fprintf(
+            stdout,
+            "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS EOF and closing log file at %p %s#%d\n",
+            (void *)self->data->log_file, __func__, __LINE__
+        );
+#endif
         fputs(MARKER_LOG_FILE_END, data->log_file);
         fputc('\n', data->log_file);
         /* Close the file. */
