@@ -125,3 +125,5 @@ attic/
 !pymemtrace/examples/process.log
 
 docs/doxygen
+
+*.dSYM/
