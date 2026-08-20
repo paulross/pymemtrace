@@ -9,16 +9,16 @@
 #include <stdlib.h>
 
 #ifdef DEBUG
-#define PYMEMTRACE_DASSERT(expr)                                        \
-    do {                                                                \
-        if (expr) {} else {                                             \
-            fprintf(                                                    \
-                stderr,                                                 \
-                "ASSERT: File %s Line %ld Assertion failed: \"%s\"\n",  \
-                __FILE__, (long)__LINE__, #expr                         \
-            );                                                          \
-            exit(EXIT_FAILURE);                                         \
-        }                                                               \
+#define PYMEMTRACE_DASSERT(expr)                                                \
+    do {                                                                        \
+        if (expr) {} else {                                                     \
+            fprintf(                                                            \
+                stderr,                                                         \
+                "ASSERT: %s(): File %s Line %ld Assertion failed: \"%s\"\n",    \
+                __func__, __FILE__, (long)__LINE__, #expr                       \
+            );                                                                  \
+            exit(EXIT_FAILURE);                                                 \
+        }                                                                       \
     } while (0)
 #else
 #define PYMEMTRACE_DASSERT(expr) do {} while (0)
