@@ -2048,6 +2048,7 @@ static const int REF_TRACE_DATA_LOG_ALLOCS_MAGIC_NUMBER = 0x52544c41;
  */
 struct reference_tracing_data {
     int magic_number;
+    unsigned long thread_id;
     /** The log file.
      * The file name will be <tt>const char *create_filename('O', int reference_tracing_data_depth)</tt> */
     FILE *log_file;
@@ -2181,9 +2182,10 @@ reference_tracing_ll_dump(const char *prefix, FILE *out) {
             fputs("DEBUG: ", out);
             fprintf(
                 out,
-                "[%2zd] @%p log file @ %p \"%s\"\n",
+                "[%2zd] @%p Thread: %6ld Log file @ %p \"%s\"\n",
                 ret,
                 (void *)p_linked_list,
+                p_linked_list->data->thread_id,
                 (void *)p_linked_list->data->log_file,
                 p_linked_list->data->log_file_name);
             ret++;
@@ -2981,6 +2983,7 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
             return NULL;
         }
         self->data->magic_number = REF_TRACE_DATA_LOG_ALLOCS_MAGIC_NUMBER;
+        self->data->thread_id = 0UL;
         self->data->log_file = NULL;
         self->data->count_new = 0;
         self->data->count_del = 0;
@@ -3081,6 +3084,7 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
             return -2;
         }
     }
+    self->data->thread_id = get_current_thread_id();
     if (self->data->exclude_tp_names) {
         /* Check that the exclude_tp_names supports the sequence protocol. */
         if (!PySequence_Check(self->data->exclude_tp_names)) {

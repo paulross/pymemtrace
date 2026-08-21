@@ -271,12 +271,13 @@ Or do we use the [Critical Section API](https://docs.python.org/3/c-api/synchron
 Work to do:
 
 - Every node on the linked list has the thread ID from which it was pushed.
-- Use this on node creation, getting an appropriate node and node deletion.
-  (has a widespread coding effect).
+  Use this on node creation.
 - Each node on the linked list has a ``prev`` pointer to the previous node.
   This is a doubly linked list and it means that an individual node
   can be removed, not just the head node.
   This has a modest (coding) effect on node creation and node deletion.
+- Use thread_id on getting an appropriate node and node deletion.
+  (has a widespread coding effect).
 - Any thread pushing to the linked list will need to block
   (for example on ``__enter__``) then release the lock.
 - Any thread pop'ing from the linked list will need to block
