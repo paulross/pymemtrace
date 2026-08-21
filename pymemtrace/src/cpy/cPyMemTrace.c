@@ -2179,7 +2179,13 @@ reference_tracing_ll_dump(const char *prefix, FILE *out) {
                 fprintf(out, "  ");
             }
             fputs("DEBUG: ", out);
-            fprintf(out, "[%2zd] @%p %s\n", ret, (void *)p_linked_list, p_linked_list->data->log_file_name);
+            fprintf(
+                out,
+                "[%2zd] @%p log file @ %p \"%s\"\n",
+                ret,
+                (void *)p_linked_list,
+                (void *)p_linked_list->data->log_file,
+                p_linked_list->data->log_file_name);
             ret++;
             p_linked_list = p_linked_list->next;
         }
@@ -3386,11 +3392,16 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
         fputs(MARKER_LOG_FILE_END, data->log_file);
         fputc('\n', data->log_file);
         /* Close the file. */
+#if DEBUG
+        fprintf(
+            stdout,
+            "DEBUG: Reference Tracing closing log file @ %p \"%s\"\n",
+            (void *)self->data->log_file,
+            self->data->log_file_name
+        );
+#endif
         fclose(self->data->log_file);
         self->data->log_file = NULL;
-#if DEBUG
-        fprintf(stdout, "DEBUG: Reference Tracing closed log file \"%s\"\n", self->data->log_file_name);
-#endif
         /* Register the previous tracer from the linked list. */
         data = reference_tracing_ll_get_data();
         if (data) {
@@ -3398,13 +3409,13 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
             cpyReferenceTracing_write_c_message_to_log(data, "Re-attaching this Reference Tracing file wrapper.");
             PyRefTracer_SetTracer(&reference_trace_allocations_callback, data);
         }
+        reference_tracing_ll_dump("cpyReferenceTracing_exit() DONE", stdout);
         if (PyErr_Occurred()) {
             Py_RETURN_TRUE;
         }
         Py_RETURN_FALSE;
     }
     PyErr_Format(PyExc_RuntimeError, "ReferenceTracing.__exit__ has no cpyTraceFileWrapper");
-    reference_tracing_ll_dump("cpyReferenceTracing_exit() DONE", stdout);
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     return NULL;
 }
