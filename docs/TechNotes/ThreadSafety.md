@@ -150,6 +150,8 @@ However each thread can overwrite the others output.
 #endif
 ```
 
+This is required in ``pymemtrace_threading.h`` and will ``#error`` if ``WITH_THREAD`` is not defined ~~DONE~~
+
 ### Conditional compilation:
 
 ```c
@@ -261,16 +263,16 @@ Or do we use the [Critical Section API](https://docs.python.org/3/c-api/synchron
 
 ### Thread ID
 
-- ~~Use ``unsigned long thread_id = PyThread_get_thread_native_id();``~~ DONE.
-- ~~Add the thread ID to the log file name.~~ DONE.
+- Use ``unsigned long thread_id = PyThread_get_thread_native_id();`` ~~DONE~~.
+- Add the thread ID to the log file name. ~~DONE~~.
 
 ## Linked List(s)
 
 Work to do:
 
 - Every node on the linked list has the thread ID from which it was pushed.
-  This has a widespread (coding) effect on node creation, getting an
-  appropriate node and node deletion.
+- Use this on node creation, getting an appropriate node and node deletion.
+  (has a widespread coding effect).
 - Each node on the linked list has a ``prev`` pointer to the previous node.
   This is a doubly linked list and it means that an individual node
   can be removed, not just the head node.

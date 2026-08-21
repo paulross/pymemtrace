@@ -57,6 +57,12 @@
 
 #include <Python.h>
 
+#ifdef WITH_THREAD
+    #include <pythread.h>
+#else
+    #error "Python threading must be enabled."
+#endif
+
 #if PY_MAJOR_VERSION != 3
     #error "Python major version must be 3"
 #endif
