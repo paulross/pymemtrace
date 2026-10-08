@@ -29,7 +29,7 @@ with cPyMemTrace.ReferenceTracing(filepath='A.log'):
     # The log file "B.log" is closed.
     # Writing to "A.log" is resumed.
     pass
-	# The log file "A.log" is closed.
+    # The log file "A.log" is closed.
 ```
 
 This works fine for a single threaded process.
@@ -272,10 +272,15 @@ Work to do:
 
 - Every node on the linked list has the thread ID from which it was pushed.
   Use this on node creation.
-- Each node on the linked list has a ``prev`` pointer to the previous node.
+  The value of the thread ID is an ``unsigned long``.
+  For Profile/Trace this is in ``cpyTraceFileWrapper``.
+  For Reference Tracing (simple, i.e. ``cReferenceTracingSimple``) this is in ``struct reference_tracing_simple_data``.
+  ~~For Reference Tracing this is in ``struct reference_tracing_data``.~~ DONE.
+- ~~Each node on the linked list  has a ``prev`` pointer to the previous node.
   This is a doubly linked list and it means that an individual node
   can be removed, not just the head node.
-  This has a modest (coding) effect on node creation and node deletion.
+  This has a modest (coding) effect on node creation and node deletion.~~
+  No, we can keep track of the previous node on deletion.
 - Use thread_id on getting an appropriate node and node deletion.
   (has a widespread coding effect).
 - Any thread pushing to the linked list will need to block
@@ -291,12 +296,12 @@ An alternative design would be to have a per-thread_ID linked list:
 ```text
 Linked list map:
     |
-	| -> A -> Head Node
+    | -> A -> Head Node
     |             |
     |         File "A.log" ---> NULL
     | -> B -> Head Node
                   |
-	 		  File "B.log" ---> NULL
+              File "B.log" ---> NULL
 ```
 
 ##Callback Functions
