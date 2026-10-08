@@ -2088,12 +2088,38 @@ struct cReferenceTracingLinkedListNode {
 static struct cReferenceTracingLinkedListNode *reference_tracing_ll = NULL;
 
 /**
+ * Checks the integrity of the linked list.
+ *
+ * The tests are, with return value:
+ * - The data pointer is non-NULL (-1).
+ * - The data magic number is correct (-2).
+ * - The \c prev pointer is correct (-3).
+ *
+ * @return 0 if the integrity is correct. A negative integer if it is not.
+ */
+static int
+reference_tracing_ll_integrity(void) {
+    struct cReferenceTracingLinkedListNode *p_linked_list = reference_tracing_ll;
+    while (p_linked_list) {
+        if (! p_linked_list->data) {
+            return -1;
+        }
+        if (p_linked_list->data->magic_number != REF_TRACE_DATA_LOG_ALLOCS_MAGIC_NUMBER) {
+            return -2;
+        }
+        p_linked_list = p_linked_list->next;
+    }
+    return 0;
+}
+
+/**
  * Get the head of the Reference Tracing linked list as a struct reference_tracing_data.
  *
  * @return The head node or NULL if the list is empty.
  */
 static struct reference_tracing_data *
 reference_tracing_ll_get_data(void) {
+    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
     if (reference_tracing_ll) {
         return reference_tracing_ll->data;
     }
@@ -2107,6 +2133,7 @@ reference_tracing_ll_get_data(void) {
  */
 void
 reference_tracing_ll_push(struct reference_tracing_data *data) {
+    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
     struct cReferenceTracingLinkedListNode *new_node = malloc(
             sizeof(struct cReferenceTracingLinkedListNode)
     );
@@ -2117,6 +2144,7 @@ reference_tracing_ll_push(struct reference_tracing_data *data) {
         new_node->next = reference_tracing_ll;
     }
     reference_tracing_ll = new_node;
+    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
 }
 
 /**
@@ -2137,10 +2165,12 @@ reference_tracing_ll_push(struct reference_tracing_data *data) {
 static struct reference_tracing_data *
 reference_tracing_ll_pop(void) {
     PYMEMTRACE_DASSERT(reference_tracing_ll);
+    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
     struct cReferenceTracingLinkedListNode *tmp = reference_tracing_ll;
     reference_tracing_ll = reference_tracing_ll->next;
     struct reference_tracing_data *ret = tmp->data;
     free(tmp);
+    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
     return ret;
 }
 
@@ -2151,6 +2181,7 @@ reference_tracing_ll_pop(void) {
  */
 static size_t
 reference_tracing_ll_length(void) {
+    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
     size_t ret = 0;
     struct cReferenceTracingLinkedListNode *p_linked_list = reference_tracing_ll;
     while (p_linked_list) {
@@ -2166,6 +2197,7 @@ reference_tracing_ll_length(void) {
 
 static size_t
 reference_tracing_ll_dump(const char *prefix, FILE *out) {
+    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
 #if DEBUG && REFERENCE_TRACING_LL_DUMP
     size_t ret = 0;
     int indent = 0;
@@ -2182,9 +2214,10 @@ reference_tracing_ll_dump(const char *prefix, FILE *out) {
             fputs("DEBUG: ", out);
             fprintf(
                 out,
-                "[%2zd] @%p Thread: %6ld Log file @ %p \"%s\"\n",
+                "[%2zd] @%p Next: %p Thread: %6ld Log file @ %p \"%s\"\n",
                 ret,
                 (void *)p_linked_list,
+                (void *)p_linked_list->next,
                 p_linked_list->data->thread_id,
                 (void *)p_linked_list->data->log_file,
                 p_linked_list->data->log_file_name);
@@ -3241,6 +3274,7 @@ static PyObject *
 cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     PYMEMTRACE_DASSERT(!PyErr_Occurred());
+    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
 
     reference_tracing_ll_dump("cpyReferenceTracing_enter()", stdout);
 
@@ -3337,6 +3371,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     PYMEMTRACE_DASSERT(!PyErr_Occurred());
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     reference_tracing_ll_dump("cpyReferenceTracing_enter() DONE", stdout);
+    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
     return (PyObject *) self;
 }
 
@@ -3355,6 +3390,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
 static PyObject *
 cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
+    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
     /* NOTE: No PYMEMTRACE_DASSERT(!PyErr_Occurred()); as an exception might have been set by the users code. */
 
     reference_tracing_ll_dump("cpyReferenceTracing_exit()", stdout);
@@ -3414,6 +3450,7 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
             PyRefTracer_SetTracer(&reference_trace_allocations_callback, data);
         }
         reference_tracing_ll_dump("cpyReferenceTracing_exit() DONE", stdout);
+        PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
         if (PyErr_Occurred()) {
             Py_RETURN_TRUE;
         }
