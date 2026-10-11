@@ -11,9 +11,9 @@
  *
  * Python 3.8+
  *
- * @return The current thread ID as an unsigned long.
+ * @return The current thread ID as an unsigned long (typedef'd as /c tThreadID).
  */
-unsigned long get_current_thread_id(void) {
+tThreadID get_current_thread_id(void) {
 #ifndef PY_HAVE_THREAD_NATIVE_ID
 #error "PY_HAVE_THREAD_NATIVE_ID is not defined"
 #endif
