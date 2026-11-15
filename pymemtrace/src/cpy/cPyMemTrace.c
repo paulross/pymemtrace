@@ -151,6 +151,38 @@
 #define Py_T_OBJECT_EX T_OBJECT_EX
 #endif
 
+/* Threading support. */
+/* Allow setup.py to override this with extra_compile_args */
+#ifndef PYMEMTRACE_THREAD_SUPPORT_PROFILE_TRACE
+/**
+ * Support multi-threaded Python for Profiling and Tracing.
+ * This is the default in this code.
+ */
+#define PYMEMTRACE_THREAD_SUPPORT_PROFILE_TRACE 0
+#endif
+
+#if PYMEMTRACE_THREAD_SUPPORT_PROFILE_TRACE
+#error "Threading is not yet supported for Profiling and Tracing."
+#endif
+
+/* Allow setup.py to override this with extra_compile_args */
+#ifndef PYMEMTRACE_THREAD_SUPPORT_REFERENCE_TRACE
+/**
+ * Support multithreaded Python for Reference Tracing.
+ * This is the default in this code.
+ */
+#define PYMEMTRACE_THREAD_SUPPORT_REFERENCE_TRACE 1
+#endif
+
+/* Allow setup.py to override this with extra_compile_args */
+#ifndef PYMEMTRACE_THREAD_SUPPORT_REFERENCE_TRACE_DEBUG
+/**
+ * Verbose output as the data structures change etc.
+ * This is the default in this code.
+ */
+#define PYMEMTRACE_THREAD_SUPPORT_DEBUG_REFERENCE_TRACE 1
+#endif
+
 /**
  * Markers for the beginning of the log file.
  * Make NULL for no marker(s).
@@ -338,6 +370,8 @@ typedef struct {
      */
     char event_text[PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH];
 #endif
+    /** The thread ID that created this. */
+    tThreadID thread_id;
 } cpyTraceFileWrapper;
 
 /**
@@ -493,6 +527,7 @@ cpyTraceFileWrapper_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
     if (self != NULL) {
         self->file = NULL;
         self->log_file_path = NULL;
+        self->thread_id = 0;
     }
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     return (PyObject *) self;
@@ -1523,6 +1558,8 @@ static const int REF_TRACE_DATA_SIMPLE_MAGIC_NUMBER = 0x52545349;
  * - \c \_\_exit\_\_() pop one of the top of the stack.
  *
  * The callback function writes to the head of the linked list.
+ *
+ * @warning This is not used in a thread safe manner.
  */
 struct reference_tracing_simple_data {
     /** A magic number as a sanity check.
@@ -1540,6 +1577,8 @@ struct reference_tracing_simple_data {
  * NOTE: Operations on this list do not manipulate the reference counts
  * of the Python objects.
  * That is up to the caller of these functions.
+ *
+ * @warning This is not used in a thread safe manner.
  */
 struct cReferenceTracingSimpleLinkedListNode {
     struct reference_tracing_simple_data *data;
@@ -1632,6 +1671,8 @@ reference_tracing_simple_ll_length(void) {
  * that might allocate/deallocate
  * Python objects otherwise there will be infinite recursion as that will call this callback.
  *
+ * @warning This is not thread safe.
+ *
  * @param _unused_obj The Python object being created or destroyed.
  * @param event The event type
  * @param data The opaque data structure that is a <tt>struct reference_tracing_data</tt>.
@@ -1672,6 +1713,8 @@ reference_tracing_simple_callback(PyObject *Py_UNUSED(obj), PyRefTracerEvent eve
 
 /**
  * The Python Reference Tracing Simple wrapper.
+ *
+ * @warning This is not thread safe.
  */
 typedef struct {
     PyObject_HEAD
@@ -1763,6 +1806,8 @@ static PyMemberDef cpyReferenceTracingSimple_members[] = {
 
 /**
  * De-register the existing tracer, push new data onto the linked list and register it.
+*
+ * @warning This is not thread safe.
  *
  * @param self The \c cpyReferenceTracingSimple object.
  * @return self on success. NULL on failure.
@@ -1794,6 +1839,8 @@ cpyReferenceTracingSimple_enter(cpyReferenceTracingSimple *self) {
  * - De-registers the existing tracer.
  * - Pops the node off the linked list.
  * - Register the previous tracer from the linked list.
+*
+ * @warning This is not thread safe.
  *
  * @param self The \c pyReferenceTracingSimple object.
  * @param _unused_args
@@ -1840,6 +1887,8 @@ cpyReferenceTracingSimple_exit(cpyReferenceTracingSimple *self, PyObject *Py_UNU
  * This suspends the current Reference Tracing Simple.
  * It does **not** pop it off the linked list but leaves it there to be restored by resume().
  *
+ * @warning This is not thread safe.
+ *
  * @return NULL on failure, None on success.
  */
 static PyObject *
@@ -1874,6 +1923,8 @@ cpyReferenceTracingSimple_suspend(void) {
 /**
  * This resumes the current Reference Tracing Simple by re-registering the head of the linked list.
  *
+ * @warning This is not thread safe.
+ *
  * @return NULL on failure, None on success.
  */
 static PyObject *
@@ -1903,6 +1954,8 @@ cpyReferenceTracingSimple_resume(void) {
 }
 
 /**
+ * @warning This is not thread safe.
+ *
  * @return Number of allocations as a Python integer.
  */
 static PyObject *
@@ -1923,6 +1976,8 @@ cpyReferenceTracingSimple_count_new(void) {
 }
 
 /**
+ * @warning This is not thread safe.
+ *
  * @return Number of de-allocations as a Python integer.
  */
 static PyObject *
@@ -2048,7 +2103,8 @@ static const int REF_TRACE_DATA_LOG_ALLOCS_MAGIC_NUMBER = 0x52544c41;
  */
 struct reference_tracing_data {
     int magic_number;
-    unsigned long thread_id;
+    /** The thread ID that created this data structure. */
+    tThreadID thread_id;
     /** The log file.
      * The file name will be <tt>const char *create_filename('O', int reference_tracing_data_depth)</tt> */
     FILE *log_file;
@@ -2115,15 +2171,25 @@ reference_tracing_ll_integrity(void) {
 /**
  * Get the head of the Reference Tracing linked list as a struct reference_tracing_data.
  *
- * @return The head node or NULL if the list is empty.
+ * @param thread_id The thread ID.
+ * @return The head node or NULL if the list is empty or there is no corresponding data for the thread.
  */
 static struct reference_tracing_data *
-reference_tracing_ll_get_data(void) {
+reference_tracing_ll_get_data(tThreadID thread_id) {
     PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
-    if (reference_tracing_ll) {
-        return reference_tracing_ll->data;
+    struct cReferenceTracingLinkedListNode *pll = reference_tracing_ll;
+    struct reference_tracing_data *ret = NULL;
+    while (pll) {
+        if (pll->data->thread_id == thread_id) {
+            ret = reference_tracing_ll->data;
+            break;
+        }
+        pll = pll->next;
     }
-    return NULL;
+#if PYMEMTRACE_THREAD_SUPPORT_DEBUG_REFERENCE_TRACE
+    fprintf(stdout, "DEBUG: %s()#%d Thread ID: %ld returns %p\n", __func__, __LINE__, thread_id, (void *)ret);
+#endif
+    return ret;
 }
 
 /**
@@ -2149,8 +2215,10 @@ reference_tracing_ll_push(struct reference_tracing_data *data) {
 
 /**
  * Free the first value on the list and adjust the list pointer.
- * This gives undefined behaviour if the list is empty.
- * The linked list relinquishes ownership of this pointer.
+ * This gives undefined behaviour if the list is empty or no node
+ * corresponding to the thread ID can be found.
+ * The linked list relinquishes ownership of the node pointer but NOT the
+ * struct reference_tracing_data.
  *
  * \note
  *  Caller has to \c fclose the \c ->log_file
@@ -2160,17 +2228,37 @@ reference_tracing_ll_push(struct reference_tracing_data *data) {
  *  If the call as the result of an \c \_\_exit\_\_() function then do **not** decref as CPython
  *  will automatically do this on completion of the with statement.
  *
+ * @param thread_id The thread ID.
  * @return The struct reference_tracing_data from the head node or NULL.
  */
 static struct reference_tracing_data *
-reference_tracing_ll_pop(void) {
+reference_tracing_ll_pop(tThreadID thread_id) {
     PYMEMTRACE_DASSERT(reference_tracing_ll);
     PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
     struct cReferenceTracingLinkedListNode *tmp = reference_tracing_ll;
-    reference_tracing_ll = reference_tracing_ll->next;
-    struct reference_tracing_data *ret = tmp->data;
-    free(tmp);
-    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
+    struct reference_tracing_data *ret = NULL;
+    /* Special case: head node matches. In this case we need to adjust the head pointer. */
+    if (tmp && tmp->data->thread_id == thread_id) {
+        reference_tracing_ll = reference_tracing_ll->next;
+        ret = tmp->data;
+        free(tmp);
+        tmp = NULL;
+    } else if (tmp) {
+        struct cReferenceTracingLinkedListNode *prev = tmp;
+        tmp = tmp->next;
+        /* Traverse the list for a matching thread ID. */
+        while (tmp) {
+            if (tmp->data->thread_id == thread_id) {
+                /* Match found, fix up pointers. */
+                ret = tmp->data;
+                prev->next = tmp->next;
+                free(tmp);
+                break;
+            }
+            prev = tmp;
+            tmp = tmp->next;
+        }
+    }
     return ret;
 }
 
@@ -2214,10 +2302,11 @@ reference_tracing_ll_dump(const char *prefix, FILE *out) {
             fputs("DEBUG: ", out);
             fprintf(
                 out,
-                "[%2zd] @%p Next: %p Thread: %6ld Log file @ %p \"%s\"\n",
+                "[%2zd] @%p Next: %p Date %p Thread: %6ld Log file @ %p \"%s\"\n",
                 ret,
                 (void *)p_linked_list,
                 (void *)p_linked_list->next,
+                (void *)p_linked_list->data,
                 p_linked_list->data->thread_id,
                 (void *)p_linked_list->data->log_file,
                 p_linked_list->data->log_file_name);
@@ -3264,6 +3353,25 @@ cpyReferenceTracing_invoke_gc_collect(cpyReferenceTracing *self) {
     return ret;
 }
 
+static int
+reference_tracing_write_suspension_message_in_old_file(tThreadID thread_id, char *new_log_filename) {
+    /* Write suspension message in the old file. */
+    int ret;
+    struct reference_tracing_data *data_old = reference_tracing_ll_get_data(thread_id);
+    if (data_old) {
+        cpyReferenceTracing_write_c_prefix_and_message_to_log(
+                data_old, "MSG", "Detaching this Reference Tracing file wrapper. New file: ", 0
+        );
+        cpyReferenceTracing_write_c_prefix_and_message_to_log(
+                data_old, NULL, new_log_filename, 1
+        );
+        ret = 0;
+    } else {
+        ret = -1;
+    }
+    return ret;
+}
+
 /**
  * De-register the existing tracer, push new data onto the linked list and register it.
  *
@@ -3278,10 +3386,16 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
 
     reference_tracing_ll_dump("cpyReferenceTracing_enter()", stdout);
 
+    // Obtain lock and thread ID.
+    PyMutex mutex_lock = {0};
+    PyMutex_Lock(&mutex_lock);
+    tThreadID thread_id = get_current_thread_id();
+
     static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH + 1];
     /* Clear the existing tracer. */
     if (PyRefTracer_SetTracer(NULL, NULL)) {
         PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(NULL, NULL) failed.");
+        PyMutex_Unlock(&mutex_lock);
         return NULL;
     }
     /* Open the log file. */
@@ -3297,6 +3411,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
             PyErr_Format(
                     PyExc_RuntimeError, "%s#%d Can not print to buffer, error %d", __func__, __LINE__, err_code
             );
+            PyMutex_Unlock(&mutex_lock);
             return NULL;
         }
         self->py_specific_filename = (PyObject *) PyBytes_FromString(file_path_buffer);
@@ -3305,11 +3420,13 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     self->data->log_file_name = malloc(strlen(new_log_filename) + 1);
     if (!self->data->log_file_name) {
         PyErr_Format(PyExc_IOError, "Can not copy log file name %s", new_log_filename);
+        PyMutex_Unlock(&mutex_lock);
         return NULL;
     }
     // Error check.
     if (strcpy(self->data->log_file_name, new_log_filename) != self->data->log_file_name) {
         PyErr_Format(PyExc_MemoryError, "Can not strcpy log file name %s", new_log_filename);
+        PyMutex_Unlock(&mutex_lock);
         return NULL;
     }
 #if DEBUG
@@ -3319,6 +3436,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     self->data->log_file = fopen(new_log_filename, "w");
     if (!self->data->log_file) {
         PyErr_Format(PyExc_IOError, "Can not open log file %s", new_log_filename);
+        PyMutex_Unlock(&mutex_lock);
         return NULL;
     }
 #if REFERENCE_TRACING_TRACE_FILE_OPS
@@ -3328,22 +3446,10 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
         (void *)self->data->log_file, __func__, __LINE__
     );
 #endif
-    /* Write suspension message in the old file. */
-    struct reference_tracing_data *data_old = reference_tracing_ll_get_data();
-    if (data_old) {
-//        cpyReferenceTracing_write_c_message_to_log(
-//                data_old, "Detaching this Reference Tracing file wrapper. New file:"
-//        );
-//        cpyReferenceTracing_write_c_message_to_log(
-//                data_old, new_log_filename
-//        );
-        cpyReferenceTracing_write_c_prefix_and_message_to_log(
-                data_old, "MSG", "Detaching this Reference Tracing file wrapper. New file: ", 0
-        );
-        cpyReferenceTracing_write_c_prefix_and_message_to_log(
-                data_old, NULL, new_log_filename, 1
-        );
-    }
+    /* Write suspension message in the old file.
+     * Ignore old log file not found as there might not be one.
+     */
+    reference_tracing_write_suspension_message_in_old_file(thread_id, new_log_filename);
     /* Write the opening message in the new log file. */
     if (self->message) {
         fputs(self->message, self->data->log_file);
@@ -3365,6 +3471,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     reference_tracing_ll_push(self->data);
     /* Register the existing tracer. */
     if (PyRefTracer_SetTracer(&reference_trace_allocations_callback, self->data)) {
+        PyMutex_Unlock(&mutex_lock);
         return NULL;
     }
     Py_INCREF(self);
@@ -3372,6 +3479,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
     reference_tracing_ll_dump("cpyReferenceTracing_enter() DONE", stdout);
     PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
+    PyMutex_Unlock(&mutex_lock);
     return (PyObject *) self;
 }
 
@@ -3393,6 +3501,11 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
     PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
     /* NOTE: No PYMEMTRACE_DASSERT(!PyErr_Occurred()); as an exception might have been set by the users code. */
 
+    // Obtain lock and thread ID.
+    PyMutex mutex_lock = {0};
+    PyMutex_Lock(&mutex_lock);
+    tThreadID thread_id = get_current_thread_id();
+
     reference_tracing_ll_dump("cpyReferenceTracing_exit()", stdout);
 
     /* Invoke gc.collect() if required, and we DO want to trace de-allocations so,
@@ -3401,6 +3514,7 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
         if (cpyReferenceTracing_invoke_gc_collect(self) < 0) {
             /* gc.collect() failure. */
             PYMEMTRACE_DASSERT(PyErr_Occurred());
+            PyMutex_Unlock(&mutex_lock);
             Py_RETURN_TRUE;
         }
     }
@@ -3411,14 +3525,16 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
      * */
     if (PyRefTracer_SetTracer(NULL, NULL)) {
         PyErr_SetString(PyExc_RuntimeError, "PyRefTracer_SetTracer(NULL, NULL) failed.");
+        PyMutex_Unlock(&mutex_lock);
         return NULL;
     }
     if (self->data) {
         /* Pops the node off the linked list. */
-        struct reference_tracing_data *data = reference_tracing_ll_pop();
+        struct reference_tracing_data *data = reference_tracing_ll_pop(thread_id);
         PYMEMTRACE_DASSERT(data == self->data);
         if (!data) {
             PyErr_SetString(PyExc_RuntimeError, "__exit__ when nothing is on the linked list.");
+            PyMutex_Unlock(&mutex_lock);
             return NULL;
         }
         /* Finish up the file. */
@@ -3443,7 +3559,7 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
         fclose(self->data->log_file);
         self->data->log_file = NULL;
         /* Register the previous tracer from the linked list. */
-        data = reference_tracing_ll_get_data();
+        data = reference_tracing_ll_get_data(thread_id);
         if (data) {
             /* Report re-attaching the reference tracer. */
             cpyReferenceTracing_write_c_message_to_log(data, "Re-attaching this Reference Tracing file wrapper.");
@@ -3451,6 +3567,7 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
         }
         reference_tracing_ll_dump("cpyReferenceTracing_exit() DONE", stdout);
         PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
+        PyMutex_Unlock(&mutex_lock);
         if (PyErr_Occurred()) {
             Py_RETURN_TRUE;
         }
@@ -3458,6 +3575,7 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
     }
     PyErr_Format(PyExc_RuntimeError, "ReferenceTracing.__exit__ has no cpyTraceFileWrapper");
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
+    PyMutex_Unlock(&mutex_lock);
     return NULL;
 }
 
@@ -3472,9 +3590,8 @@ cpyReferenceTracing_get_log_file_path(cpyReferenceTracing *self, PyObject *Py_UN
     PYMEMTRACE_DASSERT(!PyErr_Occurred());
     if (self->py_specific_filename) {
         return Py_BuildValue("s", PyBytes_AS_STRING(self->py_specific_filename));
-    } else {
-        Py_RETURN_NONE;
     }
+    Py_RETURN_NONE;
 }
 
 /**
@@ -3487,12 +3604,19 @@ cpyReferenceTracing_get_log_file_path(cpyReferenceTracing *self, PyObject *Py_UN
 static PyObject *
 cpyReferenceTracing_suspend(void) {
     PYMEMTRACE_DASSERT(!PyErr_Occurred());
-    struct reference_tracing_data *data = reference_tracing_ll_get_data();
+
+    // Obtain lock and thread ID.
+    PyMutex mutex_lock = {0};
+    PyMutex_Lock(&mutex_lock);
+    tThreadID thread_id = get_current_thread_id();
+
+    struct reference_tracing_data *data = reference_tracing_ll_get_data(thread_id);
     if (!data) {
         PyErr_Format(
                 PyExc_RuntimeError,
                 "%s()#%d Head of list is NULL.", __func__, __LINE__
         );
+        PyMutex_Unlock(&mutex_lock);
         return NULL;
     }
     if (!data->log_file) {
@@ -3500,6 +3624,7 @@ cpyReferenceTracing_suspend(void) {
                 PyExc_RuntimeError,
                 "%s()#%d Head of list, the file pointer is NULL.", __func__, __LINE__
         );
+        PyMutex_Unlock(&mutex_lock);
         return NULL;
     }
 
@@ -3514,6 +3639,7 @@ cpyReferenceTracing_suspend(void) {
                 PyExc_RuntimeError,
                 "%s()#%d Head of list tracer does not match the registered one.", __func__, __LINE__
         );
+        PyMutex_Unlock(&mutex_lock);
         return NULL;
     }
     PYMEMTRACE_DASSERT(tracer_old);
@@ -3523,6 +3649,7 @@ cpyReferenceTracing_suspend(void) {
                 "%s()#%d PyRefTracer_GetTracer() return value is not the expected callback function.",
                 __func__, __LINE__
         );
+        PyMutex_Unlock(&mutex_lock);
         return NULL;
     }
     if (PyRefTracer_SetTracer(NULL, NULL)) {
@@ -3531,8 +3658,10 @@ cpyReferenceTracing_suspend(void) {
                 "%s()#%d PyRefTracer_SetTracer(NULL, NULL) failed.",
                 __func__, __LINE__
         );
+        PyMutex_Unlock(&mutex_lock);
         return NULL;
     }
+    PyMutex_Unlock(&mutex_lock);
     Py_RETURN_NONE;
 }
 
@@ -3555,8 +3684,13 @@ cpyReferenceTracing_resume(void) {
         );
         return NULL;
     }
-    /* Get the current latest tracer. */
-    struct reference_tracing_data *data = reference_tracing_ll_get_data();
+
+    // Obtain lock and thread ID.
+    PyMutex mutex_lock = {0};
+    PyMutex_Lock(&mutex_lock);
+    tThreadID thread_id = get_current_thread_id();
+
+    struct reference_tracing_data *data = reference_tracing_ll_get_data(thread_id);
     if (data) {
         cpyReferenceTracing_write_c_message_to_log(data, "Resuming reference tracing.");
         /* Restore the Reference Tracer. */
@@ -3567,13 +3701,16 @@ cpyReferenceTracing_resume(void) {
                     "%s()#%d PyRefTracer_SetTracer(tracer, data) failed.",
                     __func__, __LINE__
             );
+            PyMutex_Unlock(&mutex_lock);
             return NULL;
         }
         cpyReferenceTracing_write_c_message_to_log(data, "Resuming reference tracing.");
     } else {
         PyErr_SetString(PyExc_RuntimeError, "PyRefTracer.resume() when there is no tracer to register.");
+        PyMutex_Unlock(&mutex_lock);
         return NULL;
     }
+    PyMutex_Unlock(&mutex_lock);
     Py_RETURN_NONE;
 }
 
@@ -3583,17 +3720,26 @@ cpyReferenceTracing_resume(void) {
 static PyObject *
 cpyReferenceTracing_count_new(void) {
     PYMEMTRACE_DASSERT(!PyErr_Occurred());
-    /* Get the current latest tracer. */
-    struct reference_tracing_data *data = reference_tracing_ll_get_data();
+
+    PyObject *ret = NULL;
+
+    // Obtain lock and thread ID.
+    PyMutex mutex_lock = {0};
+    PyMutex_Lock(&mutex_lock);
+    tThreadID thread_id = get_current_thread_id();
+
+    struct reference_tracing_data *data = reference_tracing_ll_get_data(thread_id);
     if (data) {
-        return PyLong_FromLong(data->count_new);
+        ret = PyLong_FromLong(data->count_new);
+    } else {
+        PyErr_Format(
+                PyExc_RuntimeError,
+                "%s(): No reference tracing data is on the stack for thread ID %ld.",
+                __func__, thread_id
+        );
     }
-    PyErr_Format(
-            PyExc_RuntimeError,
-            "%s(): No reference tracing data is on the stack.",
-            __func__
-    );
-    return NULL;
+    PyMutex_Unlock(&mutex_lock);
+    return ret;
 }
 
 /**
@@ -3602,21 +3748,32 @@ cpyReferenceTracing_count_new(void) {
 static PyObject *
 cpyReferenceTracing_count_del(void) {
     PYMEMTRACE_DASSERT(!PyErr_Occurred());
-    /* Get the current latest tracer. */
-    struct reference_tracing_data *data = reference_tracing_ll_get_data();
+
+    PyObject *ret = NULL;
+
+    // Obtain lock and thread ID.
+    PyMutex mutex_lock = {0};
+    PyMutex_Lock(&mutex_lock);
+    tThreadID thread_id = get_current_thread_id();
+
+    struct reference_tracing_data *data = reference_tracing_ll_get_data(thread_id);
     if (data) {
-        return PyLong_FromLong(data->count_del);
+        ret = PyLong_FromLong(data->count_del);
+    } else {
+        PyErr_Format(
+                PyExc_RuntimeError,
+                "%s(): No reference tracing data is on the stack for thread ID %ld.",
+                __func__, thread_id
+        );
     }
-    PyErr_Format(
-            PyExc_RuntimeError,
-            "%s(): No reference tracing data is on the stack.",
-            __func__
-    );
-    return NULL;
+    PyMutex_Unlock(&mutex_lock);
+    return ret;
 }
 
 /**
  * Create a Python dictionary of live types of to form <tt>{type_name: count, ...}</tt>.
+ *
+ * Do not expose this as it contains implementation details such as the hash table.
  *
  * @param data The <tt>struct reference_tracing_data</tt>
  * @return The Python dictionary.
@@ -3651,20 +3808,34 @@ cpyReferenceTracing_dict_of_live_objects_private(struct reference_tracing_data *
     return ret;
 }
 
+/**
+ * A Python dictionary of the live objects for the current thread.
+ *
+ * @return A Python dictionary of the live objects for the current thread.
+ */
 static PyObject *
 cpyReferenceTracing_dict_of_live_objects(void) {
     PYMEMTRACE_DASSERT(!PyErr_Occurred());
-    /* Get the current latest tracer. */
-    struct reference_tracing_data *data = reference_tracing_ll_get_data();
+
+    PyObject *ret = NULL;
+
+    // Obtain lock and thread ID.
+    PyMutex mutex_lock = {0};
+    PyMutex_Lock(&mutex_lock);
+    tThreadID thread_id = get_current_thread_id();
+
+    struct reference_tracing_data *data = reference_tracing_ll_get_data(thread_id);
     if (data) {
-        return cpyReferenceTracing_dict_of_live_objects_private(data);
+        ret = cpyReferenceTracing_dict_of_live_objects_private(data);
+    } else {
+        PyErr_Format(
+                PyExc_RuntimeError,
+                "%s(): No reference tracing data is on the stack for thread ID %ld.",
+                __func__, thread_id
+        );
     }
-    PyErr_Format(
-            PyExc_RuntimeError,
-            "%s(): No reference tracing data is on the stack.",
-            __func__
-    );
-    return NULL;
+    PyMutex_Unlock(&mutex_lock);
+    return ret;
 }
 
 
@@ -3936,7 +4107,8 @@ reference_tracing_wrapper_depth(void) {
 }
 
 /**
- * This module level function returns the current Reference Trace log path.
+ * This module level function returns the current Reference Trace log path
+ * for the current thread.
  * This is useful when using decorators as the cPyMemTrace module can be
  * queried when there is no object as is with a context manager.
  *
@@ -3945,15 +4117,26 @@ reference_tracing_wrapper_depth(void) {
  */
 static PyObject *
 reference_tracing_log_path(void) {
-    struct reference_tracing_data *ref_trace_data = reference_tracing_ll_get_data();
+    PyObject *ret = NULL;
+
+    // Obtain lock and thread ID.
+    PyMutex mutex_lock = {0};
+    PyMutex_Lock(&mutex_lock);
+    tThreadID thread_id = get_current_thread_id();
+
+    struct reference_tracing_data *ref_trace_data = reference_tracing_ll_get_data(thread_id);
     if (ref_trace_data && ref_trace_data->log_file_name) {
-        return Py_BuildValue("s", ref_trace_data->log_file_name);
+        ret = Py_BuildValue("s", ref_trace_data->log_file_name);
+        PyMutex_Unlock(&mutex_lock);
+        return ret;
     }
+    PyMutex_Unlock(&mutex_lock);
     Py_RETURN_NONE;
 }
 
 /**
- * This module level function writes a message to the current Tracer log path.
+ * This module level function writes a message to the current Tracer log path
+ * for the current thread.
  *
  * @param _unused_module
  * @param py_message The message, a unicode string.
@@ -3962,34 +4145,56 @@ reference_tracing_log_path(void) {
 static PyObject *
 reference_tracing_write_message_to_log(PyObject *Py_UNUSED(module), PyObject *py_message) {
     PYMEMTRACE_DASSERT(!PyErr_Occurred());
-    struct reference_tracing_data *ref_trace_data = reference_tracing_ll_get_data();
+
+    // Obtain lock and thread ID.
+    PyMutex mutex_lock = {0};
+    PyMutex_Lock(&mutex_lock);
+    tThreadID thread_id = get_current_thread_id();
+
+    struct reference_tracing_data *ref_trace_data = reference_tracing_ll_get_data(thread_id);
     if (!ref_trace_data) {
         PyErr_SetString(
             PyExc_ValueError,
             "Trying to write to a reference tracing log file when no reference tracer is active."
         );
+        PyMutex_Unlock(&mutex_lock);
         return NULL;
     }
     Py_UCS1 *c_str = PyUnicode_1BYTE_DATA(py_message);
     /* Discard return value, the number of characters written. */
     cpyReferenceTracing_write_c_message_to_log(ref_trace_data, (char *)c_str);
+    PyMutex_Unlock(&mutex_lock);
     Py_RETURN_NONE;
 }
 
+/**
+ * Returns a Python dictionary of live objects for the current thread.
+ *
+ * @param _unused_module
+ * @return A Python dictionary of live objects for the current thread.
+ */
 static PyObject *
 reference_tracing_dict_of_live_objects(PyObject *Py_UNUSED(module)) {
     PYMEMTRACE_DASSERT(!PyErr_Occurred());
-    /* Get the current latest tracer. */
-    struct reference_tracing_data *data = reference_tracing_ll_get_data();
+    PyObject *ret = NULL;
+
+    // Obtain lock and thread ID.
+    PyMutex mutex_lock = {0};
+    PyMutex_Lock(&mutex_lock);
+    tThreadID thread_id = get_current_thread_id();
+
+    struct reference_tracing_data *data = reference_tracing_ll_get_data(thread_id);
     if (data) {
-        return cpyReferenceTracing_dict_of_live_objects_private(data);
+        ret = cpyReferenceTracing_dict_of_live_objects_private(data);
+    } else {
+        PyErr_Format(
+                PyExc_RuntimeError,
+                "%s(): No reference tracing data is on the stack for thread ID %ld.",
+                __func__, thread_id
+        );
     }
-    PyErr_Format(
-            PyExc_RuntimeError,
-            "%s(): No reference tracing data is on the stack.",
-            __func__
-    );
-    return NULL;
+    PyMutex_Unlock(&mutex_lock);
+    return ret;
 }
 
 #endif // #if REFERENCE_TRACING_AVAILABLE

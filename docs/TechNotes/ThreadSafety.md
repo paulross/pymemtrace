@@ -157,16 +157,27 @@ This is required in ``pymemtrace_threading.h`` and will ``#error`` if ``WITH_THR
 ```c
 /* Allow setup.py to override this with extra_compile_args */
 #ifndef PYMEMTRACE_THREAD_SUPPORT_PROFILE_TRACE
-/* Default in this code. */
-#define PYMEMTRACE_THREAD_SUPPORT_PROFILE_TRACE 1
+/**
+ * Support multi-threaded Python for Profiling and Tracing.
+ * This is the default in this code.
+ */
+#define PYMEMTRACE_THREAD_SUPPORT_PROFILE_TRACE WITH_THREAD && 1
+#endif
 
-/* And... */
+/* Allow setup.py to override this with extra_compile_args */
 #ifndef PYMEMTRACE_THREAD_SUPPORT_REFERENCE_TRACE
-#define PYMEMTRACE_THREAD_SUPPORT_REFERENCE_TRACE 1
+/**
+ * Support multi-threaded Python for Reference Tracing.
+ * This is the default in this code.
+ */
+#define PYMEMTRACE_THREAD_SUPPORT_REFERENCE_TRACE WITH_THREAD && 1
+#endif
 
-/* Verbose output as the data structures change etc. */
+/* Allow setup.py to override this with extra_compile_args */
 #ifndef PYMEMTRACE_THREAD_SUPPORT_DEBUG
-#define PYMEMTRACE_THREAD_SUPPORT_DEBUG 1
+/** Verbose output as the data structures change etc. */
+#define PYMEMTRACE_THREAD_SUPPORT_DEBUG WITH_THREAD && 1
+#endif
 ```
 
 ## Locks
@@ -203,7 +214,8 @@ ACQUIRE_LOCK(self);
 RELEASE_LOCK(self);
 ```
 
-From Python 3.13 we have [PyMutex](https://docs.python.org/3/c-api/synchronization.html#synchronization-primitives)
+From Python 3.13 we have
+[PyMutex](https://docs.python.org/3/c-api/synchronization.html#synchronization-primitives)
 
 That is used like this:
 

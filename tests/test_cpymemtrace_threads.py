@@ -31,7 +31,7 @@ def reference_tracing_simple_thread_worker(thread_name, siz, sleep_before, sleep
         time.sleep(sleep_after)
 
 
-def test_simple_threading():
+def _test_simple_threading():
     threads = [
         threading.Thread(
             target=reference_tracing_simple_thread_worker,
@@ -64,7 +64,7 @@ def reference_tracing_thread_worker(thread_name, count, min_size, max_size, resu
             l = []
             for i in range(count):
                 value = StringAndTime(random.randint(min_size, max_size))
-                profiler.write_message_to_log(f'# adding item {i} at 0x{id(value)} from thread {thread_name}')
+                profiler.write_message_to_log(f'# added item {i} at 0x{id(value)} from thread {thread_name}')
                 l.append(value)
                 time.sleep(0.25)
             while (l):
@@ -74,12 +74,14 @@ def reference_tracing_thread_worker(thread_name, count, min_size, max_size, resu
         file.flush()
         result_dict['file_data'] = file.read()
 
-def _test_basic_threading():
+def test_basic_reference_tracing_threading():
     result_dict_a = {}
     result_dict_b = {}
+    result_dict_c = {}
     threads = [
         threading.Thread(target=reference_tracing_thread_worker, args=('Thread-A', 4, 1 << 10, 1 <<14, result_dict_a,)),
         threading.Thread(target=reference_tracing_thread_worker, args=('Thread-B', 4, 1 << 10, 1 <<14, result_dict_b,)),
+        threading.Thread(target=reference_tracing_thread_worker, args=('Thread-C', 4, 1 << 10, 1 <<14, result_dict_c,)),
     ]
     # Start each thread
     for t in threads:
@@ -88,9 +90,21 @@ def _test_basic_threading():
     for t in threads:
         t.join()
     print()
+
+    print(' file_data_a '.center(75, '-'))
     file_data_a = result_dict_a['file_data'].decode('ascii')
     for line in file_data_a.split('\n'):
         print(line)
+    print(' file_data_a DONE '.center(75, '-'))
+
+    print(' file_data_b '.center(75, '-'))
     file_data_b = result_dict_b['file_data'].decode('ascii')
     for line in file_data_b.split('\n'):
         print(line)
+    print(' file_data_b DONE '.center(75, '-'))
+
+    print(' file_data_c '.center(75, '-'))
+    file_data_c = result_dict_c['file_data'].decode('ascii')
+    for line in file_data_c.split('\n'):
+        print(line)
+    print(' file_data_c DONE '.center(75, '-'))

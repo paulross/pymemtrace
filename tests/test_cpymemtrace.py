@@ -221,6 +221,7 @@ def test_module_log_file_same_as_object_log_file(cls, log_path_attr):
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
 def test_module_log_file_same_as_object_log_file_post_313():
     with cPyMemTrace.ReferenceTracing() as profiler:
+        print('WTF?')
         log_path = profiler.log_file_path()
         assert os.path.isfile(log_path)
         log_file_path_fn = getattr(cPyMemTrace, 'reference_tracing_log_path')
