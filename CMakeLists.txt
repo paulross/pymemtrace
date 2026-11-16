@@ -4,14 +4,12 @@ project(cPyMemTrace)
 #set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_FLAGS "-std=c99")
 
-#add_compile_definitions(SVF_THREAD_SAFE)
-
-IF(CMAKE_BUILD_TYPE MATCHES DEBUG)
+IF(CMAKE_BUILD_TYPE MATCHES Debug)
     message("debug build")
-    add_compile_definitions(DEBUG)
+    add_compile_definitions(DEBUG=1)
 ELSE()
     message("release build")
-ENDIF(CMAKE_BUILD_TYPE MATCHES DEBUG)
+ENDIF(CMAKE_BUILD_TYPE MATCHES Debug)
 
 add_compile_options(
     "-Wall"
@@ -40,6 +38,11 @@ add_executable(
     pymemtrace/src/c/pymemtrace_util.c
     pymemtrace/src/cpy/cPyMemTrace.h
     pymemtrace/src/cpy/cPyMemTrace.c
+    pymemtrace/src/cpy/cPyRefTraceExample.c
+    pymemtrace/src/include/ht.h
+    pymemtrace/src/c/ht.c
+    pymemtrace/src/include/pymemtrace_threading.h
+    pymemtrace/src/c/pymemtrace_threading.c
 )
 
 include_directories(

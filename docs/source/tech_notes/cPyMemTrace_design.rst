@@ -64,7 +64,7 @@ For example:
 
     with cPyMemTrace.Profile():
         # Now writing to, say, "20241107_195847_11_62264_P_0_PY3.13.0b3.log"
-        # Note the "_0_" in the file name.
+        # Note the "_P_" in the file name.
         with cPyMemTrace.Profile():
             # Writing to "20241107_195847_12_62264_P_0_PY3.13.0b3.log" is suspended.
             # Now writing to, say, "20241107_195847_12_62264_P_1_PY3.13.0b3.log"
@@ -134,3 +134,18 @@ Stacking Decorators
 Decorators, since they invoke the respective context manager, work in the same way, suspending
 then restoring a log file.
 See :ref:`examples-cpymemtrace_decorators` for some examples.
+
+Counting Allocations by Type
+----------------------------
+
+The :py:class:`pymemtrace.cPyMemTrace.ReferenceTracing` contains a hash table that holds
+the number of live objects by type.
+The hash table ke is a C string of the type and the value a long of the count of objects.
+Every time an object is allocated the value is increased by one.
+Every time an object is de-allocated the value is decreased by one.
+
+The table can be retrieved as a Python dictionary by the method
+:py:meth:`~pymemtrace.cPyMemTrace.ReferenceTracing.live_object_counts()`.
+If you are using decorators then the module level method
+:py:meth:`~pymemtrace.cPyMemTrace.reference_tracing_live_object_counts()`
+does the same thing.

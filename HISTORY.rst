@@ -1,6 +1,47 @@
 History
 =======
 
+0.6.3 (2026-07-27)
+------------------
+
+* Replace __FILE_NAME__ with __FILE__ for GCC compatibility. Fixes issue #7
+* Supported Python versions are: 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
+* Development Status :: 5 - Production/Stable
+
+0.6.2 (2026-07-27)
+------------------
+
+* Fixes issue #6
+* Initial support and design for adding thread safety. Not yet implemented.
+* Remove support for Python 3.8 (it will probably still work though).
+* Supported Python versions are: 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
+* Development Status :: 5 - Production/Stable
+
+0.6.1 (2026-06-24)
+------------------
+
+* Fixes: #5 (macros setting for strdup()).
+* Some debug improvements.
+* Added magic numbers to opaque data structures.
+* Add gnuplot output of live object count.
+* Documentation improvements.
+* Supported Python versions are: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
+* Development Status :: 5 - Production/Stable
+
+0.6.0 (2026-05-19)
+------------------
+
+* Add a hash table of live type counts to Reference Tracing. This can be accessed from Python as a dictionary.
+* Fix Reference tracing example for ``build_all.sh``.
+* Add module level functions to write to the Profile/Trace/Reference Trace log files.
+* Add some asserts and clean up ``test_cpyreftraceexample.py``.
+* Add Reference Tracing minimal example in C, a Python module and tests.
+* Add Doxygen documentation.
+* Reorganise debug code.
+* Add basic example of Reference Tracing in C to debug code.
+* Supported Python versions are: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
+* Development Status :: 5 - Production/Stable
+
 0.5.0 (2026-05-12)
 ------------------
 
@@ -11,6 +52,8 @@ History
 * ``ref_trace_analyse.py`` can now merge log files.
 * Add the ability to get reference counts from arbitrary addresses.
 * Added documentation.
+* Supported Python versions are: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
+* Development Status :: 5 - Production/Stable
 
 0.4.1 (2026-05-03)
 ------------------

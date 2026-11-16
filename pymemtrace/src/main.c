@@ -8,9 +8,11 @@
 #include <unistd.h>
 
 #include <libproc.h>
+#include <string.h>
 
 #include "get_rss.h"
 #include "cpy/cPyMemTrace.h"
+#include "include/pymemtrace_util.h"
 
 void macosx_get_short_pid_info(void) {
     printf("STRT: %s\n", __PRETTY_FUNCTION__);
@@ -143,6 +145,17 @@ void macosx_malloc_with_rss_and_page_faults(void) {
     printf("DONE: %s\n", __PRETTY_FUNCTION__);
 }
 
+int debug_pymemtrace_util(void) {
+    printf("%s()\n", __func__);
+    int ret = 0;
+    char path[PYMEMTRACE_PATH_NAME_MAX_LENGTH];
+    size_t length;
+    length = create_filename_within_cwd('T', 2, path, sizeof(path));
+    ret |= length != strlen(path);
+    printf("File path [%lu]: %s\n", length, path);
+    return ret;
+}
+
 #if 1
 int
 main (int argc, char **argv) {
@@ -215,6 +228,7 @@ main (int argc, char **argv) {
     printf("\n");
     int debug_result;
     debug_result = debug_cPyMemtrace(argc, argv);
+    debug_result |= debug_pymemtrace_util();
     printf("Debug result: %d", debug_result);
 
     return 0;

@@ -3,7 +3,6 @@ At the moment these produce a log file per test.
 """
 import datetime
 import faulthandler
-import gc
 import os
 import pprint
 import random
@@ -23,7 +22,7 @@ faulthandler.enable()
 
 
 def test_version():
-    assert pymemtrace.__version__ == '0.5.0'
+    assert pymemtrace.__version__ == '0.6.3'
 
 
 @pytest.mark.skipif(not (sys.version_info.minor < 13), reason='Python < 3.13')
@@ -40,10 +39,12 @@ def test_module_dir_pre_313():
         '__spec__',
         'profile_log_path',
         'profile_wrapper_depth',
+        'profile_write_message_to_log',
         'rss',
         'rss_peak',
         'trace_log_path',
         'trace_wrapper_depth',
+        'trace_write_message_to_log',
     ]
 
 
@@ -63,13 +64,17 @@ def test_module_dir_post_313():
         '__spec__',
         'profile_log_path',
         'profile_wrapper_depth',
+        'profile_write_message_to_log',
+        'reference_tracing_live_object_counts',
         'reference_tracing_log_path',
         'reference_tracing_simple_wrapper_depth',
         'reference_tracing_wrapper_depth',
+        'reference_tracing_write_message_to_log',
         'rss',
         'rss_peak',
         'trace_log_path',
         'trace_wrapper_depth',
+        'trace_write_message_to_log',
     ]
 
 
@@ -271,6 +276,68 @@ def test_profile_inline_message_to_log_file_pre_313(cls):
         assert message in file_data
 
 
+def test_profile_module_level_message_to_log_file_pre_313():
+    message = 'test_profile_module_level_message_to_log_file_pre_313():'
+    with cPyMemTrace.Profile() as profiler:
+        b' ' * (1024 ** 2)
+        cPyMemTrace.profile_write_message_to_log(message)
+        log_file_path = profiler.log_file_path()
+    with open(log_file_path) as file:
+        file_data = file.read()
+        print()
+        print(f'File data [{len(file_data)}]:\n{file_data}')
+        assert message in file_data
+
+
+def test_trace_module_level_message_to_log_file_pre_313():
+    message = 'test_trace_module_level_message_to_log_file_pre_313():'
+    with cPyMemTrace.Trace() as profiler:
+        b' ' * (1024 ** 2)
+        cPyMemTrace.trace_write_message_to_log(message)
+        log_file_path = profiler.log_file_path()
+    with open(log_file_path) as file:
+        file_data = file.read()
+        print()
+        print(f'File data [{len(file_data)}]:\n{file_data}')
+        assert message in file_data
+
+
+def test_profile_module_level_message_to_log_file_raises_pre_313():
+    message = 'test_profile_module_level_message_to_log_file_raises_pre_313():'
+    with pytest.raises(ValueError) as err:
+        cPyMemTrace.profile_write_message_to_log(message)
+    assert err.value.args[0] == 'Trying to write to a profile log file when no reference tracer is active.'
+
+
+def test_trace_module_level_message_to_log_file_raises_pre_313():
+    message = 'test_trace_module_level_message_to_log_file_raises_pre_313():'
+    with pytest.raises(ValueError) as err:
+        cPyMemTrace.trace_write_message_to_log(message)
+    assert err.value.args[0] == 'Trying to write to a trace log file when no reference tracer is active.'
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_trace_module_level_message_to_log_file_post_313():
+    message = 'test_reference_trace_module_level_message_to_log_file_post_313():'
+    with cPyMemTrace.ReferenceTracing() as profiler:
+        b' ' * (1024 ** 2)
+        cPyMemTrace.reference_tracing_write_message_to_log(message)
+        log_file_path = profiler.log_file_path()
+    with open(log_file_path) as file:
+        file_data = file.read()
+        print()
+        print(f'File data [{len(file_data)}]:\n{file_data}')
+        assert message in file_data
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_trace_module_level_message_to_log_file_raises_post_313():
+    message = 'test_reference_trace_module_level_message_to_log_file_raises_post_313():'
+    with pytest.raises(ValueError) as err:
+        cPyMemTrace.reference_tracing_write_message_to_log(message)
+    assert err.value.args[0] == 'Trying to write to a reference tracing log file when no reference tracer is active.'
+
+
 @pytest.mark.parametrize(
     'cls',
     (
@@ -332,6 +399,7 @@ def test_trace_basic_dir_gt_313():
                                 '__subclasshook__',
                                 'count_del',
                                 'count_new',
+                                'live_object_counts',
                                 'log_file_path',
                                 'resume',
                                 'suspend',
@@ -341,21 +409,6 @@ def test_trace_basic_dir_gt_313():
                                 # 'not_present_at_all',
                                 ]
         assert os.path.isfile(profiler.log_file_path())
-    assert dir_profiler == ['__class__', '__delattr__', '__dir__', '__doc__', '__enter__', '__eq__', '__exit__',
-                            '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__',
-                            '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__',
-                            '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__',
-                            '__subclasshook__',
-                            'count_del',
-                            'count_new',
-                            'log_file_path',
-                            'resume',
-                            'suspend',
-                            'write_message_to_log',
-                            # TODO: Why does un-commenting this **not** cause an abort with debug Python?
-                            # The abort is in Python/frame.c#48 assert(frame->frame_obj == NULL);
-                            # 'not_present_at_all',
-                            ]
 
 
 @pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
@@ -394,6 +447,7 @@ def test_trace_basic_dir_suspend_resume_gt_313():
                             '__subclasshook__',
                             'count_del',
                             'count_new',
+                            'live_object_counts',
                             'log_file_path',
                             'resume',
                             'suspend',
@@ -646,11 +700,11 @@ def test_messaging_for_documentation(cls):
             str_len = random.randint(100 * 1024 ** 2, 500 * 1024 ** 2)
             profiler.write_message_to_log(f'Before allocation of {str_len} bytes.')
             s = ' ' * str_len
-            time.sleep(0.5)
+            # time.sleep(0.5)
             del s
             profiler.write_message_to_log(f'After de-allocation of {str_len} bytes.')
-            time.sleep(0.5)
-        time.sleep(0.5)
+            # time.sleep(0.5)
+        # time.sleep(0.5)
         with open(profiler.log_file_path()) as file:
             file_data = file.read()
             print()
@@ -1174,12 +1228,6 @@ def test_context_manager_refcounts_post_314():
     assert sys.getrefcount(f) == 1
 
 
-if __name__ == '__main__':
-    print('START')
-    test_profile_basic_gt_310()
-    print('FINISH')
-
-
 class StringAndTime:
     def __init__(self, size: int):
         self.now = datetime.datetime.now()
@@ -1255,3 +1303,65 @@ def create_string_and_time_a():
 def test_reference_tracing_nested_with_sig_log_files():
     print()
     create_string_and_time_a()
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reference_tracing_nested_with_sig_log_files():
+    print()
+    create_string_and_time_a()
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_write_message_to_log_file():
+    with cPyMemTrace.ReferenceTracing(
+            message="create_string_and_time_write_message_to_log_file()",
+    ) as ref_trace:
+        log_file_path = cPyMemTrace.reference_tracing_log_path()
+        print(f'ref_trace_a is logging to {log_file_path}')
+        list_of_str_and_time = []
+        for i in range(3):
+            str_len = random.randint(1024 ** 2, 2048 ** 2)
+            cPyMemTrace.reference_tracing_write_message_to_log(
+                f'Creating StringAndTime_A({str_len})'
+            )
+            v = StringAndTime_A(str_len)
+            list_of_str_and_time.append(v)
+        while len(list_of_str_and_time):
+            str_len = len(list_of_str_and_time[-1].str)
+            cPyMemTrace.reference_tracing_write_message_to_log(
+                f'list_of_str_and_time.pop() Length {str_len}'
+            )
+            list_of_str_and_time.pop()
+    assert os.path.isfile(log_file_path)
+    with open(log_file_path) as f:
+        print(f.read())
+
+
+@pytest.mark.skipif(not (sys.version_info.minor >= 13), reason='Python >= 3.13')
+def test_reftracecount_object_example_1024_1032_for_blog_post_313():
+    message = 'test_reftracecount_object_example_1024_1032_for_blog_post_313():'
+    exclude_tp_names = []#'HookImpl', 'HookSpec', 'HookCaller', 'HookRelay', 'Argument', ]
+    with tempfile.NamedTemporaryFile() as file:
+        with cPyMemTrace.ReferenceTracing(
+                message=message, filepath=file.name, exclude_tp_names=exclude_tp_names, include_builtins=True
+        ) as profiler:
+            l = []
+            for i in range(1024, 1024 + 8, 1):
+                l.append(i)
+            assert profiler.log_file_path() == file.name
+        file.flush()
+        file_data = file.read()
+        print()
+        print(' file_0_data '.center(75, '-'))
+        for line in file_data.split(b'\n'):
+            print(line)
+        print(' file_0_data DONE '.center(75, '-'))
+        assert file_data.startswith(bytes(message, 'ascii'))
+
+
+if __name__ == '__main__':
+    print('START')
+    # test_profile_basic_gt_310()
+    # test_write_message_to_log_file()
+    test_reftracecount_object_example_1024_1032_for_blog_post_313()
+    print('FINISH')

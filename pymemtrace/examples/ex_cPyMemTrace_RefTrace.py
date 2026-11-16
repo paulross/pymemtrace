@@ -13,8 +13,8 @@ class StringAndTime:
 
 
 @cpymemtrace_decs.reference_tracing(
-    message='With include_builtins=True',
-    include_builtins=True,
+    message='With include_builtins=False',
+    include_builtins=False,
 )
 def example_reference_tracing():
     print(f'example_reference_tracing()')
@@ -24,6 +24,7 @@ def example_reference_tracing():
         str_len = random.randint(1024, 2048)
         v = StringAndTime(str_len)
         list_of_str_and_time.append(v)
+        print(cPyMemTrace.reference_tracing_live_object_counts())
 
 
 def main():
