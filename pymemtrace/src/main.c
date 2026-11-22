@@ -152,7 +152,7 @@ int debug_pymemtrace_util(void) {
     size_t length;
     length = create_filename_within_cwd('T', 2, path, sizeof(path));
     ret |= length != strlen(path);
-    printf("File path [%lu]: %s\n", length, path);
+    printf("Example of a file path in CWD [%lu]: %s\n", length, path);
     return ret;
 }
 

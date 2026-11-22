@@ -1500,9 +1500,15 @@ static PyTypeObject cpyTraceObjectType = {
 
 #if REFERENCE_TRACING_AVAILABLE
 
+/** Allow setup.py to predefine this macro. */
 #ifndef REFERENCE_TRACING_TRACE_FILE_OPS
 #define REFERENCE_TRACING_TRACE_FILE_OPS 1
 #endif // REFERENCE_TRACING_TRACE_FILE_OPS
+
+/** Allow setup.py to predefine this macro. */
+#ifndef REFERENCE_TRACING_TRACE_FILE_INCLUDE_THREAD_ID
+#define REFERENCE_TRACING_TRACE_FILE_INCLUDE_THREAD_ID 1
+#endif // REFERENCE_TRACING_TRACE_FILE_INCLUDE_THREAD_ID
 
 /**
  * Returns the function name in a static C buffer.
@@ -2302,7 +2308,7 @@ reference_tracing_ll_dump(const char *prefix, FILE *out) {
             fputs("DEBUG: ", out);
             fprintf(
                 out,
-                "[%2zd] @%p Next: %p Date %p Thread: %6ld Log file @ %p \"%s\"\n",
+                "[%2zd] @ %14p Next: %14p Data @ %14p Thread: %6ld Log file @ %14p \"%s\"\n",
                 ret,
                 (void *)p_linked_list,
                 (void *)p_linked_list->next,
@@ -2460,19 +2466,29 @@ cpyReferenceTracing_write_c_prefix_and_message_to_log(struct reference_tracing_d
 #if REFERENCE_TRACING_TRACE_FILE_OPS
     fprintf(
         stdout,
-        "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS Writing message to log file at %p %s#%d\n",
-        (void *)data->log_file, __func__, __LINE__
+        "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS Thread ID %lu writing message to log file at %p %s#%d\n",
+        get_current_thread_id(), (void *)data->log_file, __func__, __LINE__
     );
 #endif
     int ret = 0;
     if (prefix) {
         double clock_time = (double) clock() / CLOCKS_PER_SEC;
+#if REFERENCE_TRACING_TRACE_FILE_INCLUDE_THREAD_ID
+        ret = snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+                       "%s: %12.6f %10ld # %s",
+                       prefix,
+                       clock_time,
+                       get_current_thread_id(),
+                       message
+        );
+#else
         ret = snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
                        "%s: %12.6f # %s",
                        prefix,
                        clock_time,
                        message
         );
+#endif
         fputs((const char *) reference_tracing_event_text, data->log_file);
     } else {
         ret = (int) strlen(message);
@@ -2822,6 +2838,11 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     PYMEMTRACE_DASSERT(data_alias->log_file);
     PYMEMTRACE_DASSERT(event >= 0 && event <= 3);
 
+    tThreadID thread_id = get_current_thread_id();
+    if (thread_id != data_alias->thread_id) {
+        printf("ERROR: XXX current thread is %ld data is for thread %ld\n", thread_id, data_alias->thread_id);
+    }
+
     reference_tracing_call_back_is_active = 1;
 
     /* This does not seem to help in reporting crashes. */
@@ -2929,8 +2950,8 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
 #if REFERENCE_TRACING_TRACE_FILE_OPS
     fprintf(
         stdout,
-        "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS Writing %d event to log file at %p %s#%d\n",
-        event, (void *)data_alias->log_file, __func__, __LINE__
+        "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS Thread ID %lu writing %d event to log file at %p %s#%d\n",
+        get_current_thread_id(), event, (void *)data_alias->log_file, __func__, __LINE__
     );
 #endif
     if (event == PyRefTracer_CREATE) {
@@ -2985,9 +3006,25 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     PYMEMTRACE_DASSERT(count_of_current_type);
 
     // Should match:
-    //     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-    //            "Clock", "Address", "LiveCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    //     fprintf(self->data->log_file, "HDR: %12s %10s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
+    //            "Clock", "Thread", "Address", "LiveCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
     //    );
+#if REFERENCE_TRACING_TRACE_FILE_INCLUDE_THREAD_ID
+    snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
+             " %12.6f %10ld %16p %16ld %-32s %-80s %4d %-40s %16zd %16ld",
+             clock_time,
+             get_current_thread_id(),
+             (void *) obj,
+//             Py_REFCNT(obj),
+             *(long *)count_of_current_type,
+             Py_TYPE(obj)->tp_name,
+             py_frame_get_python_file_name(frame),
+             py_frame_get_line_number(frame),
+             py_frame_get_python_function_name(frame),
+             rss,
+             d_rss
+    );
+#else
     snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
              " %12.6f %16p %16ld %-32s %-80s %4d %-40s %16zd %16ld",
              clock_time,
@@ -3001,6 +3038,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
              rss,
              d_rss
     );
+#endif
 #endif // REFERENCE_TRACING_GET_SIZEOF
     Py_XDECREF(frame);
     PYMEMTRACE_DASSERT(data_alias);
@@ -3056,8 +3094,8 @@ cpyReferenceTracing_dealloc(cpyReferenceTracing *self) {
 #if REFERENCE_TRACING_TRACE_FILE_OPS
             fprintf(
                 stdout,
-                "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS Closing log file at %p %s#%d\n",
-                (void *)self->data->log_file, __func__, __LINE__
+                "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS Thread ID %lu closing log file at %p %s#%d\n",
+                get_current_thread_id(), (void *)self->data->log_file, __func__, __LINE__
             );
 #endif
             fclose(self->data->log_file);
@@ -3442,8 +3480,8 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
 #if REFERENCE_TRACING_TRACE_FILE_OPS
     fprintf(
         stdout,
-        "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS Opened log file at %p %s#%d\n",
-        (void *)self->data->log_file, __func__, __LINE__
+        "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS Thread ID %lu opened log file at %p %s#%d\n",
+        thread_id, (void *)self->data->log_file, __func__, __LINE__
     );
 #endif
     /* Write suspension message in the old file.
@@ -3459,13 +3497,25 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     fputs(MARKER_LOG_FILE_START, self->data->log_file);
     fputc('\n', self->data->log_file);
 #if REFERENCE_TRACING_GET_SIZEOF
+#if REFERENCE_TRACING_TRACE_FILE_INCLUDE_THREAD_ID
+    fprintf(self->data->log_file, "HDR: %12s %10s %16s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
+        "Clock", "Thread", "Address", "LiveCnt", "Sizeof", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    );
+#else
     fprintf(self->data->log_file, "HDR: %12s %16s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
         "Clock", "Address", "LiveCnt", "Sizeof", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    );
+#endif
+#else
+#if REFERENCE_TRACING_TRACE_FILE_INCLUDE_THREAD_ID
+    fprintf(self->data->log_file, "HDR: %12s %10s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
+            "Clock", "Thread", "Address", "LiveCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
     );
 #else
     fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
             "Clock", "Address", "LiveCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
     );
+#endif
 #endif // REFERENCE_TRACING_GET_SIZEOF
     /* Push the data onto the head of the linked list. */
     reference_tracing_ll_push(self->data);
@@ -3541,8 +3591,8 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
 #if REFERENCE_TRACING_TRACE_FILE_OPS
         fprintf(
             stdout,
-            "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS EOF and closing log file at %p %s#%d\n",
-            (void *)self->data->log_file, __func__, __LINE__
+            "DEBUG: REFERENCE_TRACING_TRACE_FILE_OPS Thread ID %lu EOF and closing log file at %p %s#%d\n",
+            thread_id, (void *)self->data->log_file, __func__, __LINE__
         );
 #endif
         fputs(MARKER_LOG_FILE_END, data->log_file);
