@@ -2822,9 +2822,21 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
         return 0;
     }
 #endif // #if REFERENCE_TRACING_TRACKER_REMOVED_AVAILABLE
-
     PYMEMTRACE_DASSERT(obj);
     PYMEMTRACE_DASSERT(data);
+
+    /* Experience shows that frame and code objects are tricky to handle
+     * in that getting the file/line/function
+     * often causing a SIGSEGV, so we always ignore them. */
+    if (PyFrame_Check(obj) || PyCode_Check(obj)) {
+        return 0;
+    }
+    // Obtain lock and thread ID.
+    PyMutex mutex_lock = {0};
+    PyMutex_Lock(&mutex_lock);
+    tThreadID thread_id = get_current_thread_id();
+//    PyMutex_Unlock(&mutex_lock);
+
     struct reference_tracing_data *data_alias = (struct reference_tracing_data *) data;
     /* This is a safety test to see if the
      * data structure matches what we expect.
@@ -2838,7 +2850,6 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     PYMEMTRACE_DASSERT(data_alias->log_file);
     PYMEMTRACE_DASSERT(event >= 0 && event <= 3);
 
-    tThreadID thread_id = get_current_thread_id();
     if (thread_id != data_alias->thread_id) {
         printf("ERROR: XXX current thread is %ld data is for thread %ld\n", thread_id, data_alias->thread_id);
     }
@@ -2852,16 +2863,11 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
 //            __func__, __LINE__, &(Py_TYPE(obj)), Py_TYPE(obj)->tp_name
 //            );
 
-    /* Experience shows that frame and code objects are tricky to handle
-     * in that getting the file/line/function
-     * often causing a SIGSEGV, so we always ignore them. */
-    if (PyFrame_Check(obj) || PyCode_Check(obj)) {
-        return 0;
-    }
     /* Remove builtin types using the specific Python C API.
      * This does not allocate or deallocate any Python objects,
      * so we do not need to suspend tracing. */
     if (data_alias->include_builtins == 0 && reference_trace_is_builtin_pre_suspend(obj)) {
+        PyMutex_Unlock(&mutex_lock);
         return 0;
     }
 
@@ -2886,8 +2892,11 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
                 data_alias,
                 "PyRefTracer_SetTracer(NULL, NULL) failed."
         );
+        PyMutex_Unlock(&mutex_lock);
         return ERROR_CODE;
     }
+    /* From now on reference_tracing_call_back_is_active
+     * is set to 1 on return even under error conditions. */
     reference_tracing_call_back_is_active = 0;
 
     /* NOTE: Some of this code is a bit repetitive. */
@@ -2902,9 +2911,12 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
                     data_alias,
                     "reference_trace_is_builtin_post_suspend(): PyRefTracer_SetTracer(tracer_old, data_old) failed."
             );
+            reference_tracing_call_back_is_active = 1;
+            PyMutex_Unlock(&mutex_lock);
             return ERROR_CODE;
         }
         reference_tracing_call_back_is_active = 1;
+        PyMutex_Unlock(&mutex_lock);
         return 0;
     }
 
@@ -2919,9 +2931,11 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
                     data_alias,
                     "reference_trace_type_exclude_matches(): PyRefTracer_SetTracer(tracer_old, data_old) failed."
             );
+            PyMutex_Unlock(&mutex_lock);
             return ERROR_CODE;
         }
         reference_tracing_call_back_is_active = 1;
+        PyMutex_Unlock(&mutex_lock);
         return 0;
     }
     /* Remove types by type name if they are not in the inclusion sequence. */
@@ -2934,9 +2948,11 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
                     data_alias,
                     "reference_trace_type_include_matches: PyRefTracer_SetTracer(tracer_old, data_old) failed."
             );
+            PyMutex_Unlock(&mutex_lock);
             return ERROR_CODE;
         }
         reference_tracing_call_back_is_active = 1;
+        PyMutex_Unlock(&mutex_lock);
         return 0;
     }
 
@@ -2959,6 +2975,8 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
         fputs("NEW:", data_alias->log_file);
         data_alias->count_new++;
         if (increment_types_live_count(data_alias, obj, 1)) {
+            reference_tracing_call_back_is_active = 1;
+            PyMutex_Unlock(&mutex_lock);
             return ERROR_CODE;
         }
     } else if (event == PyRefTracer_DESTROY) {
@@ -2966,6 +2984,8 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
         fputs("DEL:", data_alias->log_file);
         data_alias->count_del++;
         if (increment_types_live_count(data_alias, obj, -1)) {
+            reference_tracing_call_back_is_active = 1;
+            PyMutex_Unlock(&mutex_lock);
             return ERROR_CODE;
         }
     } else {
@@ -3055,9 +3075,12 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
                 "PyRefTracer_SetTracer(tracer_old, data_old) failed."
         );
 //        fprintf(stderr, "PyRefTracer_SetTracer(tracer_old, data_old) failed.\n");
+        reference_tracing_call_back_is_active = 1;
+        PyMutex_Unlock(&mutex_lock);
         return ERROR_CODE;
     }
     reference_tracing_call_back_is_active = 1;
+    PyMutex_Unlock(&mutex_lock);
     return 0;
 }
 
