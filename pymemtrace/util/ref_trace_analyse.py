@@ -260,7 +260,7 @@ class LogFileResult:
         clock_time = float(m.group(1))
         if clock_time not in self.clock_message_dict:
             self.clock_message_dict[clock_time] = []
-        self.clock_message_dict[clock_time].append(m.group(2))
+        self.clock_message_dict[clock_time].append(m.group(3))
         self.count_msg += 1
 
     def add_err(self, line_num: int, line: str) -> None:
@@ -349,9 +349,10 @@ RE_COMPILE_LOG_FILE_PUSH = re.compile(r'MSG: .+ # Detaching this Reference Traci
 # Matches:
 # MSG:     3.298763 # Re-attaching this Reference Tracing file wrapper.
 RE_COMPILE_LOG_FILE_POP = re.compile(r'MSG: .+ Re-attaching this Reference Tracing file wrapper.')
-# Matches 'MSG:    16.723673 # list_of_str_and_time.pop() Length 2869519'
-# Two groups: clock and message text.
-RE_COMPILE_LOG_FILE_MSG = re.compile(r'MSG:\s+([0-9.]+) # (.+)')
+# Matches 'MSG:    15.129402    5043187 # list_of_str_and_time.pop() Length 378305'
+# Three groups: clock, thread and message text.
+# TODO: Remove thread ID when cPyMemTrace does.
+RE_COMPILE_LOG_FILE_MSG = re.compile(r'MSG:\s+([0-9.]+)\s+(\d+) # (.+)')
 
 
 def process_file_to_log_result(file: typing.TextIO, file_size: int, recurse_log_files: bool, result: LogFileResult):

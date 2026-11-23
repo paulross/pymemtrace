@@ -7,12 +7,13 @@ import pytest
 from pymemtrace import cPyMemTrace
 from pymemtrace.util import ref_trace_analyse
 
+
 @pytest.mark.parametrize(
     'string_in, expected',
     (
             (
-                    'MSG:    16.723673 # list_of_str_and_time.pop() Length 2869519',
-                    ('16.723673', 'list_of_str_and_time.pop() Length 2869519')
+                    'MSG:    16.723673 123456 # list_of_str_and_time.pop() Length 2869519',
+                    ('16.723673', '123456', 'list_of_str_and_time.pop() Length 2869519')
             ),
     ),
 )
