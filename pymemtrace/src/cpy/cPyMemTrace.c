@@ -2133,13 +2133,26 @@ struct reference_tracing_data {
 };
 
 /**
- * A node in the linked list of \c reference_trace_allocations_data
+ * Ref Trace linked list of  Magic Number -> 'RTLL'
+ *
+ * @code
+ *  [hex(ord(v)) for v in 'RTLL']
+ *  ['0x52', '0x54', '0x4c', '0x4c']
+ * @endcode
+ */
+static const int REF_TRACE_DATA_LINKED_LIST_MAGIC_NUMBER = 0x52544c4c;
+
+/**
+ * A node in the linked list of \c reference_trace_data
+ * As this is used as an opaque pointer a magic number is included for verification.
  *
  * NOTE: Operations on this list do not manipulate the reference counts
  * of the Python objects.
  * That is up to the caller of these functions.
  */
 struct cReferenceTracingLinkedListNode {
+    /** Will be REF_TRACE_DATA_LINKED_LIST_MAGIC_NUMBER. */
+    int magic_number;
     struct reference_tracing_data *data;
     struct cReferenceTracingLinkedListNode *next;
 };
@@ -2168,6 +2181,9 @@ reference_tracing_ll_integrity(void) {
         }
         if (p_linked_list->data->magic_number != REF_TRACE_DATA_LOG_ALLOCS_MAGIC_NUMBER) {
             return -2;
+        }
+        if (p_linked_list->magic_number != REF_TRACE_DATA_LINKED_LIST_MAGIC_NUMBER) {
+            return -3;
         }
         p_linked_list = p_linked_list->next;
     }
@@ -2209,6 +2225,8 @@ reference_tracing_ll_push(struct reference_tracing_data *data) {
     struct cReferenceTracingLinkedListNode *new_node = malloc(
             sizeof(struct cReferenceTracingLinkedListNode)
     );
+    PYMEMTRACE_DASSERT(new_node);
+    new_node->magic_number = REF_TRACE_DATA_LINKED_LIST_MAGIC_NUMBER;
     new_node->data = data;
     new_node->next = NULL;
     if (reference_tracing_ll) {
