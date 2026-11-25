@@ -34,9 +34,11 @@ def reference_tracing_thread_worker(thread_name, count, min_size, max_size, resu
                 profiler.write_message_to_log(f'added item {i} at 0x{id(value):x} from thread {thread_name}')
                 l.append(value)
                 time.sleep(0.25)
+            idx = len(l) - 1
             while (l):
                 value = l.pop()
-                profiler.write_message_to_log(f'removed item {len(l) - 1} at 0x{id(value):x} from thread {thread_name}')
+                profiler.write_message_to_log(f'removed item {idx} at 0x{id(value):x} from thread {thread_name}')
+                idx -= 1
                 time.sleep(0.25)
         file.flush()
         result_dict['file_data'] = file.read()
