@@ -2331,7 +2331,6 @@ reference_tracing_ll_length(void) {
  * @param out Output stream.
  * @return The length of the linked list.
  */
-#if DEBUG && REFERENCE_TRACING_LL_DUMP
 static size_t
 reference_tracing_ll_dump(const char *prefix, FILE *out) {
     PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
@@ -2374,12 +2373,6 @@ reference_tracing_ll_dump(const char *prefix, FILE *out) {
     }
     return ret;
 }
-#else
-static size_t
-reference_tracing_ll_dump(const char *Py_UNUSED(prefix), FILE *Py_UNUSED(out)) {
-    return 0;
-}
-#endif
 
 // MARK: cpyReferenceTracing object
 
@@ -3508,7 +3501,9 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     PYMEMTRACE_DASSERT(!PyErr_Occurred());
     PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
 
+#if DEBUG && REFERENCE_TRACING_LL_DUMP
     reference_tracing_ll_dump("cpyReferenceTracing_enter() start", stdout);
+#endif
 
     // Obtain lock and thread ID.
     PyMutex mutex_lock = {0};
@@ -3614,7 +3609,9 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     Py_INCREF(self);
     PYMEMTRACE_DASSERT(!PyErr_Occurred());
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_END(self);
+#if DEBUG && REFERENCE_TRACING_LL_DUMP
     reference_tracing_ll_dump("cpyReferenceTracing_enter() complete", stdout);
+#endif
     PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
     PyMutex_Unlock(&mutex_lock);
     return (PyObject *) self;
@@ -3643,7 +3640,9 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
     PyMutex_Lock(&mutex_lock);
     tThreadID thread_id = get_current_thread_id();
 
+#if DEBUG && REFERENCE_TRACING_LL_DUMP
     reference_tracing_ll_dump("cpyReferenceTracing_exit()", stdout);
+#endif
     /* Invoke gc.collect() if required, and we DO want to trace de-allocations so,
      * we do this before de-registering the tracer. */
     if (self->gc_collect_on_exit >= 0) {
@@ -3706,7 +3705,9 @@ cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
         } else {
             PyRefTracer_SetTracer(NULL, NULL);
         }
+#if DEBUG && REFERENCE_TRACING_LL_DUMP
         reference_tracing_ll_dump("cpyReferenceTracing_exit() DONE", stdout);
+#endif
         PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
         PyMutex_Unlock(&mutex_lock);
         if (PyErr_Occurred()) {
@@ -4340,6 +4341,35 @@ reference_tracing_dict_of_live_objects(PyObject *Py_UNUSED(module)) {
     return ret;
 }
 
+/**
+ * Writes a dump of the Reference Tracing linked list to stdout.
+ *
+ * @param _unused_module
+ * @param args Can contain a single optional argument as the message.
+ *  The message to write to stdout before and after the dump.
+ * @param kwargs Optionally an argument as the "message".
+ * @return The number of characters written to stdout.
+ */
+static PyObject *
+reference_tracing_ll_dump_to_stdout(PyObject *Py_UNUSED(module), PyObject *args, PyObject *kwds) {
+    PYMEMTRACE_DASSERT(!PyErr_Occurred());
+    // Obtain lock.
+    PyMutex mutex_lock = {0};
+    PyMutex_Lock(&mutex_lock);
+    static char *kwlist[] = {"message", NULL};
+    char *message = NULL;
+    PyObject *ret = NULL;
+    if (PyArg_ParseTupleAndKeywords(args, kwds, "|s", kwlist, &message)) {
+        size_t chars_written = reference_tracing_ll_dump(message, stdout);
+        ret = Py_BuildValue("n", chars_written);
+    } else {
+        /* Argument parsing failure. */
+        PYMEMTRACE_DASSERT(PyErr_Occurred());
+    }
+    PyMutex_Unlock(&mutex_lock);
+    return ret;
+}
+
 #endif // #if REFERENCE_TRACING_AVAILABLE
 
 /**
@@ -4424,6 +4454,12 @@ static PyMethodDef cPyMemTraceMethods[] = {
                 (PyCFunction) reference_tracing_dict_of_live_objects,
                 METH_NOARGS,
                 "Return a dictionary of the count of live objects by their type name.",
+        },
+        {
+                "reference_tracing_ll_dump_to_stdout",
+                (PyCFunction) reference_tracing_ll_dump_to_stdout,
+                METH_VARARGS | METH_KEYWORDS,
+                "Writes a dump of the reference tracing linked list to stdout.",
         },
 #endif // #if REFERENCE_TRACING_AVAILABLE
         {NULL, NULL, 0, NULL}        /* Sentinel */

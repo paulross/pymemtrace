@@ -29,6 +29,10 @@ def reference_tracing_push_pop_to_list(
         object_list.append(value)
         time.sleep(0.25)
     idx = len(object_list) - 1
+    # print(f' reference_tracing_live_object_counts({thread_name}) '.center(75, '-'))
+    # pprint.pprint(cPyMemTrace.reference_tracing_live_object_counts())
+    # print(f' reference_tracing_live_object_counts({thread_name}) DONE '.center(75, '-'))
+
     while object_list:
         value = object_list.pop()
         profiler.write_message_to_log(f'removed item {idx} at 0x{id(value):x} from thread {thread_name}')
@@ -104,12 +108,17 @@ def reference_tracing_thread_worker_in_depth(
                 include_tp_names=['StringAndTime', 'datetime.datetime',]
         ) as profiler:
             assert profiler.log_file_path() == file.name
-            reference_tracing_push_pop_to_list(profiler, thread_name, count, min_size, max_size)
+            reference_tracing_push_pop_to_list(profiler, thread_name, count // 2, min_size, max_size)
             if depth > 0:
                 # Recurse...
                 reference_tracing_thread_worker_in_depth(
                     thread_name, depth - 1, count, min_size, max_size, result_dict
                 )
+            else:
+                print(' cPyMemTrace.reference_tracing_ll_dump_to_stdout() '.center(75, '-'))
+                cPyMemTrace.reference_tracing_ll_dump_to_stdout(f'{full_thread_name}')
+                print(' cPyMemTrace.reference_tracing_ll_dump_to_stdout() DONE '.center(75, '-'))
+            reference_tracing_push_pop_to_list(profiler, thread_name, count // 2, min_size, max_size)
         file.flush()
         assert f'{full_thread_name}.file_data' not in result_dict
         result_dict[f'{full_thread_name}.file_data'] = file.read()
