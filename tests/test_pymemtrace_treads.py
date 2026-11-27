@@ -29,9 +29,9 @@ def reference_tracing_push_pop_to_list(
         object_list.append(value)
         time.sleep(0.25)
     idx = len(object_list) - 1
-    # print(f' reference_tracing_live_object_counts({thread_name}) '.center(75, '-'))
-    # pprint.pprint(cPyMemTrace.reference_tracing_live_object_counts())
-    # print(f' reference_tracing_live_object_counts({thread_name}) DONE '.center(75, '-'))
+    print(f' reference_tracing_live_object_counts({thread_name}) '.center(75, '-'))
+    pprint.pprint(cPyMemTrace.reference_tracing_live_object_counts())
+    print(f' reference_tracing_live_object_counts({thread_name}) DONE '.center(75, '-'))
 
     while object_list:
         value = object_list.pop()

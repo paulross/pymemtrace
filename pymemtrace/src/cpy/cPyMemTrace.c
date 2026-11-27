@@ -2078,6 +2078,25 @@ static PyTypeObject cpyReferenceTracingSimpleType = {
 static const int REF_TRACE_DATA_LOG_ALLOCS_MAGIC_NUMBER = 0x52544c41;
 
 /**
+ * Ref Trace hash table of allocations Magic Number -> 'RTHT'
+ *
+ * @code
+ *  [hex(ord(v)) for v in 'RTHT']
+ *  ['0x52', '0x54', '0x48', '0x54']
+ * @endcode
+ */
+static const int REF_TRACE_DATA_LOG_ALLOCS_HASH_TABLE_VALUE_MAGIC_NUMBER = 0x52544854;
+
+struct ReferenceTracingHashTableValue {
+    /** Should be REF_TRACE_DATA_LOG_ALLOCS_HASH_TABLE_VALUE_MAGIC_NUMBER */
+    int magic_number;
+    /** Count of all allocations of this type. */
+    long count_allocs;
+    /** Count of allocations currently live of this type. */
+    long count_live;
+};
+
+/**
  *
  * Created by Paul Ross on 2026-03-11.
  * This contains the Python interface to the C reference tracer for Python 3.13+.
@@ -2128,8 +2147,8 @@ struct reference_tracing_data {
     PyObject *include_tp_names;
     /** The log file name. */
     char *log_file_name;
-    /** Hash table that maps {type_name : current_live_count, ...} */
-    ht* types_live_count;// = ht_create();
+    /** Hash table that maps {type_name : ReferenceTracingHashTableValue, ...} */
+    ht* types_hash_table;// = ht_create();
 };
 
 /**
@@ -2808,18 +2827,26 @@ increment_types_live_count(struct reference_tracing_data *data, PyObject *obj, i
     PYMEMTRACE_DASSERT(data);
     PYMEMTRACE_DASSERT(obj);
     const int ERROR_CODE = -1;
-    void *current_types_live_count = ht_get(data->types_live_count, Py_TYPE(obj)->tp_name);
-    if (current_types_live_count != NULL) {
+    void *types_value = ht_get(data->types_hash_table, Py_TYPE(obj)->tp_name);
+
+    struct ReferenceTracingHashTableValue *types_value_alias = NULL;
+    if (types_value != NULL) {
+        types_value_alias = types_value;
+        PYMEMTRACE_DASSERT(types_value_alias->magic_number == REF_TRACE_DATA_LOG_ALLOCS_HASH_TABLE_VALUE_MAGIC_NUMBER);
         /* Increment existing value. */
-        long *pcount = (long *)current_types_live_count;
-        *pcount += delta;
+        types_value_alias->count_live += delta;
+        if (delta > 0) {
+            types_value_alias->count_allocs += delta;
+        }
     } else {
-        long *pcount = malloc(sizeof(long));
-        if (pcount == NULL) {
+        types_value_alias = malloc(sizeof(struct ReferenceTracingHashTableValue));
+        if (types_value_alias == NULL) {
             return ERROR_CODE;
         }
-        *pcount = delta;
-        if (ht_set(data->types_live_count, Py_TYPE(obj)->tp_name, pcount) == NULL) {
+        types_value_alias->magic_number = REF_TRACE_DATA_LOG_ALLOCS_HASH_TABLE_VALUE_MAGIC_NUMBER;
+        types_value_alias->count_live = delta;
+        types_value_alias->count_allocs = delta;
+        if (ht_set(data->types_hash_table, Py_TYPE(obj)->tp_name, types_value_alias) == NULL) {
             return ERROR_CODE;
         }
     }
@@ -2876,8 +2903,9 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     // Obtain lock and thread ID.
     PyMutex mutex_lock = {0};
     PyMutex_Lock(&mutex_lock);
+    /* Every return must now invoke PyMutex_Unlock(&mutex_lock); */
     tThreadID thread_id = get_current_thread_id();
-    /* Every return must invoke PyMutex_Unlock(&mutex_lock); */
+    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
 
     struct cReferenceTracingLinkedListNode *ll_alias = (struct cReferenceTracingLinkedListNode *) data;
     /* This is a safety test to see if the
@@ -3078,21 +3106,26 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
              );
 #else
     /* Get the count of live types. */
-    void *count_of_current_type = ht_get(data_alias->types_live_count, Py_TYPE(obj)->tp_name);
-    PYMEMTRACE_DASSERT(count_of_current_type);
+    void *type_hash_table_entry = ht_get(data_alias->types_hash_table, Py_TYPE(obj)->tp_name);
+    PYMEMTRACE_DASSERT(type_hash_table_entry);
+    struct ReferenceTracingHashTableValue *type_hash_table_entry_alias = type_hash_table_entry;
+    PYMEMTRACE_DASSERT(
+            type_hash_table_entry_alias->magic_number == REF_TRACE_DATA_LOG_ALLOCS_HASH_TABLE_VALUE_MAGIC_NUMBER
+            );
 
     // Should match:
-    //     fprintf(self->data->log_file, "HDR: %12s %10s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-    //            "Clock", "Thread", "Address", "LiveCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    //     fprintf(self->data->log_file, "HDR: %12s %10s %16s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
+    //            "Clock", "Thread", "Address", "TotalCnt", "LiveCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
     //    );
 #if REFERENCE_TRACING_TRACE_FILE_INCLUDE_THREAD_ID
     snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             " %12.6f %10ld %16p %16ld %-32s %-80s %4d %-40s %16zd %16ld",
+             " %12.6f %10ld %16p %16ld %16ld %-32s %-80s %4d %-40s %16zd %16ld",
              clock_time,
              get_current_thread_id(),
              (void *) obj,
 //             Py_REFCNT(obj),
-             *(long *)count_of_current_type,
+             type_hash_table_entry_alias->count_allocs,
+             type_hash_table_entry_alias->count_live,
              Py_TYPE(obj)->tp_name,
              py_frame_get_python_file_name(frame),
              py_frame_get_line_number(frame),
@@ -3101,12 +3134,17 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
              d_rss
     );
 #else
+    // Should match:
+    //     fprintf(self->data->log_file, "HDR: %12s %16s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
+    //            "Clock", "Address", "TotalCnt", "LiveCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    //    );
     snprintf(reference_tracing_event_text, PY_MEM_TRACE_EVENT_TEXT_MAX_LENGTH,
-             " %12.6f %16p %16ld %-32s %-80s %4d %-40s %16zd %16ld",
+             " %12.6f %16p %16ld %16ld %-32s %-80s %4d %-40s %16zd %16ld",
              clock_time,
              (void *) obj,
 //             Py_REFCNT(obj),
-             *(long *)count_of_current_type,
+             type_hash_table_entry_alias->count_allocs,
+             type_hash_table_entry_alias->count_live,
              Py_TYPE(obj)->tp_name,
              py_frame_get_python_file_name(frame),
              py_frame_get_line_number(frame),
@@ -3186,9 +3224,9 @@ cpyReferenceTracing_dealloc(cpyReferenceTracing *self) {
         self->data->include_tp_names = NULL;
         free(self->data->log_file_name);
         self->data->log_file_name = NULL;
-        if (self->data->types_live_count != NULL) {
-            ht_destroy(self->data->types_live_count);
-            self->data->types_live_count = NULL;
+        if (self->data->types_hash_table != NULL) {
+            ht_destroy(self->data->types_hash_table);
+            self->data->types_hash_table = NULL;
         }
         free(self->data);
         self->data = NULL;
@@ -3230,7 +3268,7 @@ cpyReferenceTracing_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject 
         self->data->exclude_tp_names = NULL;
         self->data->include_tp_names = NULL;
         self->data->log_file_name = NULL;
-        self->data->types_live_count = NULL;
+        self->data->types_hash_table = NULL;
         self->py_specific_filename = NULL;
         self->message = NULL;
         /* Default to a full gc.collect() */
@@ -3252,9 +3290,9 @@ cpyReferenceTracing_init_cleanup(cpyReferenceTracing *self) {
         self->data->exclude_tp_names = NULL;
         Py_XDECREF(self->data->include_tp_names);
         self->data->include_tp_names = NULL;
-        if (self->data->types_live_count) {
-            ht_destroy(self->data->types_live_count);
-            self->data->types_live_count = NULL;
+        if (self->data->types_hash_table) {
+            ht_destroy(self->data->types_hash_table);
+            self->data->types_hash_table = NULL;
         }
         free(self->data->log_file_name);
         self->data->log_file_name = NULL;
@@ -3365,8 +3403,8 @@ cpyReferenceTracing_init(cpyReferenceTracing *self, PyObject *args, PyObject *kw
         cpyReferenceTracing_init_cleanup(self);
         return -5;
     }
-    self->data->types_live_count = ht_create();
-    if (self->data->types_live_count == NULL) {
+    self->data->types_hash_table = ht_create();
+    if (self->data->types_hash_table == NULL) {
         PyErr_SetString(PyExc_MemoryError, "Can not allocate hash table of types count.");
         cpyReferenceTracing_init_cleanup(self);
         return -6;
@@ -3499,7 +3537,6 @@ static PyObject *
 cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
     PYMEMTRACE_DASSERT(!PyErr_Occurred());
-    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
 
 #if DEBUG && REFERENCE_TRACING_LL_DUMP
     reference_tracing_ll_dump("cpyReferenceTracing_enter() start", stdout);
@@ -3508,6 +3545,7 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     // Obtain lock and thread ID.
     PyMutex mutex_lock = {0};
     PyMutex_Lock(&mutex_lock);
+    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
     tThreadID thread_id = get_current_thread_id();
 
     static char file_path_buffer[PYMEMTRACE_PATH_NAME_MAX_LENGTH + 1];
@@ -3579,22 +3617,22 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
     fputc('\n', self->data->log_file);
 #if REFERENCE_TRACING_GET_SIZEOF
 #if REFERENCE_TRACING_TRACE_FILE_INCLUDE_THREAD_ID
-    fprintf(self->data->log_file, "HDR: %12s %10s %16s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-        "Clock", "Thread", "Address", "LiveCnt", "Sizeof", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    fprintf(self->data->log_file, "HDR: %12s %10s %16s %16s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
+        "Clock", "Thread", "Address", "TotalCnt", "LiveCnt", "Sizeof", "Type", "File", "Line", "Function", "RSS", "dRSS"
     );
 #else
-    fprintf(self->data->log_file, "HDR: %12s %16s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-        "Clock", "Address", "LiveCnt", "Sizeof", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    fprintf(self->data->log_file, "HDR: %12s %16s %16s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
+        "Clock", "Address", "TotalCnt", "LiveCnt", "Sizeof", "Type", "File", "Line", "Function", "RSS", "dRSS"
     );
 #endif
 #else
 #if REFERENCE_TRACING_TRACE_FILE_INCLUDE_THREAD_ID
-    fprintf(self->data->log_file, "HDR: %12s %10s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-            "Clock", "Thread", "Address", "LiveCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    fprintf(self->data->log_file, "HDR: %12s %10s %16s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
+            "Clock", "Thread", "Address", "TotalCnt", "LiveCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
     );
 #else
-    fprintf(self->data->log_file, "HDR: %12s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
-            "Clock", "Address", "LiveCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
+    fprintf(self->data->log_file, "HDR: %12s %16s %16s %16s %-32s %-80s %4s %-40s %16s %16s\n",
+            "Clock", "Address", "TotalCnt", "LiveCnt", "Type", "File", "Line", "Function", "RSS", "dRSS"
     );
 #endif
 #endif // REFERENCE_TRACING_GET_SIZEOF
@@ -3632,12 +3670,12 @@ cpyReferenceTracing_enter(cpyReferenceTracing *self) {
 static PyObject *
 cpyReferenceTracing_exit(cpyReferenceTracing *self, PyObject *Py_UNUSED(args)) {
     TRACE_TRACE_FILE_WRAPPER_REFCNT_SELF_BEG(self);
-    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
     /* NOTE: No PYMEMTRACE_DASSERT(!PyErr_Occurred()); as an exception might have been set by the users code. */
 
     // Obtain lock and thread ID.
     PyMutex mutex_lock = {0};
     PyMutex_Lock(&mutex_lock);
+    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
     tThreadID thread_id = get_current_thread_id();
 
 #if DEBUG && REFERENCE_TRACING_LL_DUMP
@@ -3776,10 +3814,11 @@ cpyReferenceTracing_suspend(void) {
     PyRefTracer tracer_callback_old = PyRefTracer_GetTracer(&data_old);
     /* Sanity check. */
     PYMEMTRACE_DASSERT(data_old);
-    if (data_old != data) {
+    if (data_old != reference_tracing_ll) {
         PyErr_Format(
                 PyExc_RuntimeError,
-                "%s()#%d Head of list tracer does not match the registered one.", __func__, __LINE__
+                "%s()#%d Head of list tracer does not match the registered one %p != %p.",
+                __func__, __LINE__, (void *)data_old, (void *) reference_tracing_ll
         );
         PyMutex_Unlock(&mutex_lock);
         return NULL;
@@ -3935,10 +3974,12 @@ cpyReferenceTracing_dict_of_live_objects_private(struct reference_tracing_data *
         return NULL;
     }
     /* Iterate through the hash table. */
-    hti iterator = ht_iterator(data->types_live_count);
+    hti iterator = ht_iterator(data->types_hash_table);
     PyObject *val = NULL;
     while (ht_next(&iterator)) {
-        val = PyLong_FromLong(*(long *)iterator.value);
+        struct ReferenceTracingHashTableValue *value = iterator.value;
+        PYMEMTRACE_DASSERT(value->magic_number == REF_TRACE_DATA_LOG_ALLOCS_HASH_TABLE_VALUE_MAGIC_NUMBER);
+        val = Py_BuildValue("ll", value->count_allocs, value->count_live);
         if (PyDict_SetItemString(ret, iterator.key, val)) {
             PyErr_Format(
                     PyExc_MemoryError,
@@ -3948,6 +3989,7 @@ cpyReferenceTracing_dict_of_live_objects_private(struct reference_tracing_data *
             Py_DECREF(val);
             return NULL;
         }
+        Py_DECREF(val);
     }
     return ret;
 }
@@ -4312,7 +4354,7 @@ reference_tracing_write_message_to_log(PyObject *Py_UNUSED(module), PyObject *py
 }
 
 /**
- * Returns a Python dictionary of live objects for the current thread.
+ * Return a dictionary of the counts as aa tuple of: (total allocations, live objects) by their type name.
  *
  * @param _unused_module
  * @return A Python dictionary of live objects for the current thread.
@@ -4356,6 +4398,8 @@ reference_tracing_ll_dump_to_stdout(PyObject *Py_UNUSED(module), PyObject *args,
     // Obtain lock.
     PyMutex mutex_lock = {0};
     PyMutex_Lock(&mutex_lock);
+    PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
+
     static char *kwlist[] = {"message", NULL};
     char *message = NULL;
     PyObject *ret = NULL;
@@ -4453,7 +4497,7 @@ static PyMethodDef cPyMemTraceMethods[] = {
                 "reference_tracing_live_object_counts",
                 (PyCFunction) reference_tracing_dict_of_live_objects,
                 METH_NOARGS,
-                "Return a dictionary of the count of live objects by their type name.",
+                "Return a dictionary of the counts as aa tuple of: (total allocations, live objects) by their type name.",
         },
         {
                 "reference_tracing_ll_dump_to_stdout",

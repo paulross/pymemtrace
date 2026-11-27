@@ -66,6 +66,7 @@ def test_module_dir_post_313():
         'profile_wrapper_depth',
         'profile_write_message_to_log',
         'reference_tracing_live_object_counts',
+        'reference_tracing_ll_dump_to_stdout',
         'reference_tracing_log_path',
         'reference_tracing_simple_wrapper_depth',
         'reference_tracing_wrapper_depth',
