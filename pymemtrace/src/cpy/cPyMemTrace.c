@@ -2181,6 +2181,7 @@ struct cReferenceTracingLinkedListNode {
  */
 static struct cReferenceTracingLinkedListNode *reference_tracing_ll = NULL;
 
+#ifdef DEBUG
 /**
  * Checks the integrity of the linked list.
  *
@@ -2208,6 +2209,7 @@ reference_tracing_ll_integrity(void) {
     }
     return 0;
 }
+#endif
 
 /**
  * Get the head of the Reference Tracing linked list as a struct reference_tracing_data.
@@ -2871,8 +2873,13 @@ increment_types_live_count(struct reference_tracing_data *data, PyObject *obj, i
  *  A cursory look at <tt>#define _PyReftracerTrack(obj, operation)</tt> in
  *  <tt>Include/internal/pycore_object.h</tt> shows the return value is ignored.
  */
+#ifdef DEBUG
 static int
 reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void *data) {
+#else
+static int
+reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void *Py_UNUSED(data)) {
+#endif
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13 && PY_MINOR_VERSION < 15
     PYMEMTRACE_DASSERT(event == PyRefTracer_CREATE || event == PyRefTracer_DESTROY);
 #endif
@@ -2907,7 +2914,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     tThreadID thread_id = get_current_thread_id();
     PYMEMTRACE_DASSERT(reference_tracing_ll_integrity() == 0);
 
-    struct cReferenceTracingLinkedListNode *ll_alias = (struct cReferenceTracingLinkedListNode *) data;
+//    struct cReferenceTracingLinkedListNode *ll_alias = (struct cReferenceTracingLinkedListNode *) data;
     /* This is a safety test to see if the
      * data structure matches what we expect.
      * We can't set an exception
@@ -2916,7 +2923,10 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
      * code as it appears to be ignored (see above).
      * So we limit ourselves to an assert.
      * Alternatives would be to call abort() or exit(). */
-    PYMEMTRACE_DASSERT(ll_alias->magic_number == REF_TRACE_DATA_LINKED_LIST_MAGIC_NUMBER);
+    PYMEMTRACE_DASSERT(
+        (
+            (struct cReferenceTracingLinkedListNode *) data)->magic_number == REF_TRACE_DATA_LINKED_LIST_MAGIC_NUMBER
+    );
 
     /* Get the data block. */
     struct reference_tracing_data *data_alias = reference_tracing_ll_get_data(thread_id);
@@ -2964,7 +2974,7 @@ reference_trace_allocations_callback(PyObject *obj, PyRefTracerEvent event, void
     PyRefTracer tracer_old = PyRefTracer_GetTracer(&data_old);
     /* Sanity check. */
     PYMEMTRACE_DASSERT(data_old);
-    PYMEMTRACE_DASSERT(data_old == ll_alias);
+    PYMEMTRACE_DASSERT(data_old == data);
     PYMEMTRACE_DASSERT(tracer_old);
     PYMEMTRACE_DASSERT(tracer_old == &reference_trace_allocations_callback);
     if (PyRefTracer_SetTracer(NULL, NULL)) {
